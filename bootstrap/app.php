@@ -11,6 +11,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'user' => \App\Http\Middleware\UserMiddleware::class,
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'auth.otp' => \App\Http\Middleware\EnsureGoogleSession::class
+        ]);
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
