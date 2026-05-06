@@ -2,5 +2,6 @@
     "agents": [
         "junie"
     ],
+    "cloud": false,
     "guidelines": true
 }

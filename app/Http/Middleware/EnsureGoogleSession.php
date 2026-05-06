@@ -16,7 +16,7 @@ class EnsureGoogleSession
     public function handle(Request $request, Closure $next): Response
     {
         if (!session('google_user')) {
-            return redirect()->route('login');
+            return redirect()->route('user.login');
         }
 
         // If trying to access complete-profile without OTP verified

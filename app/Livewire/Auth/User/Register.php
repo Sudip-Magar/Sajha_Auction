@@ -2,27 +2,32 @@
 
 namespace App\Livewire\Auth\User;
 
-use Laravel\Socialite\Facades\Socialite;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 #[Layout('layouts.auth')]
 class Register extends Component
 {
-    public function googleAuth()
-    {
-        return redirect()->route('auth.google.redirect');
-    }
+    public $email = '';
+    // public bool $term = false;
 
-    public function callback()
+    public function verifyEmail()
     {
-        try {
-            $user = Socialite::driver('google')->user();
-            dd($user);
-        } catch (\Exception $e) {
-            return $this->redirect('/')->with('error', $e->getMessage());
+        $this->validate([
+            'email' => 'required|email',
+        ]);
 
-        }
+        session([
+            'google_user' => [
+                'google_id' => null,
+                'name'  => null,
+                'email' => $this->email,
+                'avatar' => null,
+                'phone'  => null,
+            ],
+            'otp_verified' => false,
+        ]);
+        return redirect()->route('verify.otp',);
     }
 
     public function render()

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Auth\User;
 
+use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 
@@ -9,7 +10,7 @@ class VerifyOtp extends Component
 {
     public string $otp        = '';
     public string $email      = '';
-    public string $name       = '';
+    public ?string $name      = null;
     public bool   $otpSent    = false;
     public string $message    = '';
     public bool   $isError    = false;
@@ -25,19 +26,38 @@ class VerifyOtp extends Component
         }
 
         $this->email = $googleUser['email'];
-        $this->name  = $googleUser['name'];
+        $this->name  = $googleUser['name'] ?? null;
 
-        // Auto-send OTP on page load
-        $this->sendOtp();
+        $lastSent = session('otp_sent_at');
+        if ($lastSent && !is_numeric($lastSent)) {
+            $lastSent = strtotime($lastSent);
+        }
+
+        if (!$lastSent || (time() - $lastSent) >= 30) {
+            $this->sendOtp();
+        } else {
+            $this->countdown = 30 - (time() - $lastSent);
+        }
     }
 
     public function sendOtp(): void
     {
+        $lastSent = session('otp_sent_at');
+        if ($lastSent && !is_numeric($lastSent)) {
+            $lastSent = strtotime($lastSent);
+        }
+
+        if ($lastSent && (time() - $lastSent) < 30) {
+            $this->setError('Please wait before resending.');
+            return;
+        }
+
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         session([
             'otp_code'       => bcrypt($code),
             'otp_expires_at' => now()->addMinutes(10),
+            'otp_sent_at'    => time(),
         ]);
 
         Mail::to($this->email)->send(new OtpMail($code, $this->name));
@@ -45,9 +65,17 @@ class VerifyOtp extends Component
         $this->otpSent   = true;
         $this->message   = "A 6-digit code was sent to {$this->email}";
         $this->isError   = false;
-        $this->countdown = 60;
+        $this->countdown = 30;
 
         $this->dispatch('start-countdown');
+    }
+
+    public function updatedOtp($value)
+    {
+        // Auto-verify when 6 digits are entered
+        if (strlen($value) === 6) {
+            $this->verifyOtp();
+        }
     }
 
     public function verifyOtp(): void

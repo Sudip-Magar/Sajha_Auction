@@ -17,18 +17,24 @@ class GoogleAuthController extends Controller
     public function callback()
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $guzzleClient = new \GuzzleHttp\Client(['verify' => false]);
+            
+            /** @var \Laravel\Socialite\Two\AbstractProvider $driver */
+            $driver = Socialite::driver('google');
+            
+            $googleUser = $driver->setHttpClient($guzzleClient)->user();
         } catch (\Exception $e) {
-            return redirect()->route('login')->with('error', 'Google authentication failed.');
+            \Log::error('Google Auth Error: ' . $e->getMessage());
+            return redirect()->route('user.login')->with('error', 'Google authentication failed.');
         }
 
         // Store raw google data in session — Livewire takes it from here
         session([
             'google_user' => [
-                'google_id' => $googleUser->getId(),
-                'name' => $googleUser->getName(),
-                'email' => $googleUser->getEmail(),
-                'avatar' => $googleUser->getAvatar(),
+                'google_id' => $googleUser->getId() ?? '',
+                'name' => $googleUser->getName() ?? '',
+                'email' => $googleUser->getEmail() ?? '',
+                'avatar' => $googleUser->getAvatar() ?? '',
                 // Google OAuth doesn't return phone by default; store null
                 'phone' => $googleUser->user['phone_number'] ?? null,
             ],
