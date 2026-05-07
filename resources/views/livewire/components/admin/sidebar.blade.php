@@ -82,8 +82,8 @@
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Auctions</span>
             </a>
 
-            <a href="#" x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group hover:bg-gray-800 hover:text-white">
+            <a href="{{ route('admin.category-setup') }}" x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
+               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group hover:bg-gray-800 hover:text-white {{ request()->routeIs('admin.category-setup') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}">
                 <x-icon name="o-tag" class="w-5 h-5 shrink-0 text-gray-500 group-hover:text-[#2FA084]" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Categories</span>
             </a>
