@@ -12,6 +12,7 @@
     </head>
     <body>
         {{ $slot }}
+        <x-toast />
         @livewireScripts
     </body>
 </html>

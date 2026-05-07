@@ -20,10 +20,13 @@ return new class extends Migration
             $table->string('phone')->nullable();
             $table->date('date_of_birth')->nullable();
             $table->string('gender')->nullable();
+            $table->boolean('is_seller')->default(false);
             $table->string('password');
             $table->boolean('is_verified')->default(false);
             $table->string('avatar')->nullable();
             $table->text('bio')->nullable();
+            $table->string('status');
+            $table->rememberToken();
             $table->timestamps();
         });
 

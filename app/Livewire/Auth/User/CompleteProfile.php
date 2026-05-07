@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Auth\User;
 
+use App\Enums\GenderState;
+use App\Enums\StatusState;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -11,10 +13,11 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\WithFileUploads;
+use Mary\Traits\Toast;
 
 class CompleteProfile extends Component
 {
-    use WithFileUploads;
+    use Toast, WithFileUploads;
 
     public string $name = '';
 
@@ -37,9 +40,17 @@ class CompleteProfile extends Component
     public $password = '';
 
     public $confirm_password = '';
+    public bool $is_seller = false;
+    public $genderStates = [];
 
     public function mount(): void
     {
+        if (Auth::guard('web')->check()) {
+            $this->redirect(route('dashboard'), navigate: true);
+        }
+
+        $this->genderStates = backedEnumAsArray(GenderState::cases());
+
         $googleUser = session('google_user');
         $verified = session('otp_verified');
         if (! $googleUser || ! $verified) {
@@ -60,9 +71,9 @@ class CompleteProfile extends Component
             'name' => 'required|string|max:255',
             'username' => ['required', 'string', 'max:30', 'alpha_dash', Rule::unique('users', 'username')],
             'email' => 'required|email|unique:users,email',
-            'phone' => 'required|integer|max:10|min:10',
+            'phone' => 'required|numeric|digits:10',
             'date_of_birth' => 'required|date|before:today',
-            'gender' => 'required|in:male,female,non_binary,prefer_not_to_say',
+            'gender' => 'required',
             'bio' => 'nullable|string|max:500',
             'avatarFile' => 'nullable|image|max:2048',
             'password' => [
@@ -80,9 +91,8 @@ class CompleteProfile extends Component
         ],
             [
                 'phone.required' => 'Phone Number is required',
-                'phone.integer' => 'Invalid Phone Number',
-                'phone.max' => 'Invalid Phone Number',
-                'phone.min' => 'Invalid Phone Number',
+                'phone.numeric' => 'Invalid Phone Number',
+                'phone.digits' => 'Invalid Phone Number',
                 'date_of_birth.required' => 'Date of Birth is required',
                 'date_of_birth.date' => 'Invalid Date of Birth',
                 'date_of_birth.before' => 'Invalid Date of Birth',
@@ -135,12 +145,16 @@ class CompleteProfile extends Component
                 'is_verified' => true,
                 'avatar' => $avatarPath,
                 'bio' => $this->bio ?: null,
+                'is_seller' => $this->is_seller,
+                'status' => StatusState::ACTIVE->name,
             ]
         );
 
         session()->forget(['google_user', 'otp_verified']);
 
         Auth::login($user, remember: true);
+
+        $this->success('Profile completed successfully! Welcome to Sajha Auction.', position: 'toast-bottom');
 
         $this->redirect(route('dashboard'), navigate: true);
     }

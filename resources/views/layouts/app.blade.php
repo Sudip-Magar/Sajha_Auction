@@ -11,8 +11,12 @@
         @livewireStyles
     </head>
     <body>
+        <livewire:components.user.navbar />
         {{ $slot }}
 
+        <livewire:components.user.footer />
+
+        <x-toast />
         @livewireScripts
     </body>
 </html>
