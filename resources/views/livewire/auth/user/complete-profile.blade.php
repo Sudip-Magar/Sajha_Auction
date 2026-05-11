@@ -3,11 +3,11 @@
 
         {{-- Main 2-column layout --}}
         <div class="flex flex-col lg:flex-row">
-            
+
             {{-- LEFT COLUMN: Summary + Avatar --}}
             <div class="w-full lg:w-[320px] bg-linear-to-br from-[#1F6F5F] to-[#2FA084] p-8 text-white flex flex-col justify-center relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                
+
                 <div class="relative z-10 text-center lg:text-left mb-8">
                     <h1 class="text-3xl font-black tracking-tight leading-tight">Complete Profile</h1>
                     <p class="text-white/70 text-sm mt-2 font-medium">Almost there! We just need a few more details.</p>
@@ -28,10 +28,10 @@
                         </label>
                         <input type="file" accept="image/*" wire:model.live="avatarFile" class="hidden" id="avatarUpload">
                     </div>
-                    
+
                     <h3 class="font-bold text-white text-lg truncate">{{ $name ?: 'New User' }}</h3>
                     <p class="text-white/60 text-xs truncate mb-4">{{ $email }}</p>
-                    
+
                     <div class="flex items-center justify-center gap-2 text-[10px] font-black tracking-widest uppercase bg-white/10 py-2 rounded-lg border border-white/10">
                         <x-icon name="o-check-badge" class="w-3 h-3 text-green-300" /> Identity Verified
                     </div>
@@ -50,7 +50,7 @@
                     {{-- Row 2: Contact & Demographics --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <x-input label="Phone Number" wire:model="phone" type="number" icon="o-phone" placeholder="98XXXXXXXX" class="bg-gray-50/50 border-gray-200 no-spinner" />
-                        <x-input label="Date of Birth" wire:model="date_of_birth" type="date" icon="o-calendar" class="bg-gray-50/50 border-gray-200" />
+                        <x-input label="Date of Birth" wire:model="date_of_birth_en" type="date" icon="o-calendar" class="bg-gray-50/50 border-gray-200" />
                     </div>
 
                     {{-- Row 3: Bio & Gender --}}
@@ -108,11 +108,11 @@
 
                     {{-- Action Button --}}
                     <div class="pt-2">
-                        <x-button 
-                            label="Finalize Account" 
-                            wire:click="register" 
-                            spinner="register" 
-                            class="w-full bg-linear-to-r from-[#1F6F5F] to-[#2FA084] hover:shadow-lg hover:shadow-[#2FA084]/30 text-white border-none h-14 rounded-2xl font-black text-lg transition-all transform hover:-translate-y-0.5" 
+                        <x-button
+                            label="Finalize Account"
+                            wire:click="register"
+                            spinner="register"
+                            class="w-full bg-linear-to-r from-[#1F6F5F] to-[#2FA084] hover:shadow-lg hover:shadow-[#2FA084]/30 text-white border-none h-14 rounded-2xl font-black text-lg transition-all transform hover:-translate-y-0.5"
                         />
                     </div>
                 </div>

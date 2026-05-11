@@ -1,4 +1,4 @@
-<nav x-data="{ mobileMenuOpen: false, userDropdownOpen: false }" 
+<nav x-data="{ mobileMenuOpen: false, userDropdownOpen: false }"
      class="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
     <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-15">
@@ -28,7 +28,7 @@
                     How it Works
                     <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#2FA084] transition-all duration-300 group-hover:w-full"></span>
                 </a>
-                @if (Auth::user()->is_seller)
+                @if (Auth::user() && Auth::user()->is_seller)
                     <a href="#" class="text-sm font-semibold text-gray-600 hover:text-[#2FA084] transition-colors relative group">
                     Sell Product
                     <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#2FA084] transition-all duration-300 group-hover:w-full"></span>
@@ -49,7 +49,7 @@
 
                 @auth
                     <div class="relative" @click.away="userDropdownOpen = false">
-                        <button @click="userDropdownOpen = !userDropdownOpen" 
+                        <button @click="userDropdownOpen = !userDropdownOpen"
                                 class="flex items-center space-x-3 p-1.5 rounded-xl cursor-pointer hover:bg-gray-50 transition-all duration-300 focus:outline-none">
                             <div class="text-right mr-2 hidden lg:block">
                                 <p class="text-sm font-bold text-gray-900 leading-none">{{ auth()->user()->name }}</p>
@@ -68,7 +68,7 @@
                         </button>
 
                         <!-- User Dropdown Menu -->
-                        <div x-show="userDropdownOpen" 
+                        <div x-show="userDropdownOpen"
                              x-transition:enter="transition ease-out duration-200"
                              x-transition:enter-start="opacity-0 scale-95 translate-y-2"
                              x-transition:enter-end="opacity-100 scale-100 translate-y-0"
@@ -104,7 +104,7 @@
 
             <!-- Mobile Menu Button -->
             <div class="md:hidden flex items-center">
-                <button @click="mobileMenuOpen = !mobileMenuOpen" 
+                <button @click="mobileMenuOpen = !mobileMenuOpen"
                         class="p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all duration-300 focus:outline-none">
                     <x-icon name="o-bars-3-bottom-right" x-show="!mobileMenuOpen" class="w-7 h-7" />
                     <x-icon name="o-x-mark" x-show="mobileMenuOpen" class="w-7 h-7" style="display: none;" />
@@ -114,7 +114,7 @@
     </div>
 
     <!-- Mobile Menu -->
-    <div x-show="mobileMenuOpen" 
+    <div x-show="mobileMenuOpen"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 -translate-y-4"
          x-transition:enter-end="opacity-100 translate-y-0"
@@ -133,7 +133,7 @@
             <a href="#" class="block px-4 py-3 rounded-xl text-base font-bold text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
                 How it Works
             </a>
-            
+
             @guest
                 <div class="pt-4 grid grid-cols-2 gap-3">
                     <a href="{{ route('user.login') }}" wire:navigate class="flex items-center justify-center px-4 py-3 rounded-xl text-sm font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-all">

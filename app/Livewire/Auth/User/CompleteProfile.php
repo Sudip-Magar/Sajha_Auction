@@ -4,7 +4,9 @@ namespace App\Livewire\Auth\User;
 
 use App\Enums\GenderState;
 use App\Enums\StatusState;
+use App\Models\Admin;
 use App\Models\User;
+use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -31,7 +33,7 @@ class CompleteProfile extends Component
 
     public $phone = null;
 
-    public string $date_of_birth = '';
+    public string $date_of_birth_en = '';
 
     public string $gender = '';
 
@@ -72,7 +74,7 @@ class CompleteProfile extends Component
             'username' => ['required', 'string', 'max:30', 'alpha_dash', Rule::unique('users', 'username')],
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|numeric|digits:10',
-            'date_of_birth' => 'required|date|before:today',
+            'date_of_birth_en' => 'required|date|before:today',
             'gender' => 'required',
             'bio' => 'nullable|string|max:500',
             'avatarFile' => 'nullable|image|max:2048',
@@ -93,9 +95,9 @@ class CompleteProfile extends Component
                 'phone.required' => 'Phone Number is required',
                 'phone.numeric' => 'Invalid Phone Number',
                 'phone.digits' => 'Invalid Phone Number',
-                'date_of_birth.required' => 'Date of Birth is required',
-                'date_of_birth.date' => 'Invalid Date of Birth',
-                'date_of_birth.before' => 'Invalid Date of Birth',
+                'date_of_birth_en.required' => 'Date of Birth is required',
+                'date_of_birth_en.date' => 'Invalid Date of Birth',
+                'date_of_birth_en.before' => 'Invalid Date of Birth',
                 'gender.required' => 'Gender is required',
                 'gender.in' => 'Invalid Gender',
                 'bio.required' => 'Bio is required',
@@ -139,16 +141,23 @@ class CompleteProfile extends Component
                 'email' => $this->email,
                 'username' => $this->username,
                 'phone' => $this->phone ?: null,
-                'date_of_birth' => $this->date_of_birth ?: null,
+                'date_of_birth_en' => $this->date_of_birth_en ?: null,
                 'gender' => $this->gender ?: null,
                 'password' => $hashPassword,
                 'is_verified' => true,
                 'avatar' => $avatarPath,
                 'bio' => $this->bio ?: null,
-                'is_seller' => $this->is_seller,
+                'is_seller' => false,
                 'status' => StatusState::ACTIVE->name,
             ]
         );
+
+        if($this->is_seller === true){
+            $admins = Admin::get();
+            foreach ($admins as $admin){
+                $admin->notify( new SellerRegisteredNotification($user));
+            }
+        }
 
         session()->forget(['google_user', 'otp_verified']);
 

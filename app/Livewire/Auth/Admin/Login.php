@@ -47,7 +47,7 @@ class Login extends Component
 
         $this->success('Welcome back! You have logged in successfully.', position: 'toast-bottom');
 
-        $this->redirect(route('admin.dashboard'), navigate: true);
+        return redirect()->route('admin.dashboard');
     }
 
     public function render()

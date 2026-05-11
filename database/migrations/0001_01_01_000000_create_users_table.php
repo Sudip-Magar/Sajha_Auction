@@ -18,7 +18,8 @@ return new class extends Migration
             $table->string('email');
             $table->string('username')->nullable()->unique();
             $table->string('phone')->nullable();
-            $table->date('date_of_birth')->nullable();
+            $table->date('date_of_birth_en')->nullable();
+            $table->string('daate_of_birth_np')->nullable();
             $table->string('gender')->nullable();
             $table->boolean('is_seller')->default(false);
             $table->string('password');
