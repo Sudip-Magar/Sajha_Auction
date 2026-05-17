@@ -3,62 +3,55 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class SellerRegisteredNotification extends Notification
+class SellerRegisteredNotification extends Notification implements ShouldBroadcastNow
 {
     use Queueable;
-    protected  $user;
 
-    /**
-     * Create a new notification instance.
-     */
+    protected $user;
+
     public function __construct($user)
     {
         $this->user = $user;
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
-//        return ['mail'];
-        return ['database'];
+        return ['database', 'broadcast']; // both persist + real-time
     }
-
-    /**
-     * Get the mail representation of the notification.
-     */
 
     public function toDatabase($notifiable): array
     {
         return [
-            'message' => $this->user->name . ' wants to registered as a seller',
-            'user_id' => $this->user->id
+            'message' => $this->user->name.' wants to register as a seller',
+            'user_id' => $this->user->id,
+            'user_name' => $this->user->name,
+            'user_avatar' => $this->user->avatar,
         ];
     }
-//    public function toMail(object $notifiable): MailMessage
-//    {
-//        return (new MailMessage)
-//            ->line('The introduction to the notification.')
-//            ->action('Notification Action', url('/'))
-//            ->line('Thank you for using our application!');
-//    }
 
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
+    // broadcast channel uses this
     public function toArray(object $notifiable): array
     {
         return [
-            //
+            'message' => $this->user->name.' wants to register as a seller',
+            'user_id' => $this->user->id,
+            'user_name' => $this->user->name,
+            'user_avatar' => $this->user->avatar,
         ];
+    }
+
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return (new BroadcastMessage($this->toArray($notifiable)))
+            ->onConnection('sync');
+    }
+
+    public function broadcastType(): string
+    {
+        return 'seller-registered';
     }
 }

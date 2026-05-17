@@ -8,7 +8,7 @@
             
             {{-- Brand Column --}}
             <div class="space-y-6">
-                <a href="{{ route('dashboard') }}" wire:navigate class="flex items-center group">
+                <a href="{{ auth()->check() ? route('dashboard') : route('home') }}" wire:navigate class="flex items-center group">
                     <div class="w-10 h-10 bg-linear-to-br from-[#1F6F5F] to-[#2FA084] rounded-xl flex items-center justify-center shadow-lg shadow-[#2FA084]/20 group-hover:scale-110 transition-transform duration-300">
                         <x-icon name="o-bolt" class="w-6 h-6 text-white" />
                     </div>
@@ -20,14 +20,14 @@
                     Nepal's most trusted real-time bidding platform. We bring fairness, transparency, and excitement to online auctions.
                 </p>
                 <div class="flex items-center space-x-4">
-                    <a href="#" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#2FA084] hover:border-[#2FA084] transition-all duration-300">
-                        <x-icon name="o-heart" class="w-4 h-4" /> {{-- Placeholder for FB --}}
+                    <a href="{{ $socialLinks['facebook'] ?: '#' }}" target="_blank" rel="noopener noreferrer" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#2FA084] hover:border-[#2FA084] transition-all duration-300">
+                        <x-icon name="o-heart" class="w-4 h-4" />
                     </a>
-                    <a href="#" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#2FA084] hover:border-[#2FA084] transition-all duration-300">
-                        <x-icon name="o-camera" class="w-4 h-4" /> {{-- Placeholder for Insta --}}
+                    <a href="{{ $socialLinks['instagram'] ?: '#' }}" target="_blank" rel="noopener noreferrer" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#2FA084] hover:border-[#2FA084] transition-all duration-300">
+                        <x-icon name="o-camera" class="w-4 h-4" />
                     </a>
-                    <a href="#" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#2FA084] hover:border-[#2FA084] transition-all duration-300">
-                        <x-icon name="o-globe-alt" class="w-4 h-4" /> {{-- Placeholder for Twitter --}}
+                    <a href="{{ $socialLinks['twitter'] ?: '#' }}" target="_blank" rel="noopener noreferrer" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#2FA084] hover:border-[#2FA084] transition-all duration-300">
+                        <x-icon name="o-globe-alt" class="w-4 h-4" />
                     </a>
                 </div>
             </div>
@@ -36,7 +36,7 @@
             <div>
                 <h4 class="text-lg font-bold mb-6 text-white">Quick Links</h4>
                 <ul class="space-y-4">
-                    <li><a href="{{ route('dashboard') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Home</a></li>
+                    <li><a href="{{ auth()->check() ? route('dashboard') : route('home') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Home</a></li>
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Browse Auctions</a></li>
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">How it Works</a></li>
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Live Auctions</a></li>

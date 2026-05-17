@@ -50,7 +50,6 @@ class Login extends Component
         $this->success('Welcome back! You have logged in successfully.', position: 'toast-bottom');
 
         $this->redirect(route('dashboard'), navigate: true);
-        // return redirect()->route('verify.otp');
     }
 
     public function render()

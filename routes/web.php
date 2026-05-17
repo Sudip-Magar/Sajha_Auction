@@ -1,16 +1,32 @@
 <?php
 
 use App\Http\Controllers\GoogleAuthController;
+use App\Livewire\Admin\CategorySetup;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
+use App\Livewire\Admin\Notifications as AdminNotifications;
+use App\Livewire\Admin\SellerRequests;
 use App\Livewire\Auth\Admin\Login as AdminLogin;
 use App\Livewire\Auth\User\CompleteProfile;
 use App\Livewire\Auth\User\Login;
 use App\Livewire\Auth\User\Register;
 use App\Livewire\Auth\User\VerifyOtp;
+use App\Livewire\Home;
 use App\Livewire\User\Dashboard;
-use App\Livewire\Admin\CategorySetup;
+use App\Livewire\User\Notifications as UserNotifications;
+use App\Livewire\User\Products;
+use App\Livewire\User\Settings;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/', function () {
+    if (Auth::guard('web')->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('home');
+});
+
+Route::get('/home', Home::class)->name('home');
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
 
@@ -27,10 +43,17 @@ Route::middleware('auth.otp')->group(function () {
 });
 
 Route::middleware('user')->group(function () {
-    Route::get('/', Dashboard::class)->name('dashboard');
+    Route::get('/dashboard', Dashboard::class)->name('dashboard');
+    Route::get('/notifications', UserNotifications::class)->name('user.notifications');
+    Route::get('/settings', Settings::class)->name('user.settings');
+    Route::get('/my-products', Products::class)->name('user.products');
 });
 
 Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/dashboard', AdminDashboard::class)->name('admin.dashboard');
     Route::get('/category-setup', CategorySetup::class)->name('admin.category-setup');
+    Route::get('/seller-requests', SellerRequests::class)->name('admin.seller-requests');
+    Route::get('/products', App\Livewire\Admin\Products::class)->name('admin.products');
+    Route::get('/notifications', AdminNotifications::class)->name('admin.notifications');
+    Route::get('/settings', App\Livewire\Admin\Settings::class)->name('admin.settings');
 });

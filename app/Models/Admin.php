@@ -15,6 +15,14 @@ class Admin extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    /**
+     * Get the channels the event should broadcast on.
+     */
+    public function receivesBroadcastNotificationsOn(): string
+    {
+        return 'App.Models.Admin.'.$this->id;
+    }
+
     protected function casts(): array
     {
         return [

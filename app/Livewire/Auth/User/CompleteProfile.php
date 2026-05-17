@@ -42,7 +42,9 @@ class CompleteProfile extends Component
     public $password = '';
 
     public $confirm_password = '';
+
     public bool $is_seller = false;
+
     public $genderStates = [];
 
     public function mount(): void
@@ -148,14 +150,15 @@ class CompleteProfile extends Component
                 'avatar' => $avatarPath,
                 'bio' => $this->bio ?: null,
                 'is_seller' => false,
+                'seller_application_pending' => $this->is_seller,
                 'status' => StatusState::ACTIVE->name,
             ]
         );
 
-        if($this->is_seller === true){
+        if ($this->is_seller === true) {
             $admins = Admin::get();
-            foreach ($admins as $admin){
-                $admin->notify( new SellerRegisteredNotification($user));
+            foreach ($admins as $admin) {
+                $admin->notify(new SellerRegisteredNotification($user));
             }
         }
 

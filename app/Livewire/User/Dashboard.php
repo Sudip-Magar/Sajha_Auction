@@ -2,12 +2,28 @@
 
 namespace App\Livewire\User;
 
+use App\Models\Product;
+use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 
+#[Layout('layouts.app')]
 class Dashboard extends Component
 {
-    public function render()
+    public function render(): View
     {
-        return view('livewire.user.dashboard');
+        $userId = Auth::id();
+
+        $products = Product::query()->where('user_id', $userId);
+
+        return view('livewire.user.dashboard', [
+            'totalProducts' => (clone $products)->count(),
+            'activeProducts' => (clone $products)->where('status', 'active')->count(),
+            'pendingProducts' => (clone $products)->where('is_approved', false)->count(),
+            'auctionProducts' => (clone $products)->where('type', 'auction')->count(),
+            'recentProducts' => (clone $products)->with('category')->latest()->take(5)->get(),
+            'user' => Auth::user(),
+        ]);
     }
 }
