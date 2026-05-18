@@ -11,6 +11,13 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class Dashboard extends Component
 {
+    public function mount(): void
+    {
+        if (! Auth::user()?->is_seller) {
+            $this->redirect(route('home'), navigate: true);
+        }
+    }
+
     public function render(): View
     {
         $userId = Auth::id();

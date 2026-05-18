@@ -15,7 +15,7 @@ class Register extends Component
     public function mount()
     {
         if (Auth::guard('web')->check()) {
-            $this->redirect(route('dashboard'), navigate: true);
+            $this->redirect(route('home'), navigate: true);
         }
     }
 

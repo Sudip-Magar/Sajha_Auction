@@ -42,7 +42,7 @@ class Products extends Component
     public function mount()
     {
         if (! Auth::user()->is_seller) {
-            return $this->redirect(route('dashboard'), navigate: true);
+            return $this->redirect(route('home'), navigate: true);
         }
     }
 

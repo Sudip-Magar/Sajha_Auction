@@ -50,7 +50,7 @@ class CompleteProfile extends Component
     public function mount(): void
     {
         if (Auth::guard('web')->check()) {
-            $this->redirect(route('dashboard'), navigate: true);
+            $this->redirect(route('home'), navigate: true);
         }
 
         $this->genderStates = backedEnumAsArray(GenderState::cases());
@@ -168,7 +168,7 @@ class CompleteProfile extends Component
 
         $this->success('Profile completed successfully! Welcome to Sajha Auction.', position: 'toast-bottom');
 
-        $this->redirect(route('dashboard'), navigate: true);
+        $this->redirect(route('home'), navigate: true);
     }
 
     public function render()

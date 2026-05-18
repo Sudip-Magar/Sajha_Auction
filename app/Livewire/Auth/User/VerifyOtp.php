@@ -30,7 +30,7 @@ class VerifyOtp extends Component
     public function mount(): void
     {
         if (Auth::guard('web')->check()) {
-            $this->redirect(route('dashboard'), navigate: true);
+            $this->redirect(route('home'), navigate: true);
         }
 
         $googleUser = session('google_user');
@@ -139,7 +139,7 @@ class VerifyOtp extends Component
 
             $this->success('Welcome back! You have logged in successfully.', position: 'toast-bottom');
 
-            $this->redirect(route('dashboard'), navigate: true);
+            $this->redirect(route('home'), navigate: true);
         }
 
     }

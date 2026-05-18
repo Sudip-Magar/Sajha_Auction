@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Components\User;
 
+use App\Models\Admin;
+use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -9,6 +11,47 @@ use Mary\Traits\Toast;
 class Navbar extends Component
 {
     use Toast;
+
+    public bool $isSeller = false;
+
+    public bool $sellerApplicationPending = false;
+
+    public function mount(): void
+    {
+        $this->syncSellerState();
+    }
+
+    public function requestSellerAccess(): void
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return;
+        }
+
+        if ($user->is_seller) {
+            $this->info('Your account already has seller access.', position: 'toast-bottom');
+
+            return;
+        }
+
+        if ($user->seller_application_pending) {
+            $this->warning('Your seller request is already pending review.', position: 'toast-bottom');
+
+            return;
+        }
+
+        $user->update([
+            'seller_application_pending' => true,
+        ]);
+
+        Admin::query()->each(function (Admin $admin) use ($user): void {
+            $admin->notify(new SellerRegisteredNotification($user));
+        });
+
+        $this->sellerApplicationPending = true;
+        $this->success('Seller access request sent for admin review.', position: 'toast-bottom');
+    }
 
     public function getListeners(): array
     {
@@ -69,7 +112,7 @@ class Navbar extends Component
             return $this->redirect(route('user.products'), navigate: true);
         }
 
-        return $this->redirect(route('dashboard'), navigate: true);
+        return $this->redirect(Auth::user()?->is_seller ? route('dashboard') : route('home'), navigate: true);
     }
 
     public function markAllAsRead(): void
@@ -81,8 +124,18 @@ class Navbar extends Component
         $this->success('All notifications marked as read.', position: 'toast-bottom');
     }
 
+    private function syncSellerState(): void
+    {
+        $user = Auth::user();
+
+        $this->isSeller = (bool) $user?->is_seller;
+        $this->sellerApplicationPending = (bool) $user?->seller_application_pending;
+    }
+
     public function render()
     {
+        $this->syncSellerState();
+
         return view('livewire.components.user.navbar', [
             'notifications' => $this->notificationData(),
         ]);

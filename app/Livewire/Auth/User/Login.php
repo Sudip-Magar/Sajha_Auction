@@ -19,7 +19,7 @@ class Login extends Component
     public function mount()
     {
         if (Auth::guard('web')->check()) {
-            $this->redirect(route('dashboard'), navigate: true);
+            $this->redirect(route('home'), navigate: true);
         }
     }
 
@@ -49,7 +49,7 @@ class Login extends Component
 
         $this->success('Welcome back! You have logged in successfully.', position: 'toast-bottom');
 
-        $this->redirect(route('dashboard'), navigate: true);
+        $this->redirect(route('home'), navigate: true);
     }
 
     public function render()

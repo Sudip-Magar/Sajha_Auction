@@ -15,14 +15,9 @@ use App\Livewire\User\Dashboard;
 use App\Livewire\User\Notifications as UserNotifications;
 use App\Livewire\User\Products;
 use App\Livewire\User\Settings;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    if (Auth::guard('web')->check()) {
-        return redirect()->route('dashboard');
-    }
-
     return redirect()->route('home');
 });
 

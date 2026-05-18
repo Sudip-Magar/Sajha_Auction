@@ -60,7 +60,7 @@ class Notifications extends Component
         return match ($notification->type) {
             'App\Notifications\SellerApprovedNotification',
             'App\Notifications\ProductApprovedNotification' => route('user.products'),
-            default => route('dashboard'),
+            default => Auth::user()?->is_seller ? route('dashboard') : route('home'),
         };
     }
 
