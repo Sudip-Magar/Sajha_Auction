@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Product extends Model
@@ -18,7 +19,6 @@ class Product extends Model
         'starting_bid',
         'auction_end',
         'type',
-        'image',
         'is_approved',
         'status',
     ];
@@ -44,5 +44,15 @@ class Product extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('sort_order');
+    }
+
+    public function getImageAttribute(): ?string
+    {
+        return $this->images->first()?->path;
     }
 }

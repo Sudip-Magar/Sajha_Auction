@@ -14,6 +14,7 @@
                 ['key' => 'price_display', 'label' => 'Price/Start Bid'],
                 ['key' => 'is_approved', 'label' => 'Approval'],
                 ['key' => 'status', 'label' => 'Status'],
+                ['key' => 'actions', 'label' => '', 'sortable' => false],
             ];
         @endphp
 
@@ -58,11 +59,15 @@
                     ])>{{ $product->is_approved ? 'Approved' : 'Pending' }}</span>
                 </div>
             @endscope
+
+            @scope('actions', $product)
+                <x-button label="Edit" icon="o-pencil-square" class="btn-sm btn-ghost" wire:click="editProduct({{ $product->id }})" />
+            @endscope
         </x-table>
     </div>
 
     <!-- Product Modal -->
-    <x-modal wire:model="productModal" title="Upload New Product" separator class="backdrop-blur-sm">
+    <x-modal wire:model="productModal" :title="$editingProduct ? 'Edit Product' : 'Upload New Product'" separator class="backdrop-blur-sm">
         <x-form wire:submit="saveProduct" class="space-y-6">
             <x-input label="Product Name" wire:model="name" placeholder="e.g. Vintage Rolex Watch" icon="o-pencil-square" />
             
@@ -82,16 +87,41 @@
                 @endif
             </div>
 
-            <x-file label="Product Image" wire:model="image" accept="image/*" />
-            @if($image)
-                <div class="relative w-full h-40 rounded-2xl overflow-hidden border-2 border-dashed border-gray-200 p-1">
-                    <img src="{{ $image->temporaryUrl() }}" class="w-full h-full object-cover rounded-xl" />
+            <x-file label="Product Images" wire:model="newImages" accept="image/*" multiple />
+
+            @error('newImages')
+                <p class="text-sm text-red-500">{{ $message }}</p>
+            @enderror
+
+            @if($existingImages || $newImages)
+                <div class="space-y-3">
+                    <p class="text-xs font-bold uppercase tracking-widest text-gray-400">Image Preview</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        @foreach($existingImages as $image)
+                            <div class="relative h-32 rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+                                <img src="{{ Storage::url($image['path']) }}" class="w-full h-full object-cover" />
+                                <button type="button" class="absolute top-2 right-2 bg-white/90 text-red-500 rounded-full px-2 py-1 text-xs font-bold shadow" wire:click="removeExistingImage({{ $image['id'] }})">
+                                    Remove
+                                </button>
+                            </div>
+                        @endforeach
+
+                        @foreach($newImages as $index => $image)
+                            <div class="relative h-32 rounded-2xl overflow-hidden border border-dashed border-gray-200 bg-gray-50">
+                                <img src="{{ $image->temporaryUrl() }}" class="w-full h-full object-cover" />
+                                <button type="button" class="absolute top-2 right-2 bg-white/90 text-red-500 rounded-full px-2 py-1 text-xs font-bold shadow" wire:click="removeNewImage({{ $index }})">
+                                    Remove
+                                </button>
+                            </div>
+                        @endforeach
+                    </div>
+                    <p class="text-xs text-gray-400">The first remaining image will be used as the product thumbnail.</p>
                 </div>
             @endif
 
             <x-slot:actions>
                 <x-button label="Cancel" @click="$wire.productModal = false" class="btn-ghost" />
-                <x-button label="Submit for Approval" type="submit" class="btn-primary px-8 shadow-lg shadow-primary/20" spinner="saveProduct" />
+                <x-button :label="$editingProduct ? 'Update Product' : 'Submit for Approval'" type="submit" class="btn-primary px-8 shadow-lg shadow-primary/20" spinner="saveProduct" />
             </x-slot:actions>
         </x-form>
     </x-modal>

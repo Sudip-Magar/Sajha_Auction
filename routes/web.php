@@ -4,6 +4,7 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Livewire\Admin\CategorySetup;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Admin\Notifications as AdminNotifications;
+use App\Livewire\Admin\ProductDetail as AdminProductDetail;
 use App\Livewire\Admin\SellerRequests;
 use App\Livewire\Auth\Admin\Login as AdminLogin;
 use App\Livewire\Auth\User\CompleteProfile;
@@ -49,6 +50,7 @@ Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/category-setup', CategorySetup::class)->name('admin.category-setup');
     Route::get('/seller-requests', SellerRequests::class)->name('admin.seller-requests');
     Route::get('/products', App\Livewire\Admin\Products::class)->name('admin.products');
+    Route::get('/products/{product}', AdminProductDetail::class)->name('admin.products.show');
     Route::get('/notifications', AdminNotifications::class)->name('admin.notifications');
     Route::get('/settings', App\Livewire\Admin\Settings::class)->name('admin.settings');
 });

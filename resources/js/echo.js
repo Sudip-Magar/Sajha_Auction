@@ -11,7 +11,7 @@ const config = {
 window.Echo = new Echo({
     broadcaster: 'reverb',
     key: config.key,
-    wsHost: config.host === 'localhost' ? '127.0.0.1' : config.host,
+    wsHost: config.host,
     wsPort: config.port,
     wssPort: config.port,
     forceTLS: false,

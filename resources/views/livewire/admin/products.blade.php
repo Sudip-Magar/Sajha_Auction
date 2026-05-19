@@ -65,10 +65,15 @@
             @endscope
 
             @scope('actions', $product)
-                @if(!$product->is_approved)
-                    <x-button label="Approve" icon="o-check" class="btn-sm btn-success rounded-xl shadow-md shadow-success/20" 
-                        wire:click="approveProduct({{ $product->id }})" spinner />
-                @endif
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('admin.products.show', $product) }}" wire:navigate>
+                        <x-button label="View" icon="o-eye" class="btn-sm btn-info rounded-xl shadow-md shadow-info/20" />
+                    </a>
+                    @if(!$product->is_approved)
+                        <x-button label="Approve" icon="o-check" class="btn-sm btn-success rounded-xl shadow-md shadow-success/20" 
+                            wire:click="approveProduct({{ $product->id }})" spinner />
+                    @endif
+                </div>
             @endscope
         </x-table>
     </div>

@@ -20,6 +20,53 @@
 
         <x-toast />
         @livewireScripts
+
+        @auth
+            <script>
+                (() => {
+                    if (window.__userNotificationBootstrapReady) {
+                        return;
+                    }
+
+                    window.__userNotificationBootstrapReady = true;
+
+                    const userId = '{{ auth()->id() }}';
+                    const channelName = `App.Models.User.${userId}`;
+
+                    const subscribe = () => {
+                        if (window.__userNotificationChannel) {
+                            return;
+                        }
+
+                        if (!window.Echo) {
+                            if (window.__userNotificationRetryTimer) {
+                                return;
+                            }
+
+                            window.__userNotificationRetryTimer = setTimeout(() => {
+                                window.__userNotificationRetryTimer = null;
+                                subscribe();
+                            }, 500);
+
+                            return;
+                        }
+
+                        window.__userNotificationChannel = window.Echo.private(channelName)
+                            .notification(() => {
+                                Livewire.dispatch('userNotificationReceived');
+                            })
+                            .error(() => {
+                                window.__userNotificationChannel = null;
+                            });
+                    };
+
+                    document.addEventListener('DOMContentLoaded', subscribe);
+                    document.addEventListener('livewire:navigated', subscribe);
+
+                    subscribe();
+                })();
+            </script>
+        @endauth
 </body>
 
 </html>

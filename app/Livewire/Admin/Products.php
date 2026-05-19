@@ -46,7 +46,7 @@ class Products extends Component
 
     public function render()
     {
-        $products = Product::with(['user', 'category'])
+        $products = Product::with(['user', 'category', 'images'])
             ->where('name', 'like', '%'.$this->search.'%')
             ->latest()
             ->paginate(10);

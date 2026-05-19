@@ -29,7 +29,7 @@ class Dashboard extends Component
             'activeProducts' => (clone $products)->where('status', 'active')->count(),
             'pendingProducts' => (clone $products)->where('is_approved', false)->count(),
             'auctionProducts' => (clone $products)->where('type', 'auction')->count(),
-            'recentProducts' => (clone $products)->with('category')->latest()->take(5)->get(),
+            'recentProducts' => (clone $products)->with(['category', 'images'])->latest()->take(5)->get(),
             'user' => Auth::user(),
         ]);
     }
