@@ -15,6 +15,7 @@
         "laravel/socialite": "^5.27",
         "laravel/tinker": "^3.0",
         "livewire/livewire": "*",
+        "pusher/pusher-php-server": "^7.2",
         "robsontenorio/mary": "^2.8"
     },
     "require-dev": {
