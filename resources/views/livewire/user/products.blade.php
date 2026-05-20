@@ -83,7 +83,26 @@
                     <x-input label="Direct Sell Price (Rs.)" wire:model="price" type="number" icon="o-banknotes" />
                 @else
                     <x-input label="Starting Bid (Rs.)" wire:model="starting_bid" type="number" icon="o-currency-dollar" />
-                    <x-input label="Auction End Time" wire:model="auction_end" type="datetime-local" icon="o-clock" />
+                    <div>
+                        <label for="auction_end_np" class="fieldset-legend mb-0.5">Auction End Date (B.S.)</label>
+                        <input
+                            id="auction_end_np"
+                            wire:model="auction_end_np"
+                            data-nepali-date="auction_end"
+                            autocomplete="off"
+                            class="input w-full"
+                            placeholder="YYYY-MM-DD"
+                        >
+                        <input
+                            type="hidden"
+                            wire:model="auction_end_date_en"
+                            data-english-date="auction_end"
+                        >
+                        @error('auction_end')
+                            <small class="text-red-500">{{ $message }}</small>
+                        @enderror
+                    </div>
+                    <x-input label="Auction End Time" wire:model="auction_end_time" type="time" icon="o-clock" />
                 @endif
             </div>
 

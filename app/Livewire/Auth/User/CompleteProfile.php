@@ -35,6 +35,8 @@ class CompleteProfile extends Component
 
     public string $date_of_birth_en = '';
 
+    public string $date_of_birth_np = '';
+
     public string $gender = '';
 
     public ?string $bio = null;
@@ -144,6 +146,7 @@ class CompleteProfile extends Component
                 'username' => $this->username,
                 'phone' => $this->phone ?: null,
                 'date_of_birth_en' => $this->date_of_birth_en ?: null,
+                'daate_of_birth_np' => $this->date_of_birth_np ?: null,
                 'gender' => $this->gender ?: null,
                 'password' => $hashPassword,
                 'is_verified' => true,

@@ -41,6 +41,12 @@ class Products extends Component
 
     public $auction_end;
 
+    public string $auction_end_np = '';
+
+    public string $auction_end_date_en = '';
+
+    public string $auction_end_time = '';
+
     public array $newImages = [];
 
     /** @var array<int, array{id:int, path:string}> */
@@ -80,7 +86,9 @@ class Products extends Component
         $this->type = $product->type;
         $this->price = $product->price;
         $this->starting_bid = $product->starting_bid;
-        $this->auction_end = $product->auction_end?->format('Y-m-d\TH:i');
+        $this->auction_end = $product->auction_end?->format('Y-m-d H:i');
+        $this->auction_end_date_en = $product->auction_end?->format('Y-m-d') ?? '';
+        $this->auction_end_time = $product->auction_end?->format('H:i') ?? '';
         $this->newImages = [];
         $this->imagesToDelete = [];
         $this->existingImages = $product->images
@@ -115,6 +123,10 @@ class Products extends Component
 
     public function saveProduct(): void
     {
+        $this->auction_end = $this->type === 'auction' && $this->auction_end_date_en && $this->auction_end_time
+            ? "{$this->auction_end_date_en} {$this->auction_end_time}"
+            : null;
+
         $rules = [
             'name' => 'required|string|max:255',
             'description' => 'required|string',
@@ -215,6 +227,9 @@ class Products extends Component
         $this->price = null;
         $this->starting_bid = null;
         $this->auction_end = null;
+        $this->auction_end_np = '';
+        $this->auction_end_date_en = '';
+        $this->auction_end_time = '';
         $this->newImages = [];
         $this->existingImages = [];
         $this->imagesToDelete = [];

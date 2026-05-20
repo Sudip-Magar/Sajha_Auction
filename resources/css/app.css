@@ -1,4 +1,5 @@
 @import url('../css/poppins.css');
+@import url('../css/nepali.datepicker.v5.0.6.min.css');
 @import 'tailwindcss';
 @plugin "daisyui/index.js";
 

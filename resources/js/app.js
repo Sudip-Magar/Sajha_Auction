@@ -7,3 +7,73 @@
  */
 
 import './echo';
+import './nepali.datepicker.v5.0.6.min.js';
+
+const datepickerOptions = {
+    dateFormat: 'YYYY-MM-DD',
+    language: 'english',
+    miniEnglishDates: true,
+};
+
+window.DateSync = {
+
+    bsToAd(bsDate) {
+        const ad = window.NepaliFunctions.BS2AD(bsDate);
+        return `${ad.year}-${String(ad.month).padStart(2, '0')}-${String(ad.day).padStart(2, '0')}`;
+    },
+
+    adToBs(adDate) {
+        const [y, m, d] = adDate.split('-');
+        const bs = window.NepaliFunctions.AD2BS({year: +y, month: +m, day: +d});
+        return `${bs.year}-${String(bs.month).padStart(2, '0')}-${String(bs.day).padStart(2, '0')}`;
+    },
+
+    attach(nepali, english) {
+        if (!nepali || !english || nepali.dataset.synced || !window.NepaliFunctions) {
+            return;
+        }
+
+        nepali.NepaliDatePicker({
+            ...datepickerOptions,
+            onSelect: (bs) => {
+                english.value = this.bsToAd(bs);
+                nepali.dispatchEvent(new Event('input', {bubbles: true}));
+                english.dispatchEvent(new Event('input', {bubbles: true}));
+
+            }
+        });
+
+        if (english.value && !nepali.value) {
+            nepali.value = this.adToBs(english.value);
+        }
+
+        english.addEventListener('change', () => {
+            if (!english.value) return;
+
+            const bsString = this.adToBs(english.value);
+            nepali.value = bsString;
+            english.dispatchEvent(new Event('input', {bubbles: true}));
+            nepali.dispatchEvent(new Event('input', {bubbles: true}));
+
+        });
+
+        nepali.dataset.synced = true;
+    }
+};
+
+window.initializeNepaliDatePickers = () => {
+    document.querySelectorAll('[data-nepali-date]').forEach((nepali) => {
+        const key = nepali.dataset.nepaliDate;
+        const english = document.querySelector(`[data-english-date="${key}"]`);
+
+        window.DateSync.attach(nepali, english);
+    });
+};
+
+document.addEventListener('DOMContentLoaded', window.initializeNepaliDatePickers);
+document.addEventListener('livewire:navigated', window.initializeNepaliDatePickers);
+document.addEventListener('livewire:initialized', () => {
+    Livewire.hook('morph.updated', () => {
+        queueMicrotask(window.initializeNepaliDatePickers);
+    });
+});
