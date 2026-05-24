@@ -52,7 +52,13 @@
             @scope('cell_price_display', $product)
                 <div class="flex flex-col">
                     <span class="font-bold text-gray-900 text-sm">
-                        Rs. {{ $product->type === 'sell' ? number_format($product->price) : number_format($product->starting_bid) }}
+                        @if($product->type === 'sell')
+                            Rs. {{ number_format($product->sale_price) }}
+                        @elseif($product->auction_type === 'penny')
+                            Rs. {{ number_format($product->starting_price_cents / 100, 2) }} (Penny)
+                        @else
+                            Rs. {{ number_format($product->starting_bid) }}
+                        @endif
                     </span>
                     <span class="text-[9px] uppercase font-black text-gray-400 tracking-tighter">{{ $product->type }}</span>
                 </div>

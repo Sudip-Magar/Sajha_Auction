@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Run the migrations.
      */
@@ -13,7 +14,7 @@ return new class extends Migration {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
             $table->foreignId('seller_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('category_id')->constrained('catefories')->onDelete('cascade');
+            $table->foreignId('category_id')->constrained('categories')->onDelete('cascade');
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description');
@@ -28,11 +29,12 @@ return new class extends Migration {
             $table->integer('bid_increment_cents')->default(1); // How much each bid raises price (1 cent)
             $table->integer('timer_seconds')->default(60); // Initial countdown timer
             $table->integer('timer_extension_seconds')->default(15); // How much timer extends per bid
-            $table->dateTime('auction_start')->nullable(); // When auction opens
-            $table->dateTime('auction_end')->nullable(); // When auction closes (for traditional)
+            $table->dateTime('auction_start_en')->nullable(); // When auction opens
+            $table->string('auction_start_np')->nullable(); // When auction opens
+            $table->dateTime('auction_end_en')->nullable(); // When auction closes (for traditional)
+            $table->string('auction_end_np')->nullable(); // When auction closes (for traditional)
             $table->dateTime('scheduled_for')->nullable(); // Future auction scheduling
             $table->string('type'); // 'auction' or 'sell'
-            $table->string('image')->nullable();
             $table->boolean('is_approved')->default(false);
             $table->string('status')->default('pending'); // 'pending', 'active', 'sold', 'expired'
             $table->timestamps();

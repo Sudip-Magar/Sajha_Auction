@@ -10,22 +10,38 @@ use Illuminate\Support\Str;
 class Product extends Model
 {
     protected $fillable = [
-        'user_id',
+        'seller_id',
         'category_id',
         'name',
         'slug',
         'description',
-        'price',
+        'specifications',
+        'condition',
+        'retail_price',
+        'sale_price',
+        'stock_quantity',
+        'auction_type',
         'starting_bid',
-        'auction_end',
+        'starting_price_cents',
+        'bid_increment_cents',
+        'timer_seconds',
+        'timer_extension_seconds',
+        'auction_start_en',
+        'auction_start_np',
+        'auction_end_en',
+        'auction_end_np',
+        'scheduled_for',
         'type',
         'is_approved',
         'status',
     ];
 
     protected $casts = [
-        'auction_end' => 'datetime',
+        'auction_start_en' => 'datetime',
+        'auction_end_en' => 'datetime',
+        'scheduled_for' => 'datetime',
         'is_approved' => 'boolean',
+        'specifications' => 'string',
     ];
 
     protected static function boot()
@@ -38,7 +54,7 @@ class Product extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'seller_id');
     }
 
     public function category(): BelongsTo

@@ -22,7 +22,7 @@ class Dashboard extends Component
     {
         $userId = Auth::id();
 
-        $products = Product::query()->where('user_id', $userId);
+        $products = Product::query()->where('seller_id', $userId);
 
         return view('livewire.user.dashboard', [
             'totalProducts' => (clone $products)->count(),
