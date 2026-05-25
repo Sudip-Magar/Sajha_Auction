@@ -13,6 +13,7 @@ use App\Livewire\Auth\User\Register;
 use App\Livewire\Auth\User\VerifyOtp;
 use App\Livewire\Home;
 use App\Livewire\User\Dashboard;
+use App\Livewire\User\JoinAuction;
 use App\Livewire\User\Notifications as UserNotifications;
 use App\Livewire\User\Products;
 use App\Livewire\User\Settings;
@@ -43,6 +44,7 @@ Route::middleware('user')->group(function () {
     Route::get('/notifications', UserNotifications::class)->name('user.notifications');
     Route::get('/settings', Settings::class)->name('user.settings');
     Route::get('/my-products', Products::class)->name('user.products');
+    Route::get('/join-auction', JoinAuction::class)->name('user.join-auction');
 });
 
 Route::prefix('admin')->middleware('admin')->group(function () {

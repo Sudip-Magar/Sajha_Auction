@@ -208,35 +208,45 @@
                                 <x-icon name="o-user" class="w-4 h-4"/>
                                 <span>My Profile</span>
                             </a>
-                            @if (!$isSeller)
-                                @if ($sellerApplicationPending)
-                                    <div
-                                        class="flex cursor-not-allowed items-center space-x-3 px-4 py-2.5 text-sm font-medium text-amber-600 bg-amber-50">
-                                        <x-icon name="o-clock" class="w-4 h-4"/>
-                                        <span>Seller Request Pending</span>
-                                    </div>
-                                @else
-                                    <button type="button"
-                                            wire:click="requestSellerAccess"
-                                            wire:loading.attr="disabled"
-                                            wire:target="requestSellerAccess"
-                                            class="w-full flex items-center cursor-pointer space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
-                                        <x-icon name="o-user-plus" class="w-4 h-4"/>
-                                        <span wire:loading.remove wire:target="requestSellerAccess">Seller Request</span>
-                                        <span wire:loading wire:target="requestSellerAccess">Sending Request...</span>
-                                    </button>
+                            @if($isAuctioner)
+                                @if (!$isSeller)
+                                    @if ($sellerApplicationPending)
+                                        <div
+                                            class="flex cursor-not-allowed items-center space-x-3 px-4 py-2.5 text-sm font-medium text-amber-600 bg-amber-50">
+                                            <x-icon name="o-clock" class="w-4 h-4"/>
+                                            <span>Seller Request Pending</span>
+                                        </div>
+                                    @else
+                                        <button type="button"
+                                                wire:click="requestSellerAccess"
+                                                wire:loading.attr="disabled"
+                                                wire:target="requestSellerAccess"
+                                                class="w-full flex items-center cursor-pointer space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <x-icon name="o-user-plus" class="w-4 h-4"/>
+                                            <span wire:loading.remove
+                                                  wire:target="requestSellerAccess">Seller Request</span>
+                                            <span wire:loading
+                                                  wire:target="requestSellerAccess">Sending Request...</span>
+                                        </button>
+                                    @endif
                                 @endif
+                                <a href="#"
+                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                    <x-icon name="o-shopping-bag" class="w-4 h-4"/>
+                                    <span>My Bids</span>
+                                </a>
+                                <a href="#"
+                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                    <x-icon name="o-gift" class="w-4 h-4"/>
+                                    <span>My Auctions</span>
+                                </a>
+                            @else
+                                <a href="{{route('user.join-auction')}}"
+                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                    <x-icon name="o-hand-raised" class="w-4 h-4"/>
+                                    <span>Join Auction</span>
+                                </a>
                             @endif
-                            <a href="#"
-                               class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                                <x-icon name="o-shopping-bag" class="w-4 h-4"/>
-                                <span>My Bids</span>
-                            </a>
-                            <a href="#"
-                               class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                                <x-icon name="o-gift" class="w-4 h-4"/>
-                                <span>My Auctions</span>
-                            </a>
                             <div class="h-px bg-gray-50 my-1"></div>
                             <button wire:click="logout"
                                     class="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-all">
@@ -369,7 +379,8 @@
                                         wire:target="requestSellerAccess"
                                         class="w-full cursor-pointer flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all disabled:opacity-60 disabled:cursor-not-allowed">
                                     <x-icon name="o-user-plus" class="w-5 h-5"/>
-                                    <span wire:loading.remove wire:target="requestSellerAccess">Request Seller Access</span>
+                                    <span wire:loading.remove
+                                          wire:target="requestSellerAccess">Request Seller Access</span>
                                     <span wire:loading wire:target="requestSellerAccess">Sending Request...</span>
                                 </button>
                             @endif

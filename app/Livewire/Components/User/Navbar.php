@@ -14,6 +14,8 @@ class Navbar extends Component
 
     public bool $isSeller = false;
 
+    public bool $isAuctioner = false;
+
     public bool $sellerApplicationPending = false;
 
     public function mount(): void
@@ -129,6 +131,7 @@ class Navbar extends Component
         $user = Auth::user();
 
         $this->isSeller = (bool) $user?->is_seller;
+        $this->isAuctioner = (bool) $user?->is_auction_allowed;
         $this->sellerApplicationPending = (bool) $user?->seller_application_pending;
     }
 
