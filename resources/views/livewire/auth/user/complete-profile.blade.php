@@ -96,19 +96,19 @@
                                     class="bg-gray-50/50 border-gray-200 resize-none"/>
                     </div>
 
-                    {{-- Seller Toggle (More Compact) --}}
-                    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-[#2FA084]/10 rounded-xl flex items-center justify-center">
-                                <x-icon name="o-shopping-bag" class="w-5 h-5 text-[#2FA084]"/>
-                            </div>
-                            <div>
-                                <h4 class="text-xs font-bold text-gray-800">Register as Seller</h4>
-                                <p class="text-[10px] text-gray-500 font-medium">List items for auction</p>
-                            </div>
-                        </div>
-                        <x-toggle wire:model="is_seller" class="toggle-primary"/>
-                    </div>
+{{--                    --}}{{-- Seller Toggle (More Compact) --}}
+{{--                    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">--}}
+{{--                        <div class="flex items-center space-x-3">--}}
+{{--                            <div class="w-10 h-10 bg-[#2FA084]/10 rounded-xl flex items-center justify-center">--}}
+{{--                                <x-icon name="o-shopping-bag" class="w-5 h-5 text-[#2FA084]"/>--}}
+{{--                            </div>--}}
+{{--                            <div>--}}
+{{--                                <h4 class="text-xs font-bold text-gray-800">Register as Seller</h4>--}}
+{{--                                <p class="text-[10px] text-gray-500 font-medium">List items for auction</p>--}}
+{{--                            </div>--}}
+{{--                        </div>--}}
+{{--                        <x-toggle wire:model="is_seller" class="toggle-primary"/>--}}
+{{--                    </div>--}}
 
                     {{-- Row 4: Password Security --}}
                     <div x-data="{

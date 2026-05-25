@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('daate_of_birth_np')->nullable();
             $table->string('gender')->nullable();
             $table->boolean('is_seller')->default(false);
+            $table->boolean('is_auction_allowed')->default(false);
             $table->string('password');
             $table->boolean('is_verified')->default(false);
             $table->string('avatar')->nullable();

@@ -4,9 +4,7 @@ namespace App\Livewire\Auth\User;
 
 use App\Enums\GenderState;
 use App\Enums\StatusState;
-use App\Models\Admin;
 use App\Models\User;
-use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -45,7 +43,7 @@ class CompleteProfile extends Component
 
     public $confirm_password = '';
 
-    public bool $is_seller = false;
+//    public bool $is_seller = false;
 
     public $genderStates = [];
 
@@ -59,7 +57,7 @@ class CompleteProfile extends Component
 
         $googleUser = session('google_user');
         $verified = session('otp_verified');
-        if (! $googleUser || ! $verified) {
+        if (!$googleUser || !$verified) {
             $this->redirect(route('user.login'), navigate: true);
 
             return;
@@ -125,7 +123,7 @@ class CompleteProfile extends Component
             try {
                 $response = Http::withOptions(['verify' => false])->get($this->googleAvatar);
                 if ($response->successful()) {
-                    $fileName = 'avatars/'.Str::uuid().'.jpg';
+                    $fileName = 'avatars/' . Str::uuid() . '.jpg';
                     Storage::disk('public')->put($fileName, $response->body());
                     $avatarPath = $fileName;
                 }
@@ -153,17 +151,18 @@ class CompleteProfile extends Component
                 'avatar' => $avatarPath,
                 'bio' => $this->bio ?: null,
                 'is_seller' => false,
-                'seller_application_pending' => $this->is_seller,
+                'seller_application_pending' => false,
+                'is_auction_allowed' => false,
                 'status' => StatusState::ACTIVE->name,
             ]
         );
 
-        if ($this->is_seller === true) {
-            $admins = Admin::get();
-            foreach ($admins as $admin) {
-                $admin->notify(new SellerRegisteredNotification($user));
-            }
-        }
+//        if ($this->is_seller === true) {
+//            $admins = Admin::get();
+//            foreach ($admins as $admin) {
+//                $admin->notify(new SellerRegisteredNotification($user));
+//            }
+//        }
 
         session()->forget(['google_user', 'otp_verified']);
 
