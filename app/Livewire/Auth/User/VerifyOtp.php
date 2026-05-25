@@ -31,6 +31,8 @@ class VerifyOtp extends Component
     {
         if (Auth::guard('web')->check()) {
             $this->redirect(route('home'), navigate: true);
+
+            return;
         }
 
         $googleUser = session('google_user');
@@ -87,9 +89,8 @@ class VerifyOtp extends Component
         $this->dispatch('start-countdown');
     }
 
-    public function updatedOtp($value)
+    public function updatedOtp(string $value): void
     {
-        // Auto-verify when 6 digits are entered
         if (strlen($value) === 6) {
             $this->verifyOtp();
         }
@@ -121,27 +122,31 @@ class VerifyOtp extends Component
             return;
         }
 
-        // Mark OTP as verified — unlock profile completion page
         session(['otp_verified' => true]);
-
-        // Clear OTP from session
         session()->forget(['otp_code', 'otp_expires_at']);
 
         $existingUser = User::where('email', $this->email)->first();
 
         if (! $existingUser) {
-            // New user — send them to complete their profile
             $this->redirect(route('complete.profile'), navigate: true);
-        } else {
-            // Existing user — log them in and clear the google session
-            Auth::login($existingUser, remember: true);
-            session()->forget(['google_user', 'otp_verified']);
 
-            $this->success('Welcome back! You have logged in successfully.', position: 'toast-bottom');
-
-            $this->redirect(route('home'), navigate: true);
+            return;
         }
 
+        if (! $existingUser->isActiveStatus()) {
+            session()->forget(['google_user', 'otp_verified']);
+            $this->error('Your account is inactive. Please contact the admin.', position: 'toast-bottom');
+            $this->redirect(route('user.login'), navigate: true);
+
+            return;
+        }
+
+        Auth::login($existingUser, remember: true);
+        session()->forget(['google_user', 'otp_verified']);
+
+        $this->success('Welcome back! You have logged in successfully.', position: 'toast-bottom');
+
+        $this->redirect(route('home'), navigate: true);
     }
 
     private function setError(string $msg): void

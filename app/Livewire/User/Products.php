@@ -23,6 +23,22 @@ class Products extends Component
 {
     use Toast, WithFileUploads, WithPagination;
 
+    public function getListeners(): array
+    {
+        $userId = Auth::id();
+
+        if (! $userId) {
+            return [
+                'userNotificationReceived' => '$refresh',
+            ];
+        }
+
+        return [
+            'userNotificationReceived' => '$refresh',
+            "echo-notification:App.Models.User.{$userId}" => '$refresh',
+        ];
+    }
+
     public bool $productModal = false;
 
     public ?Product $editingProduct = null;
@@ -390,6 +406,10 @@ class Products extends Component
 
     public function render(): View
     {
+        if (! Auth::user()?->is_seller) {
+            $this->redirect(route('home'), navigate: true);
+        }
+
         $userProducts = Product::with(['category', 'images'])
             ->where('seller_id', Auth::id())
             ->latest()

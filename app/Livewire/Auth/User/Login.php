@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Auth\User;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -21,6 +23,10 @@ class Login extends Component
         if (Auth::guard('web')->check()) {
             $this->redirect(route('home'), navigate: true);
         }
+
+        if (session()->has('inactive_user_error')) {
+            $this->error(session('inactive_user_error'), position: 'toast-bottom');
+        }
     }
 
     public function login()
@@ -30,11 +36,21 @@ class Login extends Component
             'password' => 'required',
         ]);
 
-        if (! Auth::attempt(['email' => $this->email, 'password' => $this->password], remember: true)) {
+        $user = User::where('email', $this->email)->first();
+
+        if (! $user || ! Hash::check($this->password, $user->password)) {
             $this->error('Invalid credentials. Please check your email and password.', position: 'toast-bottom');
 
             return;
         }
+
+        if (! $user->isActiveStatus()) {
+            $this->error('Your account is inactive. Please contact the admin.', position: 'toast-bottom');
+
+            return;
+        }
+
+        Auth::login($user, remember: true);
 
         session([
             'google_user' => [

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('type', array_map(
                 fn (DocumentImageType $type): string => $type->value,
                 DocumentImageType::cases()
-            ))->default(DocumentImageType::CITIZENSHIP->value);
+            ))->default(DocumentImageType::CITIZENSHIPFRONT->value);
             $table->boolean('is_rejected')->default(false);
             $table->boolean('is_approved')->default(false);
             $table->string('image');

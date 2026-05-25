@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\StatusState;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -38,5 +41,28 @@ class User extends Authenticatable
     public function documentImages(): HasMany
     {
         return $this->hasMany(DocumentImage::class);
+    }
+
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class, 'seller_id');
+    }
+
+    public function isActiveStatus(): bool
+    {
+        return $this->status === StatusState::ACTIVE->value;
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereRaw('LOWER(status) = ?', [StatusState::ACTIVE->value]);
+    }
+
+    protected function status(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value): string => strtolower($value ?? StatusState::ACTIVE->value),
+            set: fn (?string $value): string => strtolower($value ?? StatusState::ACTIVE->value),
+        );
     }
 }

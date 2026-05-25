@@ -62,6 +62,9 @@ class Notifications extends Component
         return match ($notification->type) {
             'App\Notifications\SellerRegisteredNotification' => route('admin.seller-requests'),
             'App\Notifications\NewProductUploadedNotification' => route('admin.products'),
+            'App\Notifications\AuctionApplicationSubmittedNotification' => isset($notification->data['user_id'])
+                ? route('admin.auction-application.show', $notification->data['user_id'])
+                : route('admin.auction-application'),
             default => route('admin.dashboard'),
         };
     }

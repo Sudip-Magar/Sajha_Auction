@@ -59,6 +59,16 @@ class Topbar extends Component
             return $this->redirect(route('admin.products'), navigate: true);
         }
 
+        if ($type === 'App\Notifications\AuctionApplicationSubmittedNotification') {
+            $userId = $notification->data['user_id'] ?? null;
+
+            if ($userId) {
+                return $this->redirect(route('admin.auction-application.show', $userId), navigate: true);
+            }
+
+            return $this->redirect(route('admin.auction-application'), navigate: true);
+        }
+
         // Fallback or other types can be added here
         return $this->redirect(route('admin.dashboard'), navigate: true);
     }

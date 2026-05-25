@@ -20,6 +20,10 @@ class Navbar extends Component
 
     public function mount(): void
     {
+        if ($this->logoutIfInactive()) {
+            return;
+        }
+
         $this->syncSellerState();
     }
 
@@ -113,6 +117,18 @@ class Navbar extends Component
         if ($type === 'App\Notifications\ProductApprovedNotification') {
             return $this->redirect(route('user.products'), navigate: true);
         }
+        if ($type === 'App\Notifications\SellerSuspendedNotification') {
+            return $this->redirect(route('home'), navigate: true);
+        }
+        if (
+            $type === 'App\Notifications\AuctionApplicationApprovedNotification'
+            || $type === 'App\Notifications\AuctionApplicationRejectedNotification'
+        ) {
+            return $this->redirect(route('user.join-auction'), navigate: true);
+        }
+        if ($type === 'App\Notifications\AccountStatusChangedNotification') {
+            return $this->redirect(route('home'), navigate: true);
+        }
 
         return $this->redirect(Auth::user()?->is_seller ? route('dashboard') : route('home'), navigate: true);
     }
@@ -135,8 +151,32 @@ class Navbar extends Component
         $this->sellerApplicationPending = (bool) $user?->seller_application_pending;
     }
 
+    private function logoutIfInactive(): bool
+    {
+        $user = Auth::user();
+
+        if (! $user || $user->isActiveStatus()) {
+            return false;
+        }
+
+        Auth::logout();
+        session()->invalidate();
+        session()->regenerateToken();
+        session()->flash('inactive_user_error', 'Your account has been marked inactive by the admin.');
+
+        $this->redirect(route('user.login'), navigate: true);
+
+        return true;
+    }
+
     public function render()
     {
+        if ($this->logoutIfInactive()) {
+            return view('livewire.components.user.navbar', [
+                'notifications' => collect(),
+            ]);
+        }
+
         $this->syncSellerState();
 
         return view('livewire.components.user.navbar', [

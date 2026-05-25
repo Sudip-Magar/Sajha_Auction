@@ -1,11 +1,15 @@
 <?php
 
 use App\Http\Controllers\GoogleAuthController;
+use App\Livewire\Admin\AuctionApplication;
+use App\Livewire\Admin\AuctionApplicationDetail;
 use App\Livewire\Admin\CategorySetup;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Admin\Notifications as AdminNotifications;
 use App\Livewire\Admin\ProductDetail as AdminProductDetail;
 use App\Livewire\Admin\SellerRequests;
+use App\Livewire\Admin\UserDetail as AdminUserDetail;
+use App\Livewire\Admin\Users as AdminUsers;
 use App\Livewire\Auth\Admin\Login as AdminLogin;
 use App\Livewire\Auth\User\CompleteProfile;
 use App\Livewire\Auth\User\Login;
@@ -49,10 +53,14 @@ Route::middleware('user')->group(function () {
 
 Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/dashboard', AdminDashboard::class)->name('admin.dashboard');
+    Route::get('/users', AdminUsers::class)->name('admin.users');
+    Route::get('/users/{user}', AdminUserDetail::class)->name('admin.users.show');
     Route::get('/category-setup', CategorySetup::class)->name('admin.category-setup');
     Route::get('/seller-requests', SellerRequests::class)->name('admin.seller-requests');
     Route::get('/products', App\Livewire\Admin\Products::class)->name('admin.products');
     Route::get('/products/{product}', AdminProductDetail::class)->name('admin.products.show');
     Route::get('/notifications', AdminNotifications::class)->name('admin.notifications');
     Route::get('/settings', App\Livewire\Admin\Settings::class)->name('admin.settings');
+    Route::get('/auction-application', AuctionApplication::class)->name('admin.auction-application');
+    Route::get('/auction-application/{user}', AuctionApplicationDetail::class)->name('admin.auction-application.show');
 });

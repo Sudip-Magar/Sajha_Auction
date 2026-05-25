@@ -11,6 +11,22 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class Dashboard extends Component
 {
+    public function getListeners(): array
+    {
+        $userId = Auth::id();
+
+        if (! $userId) {
+            return [
+                'userNotificationReceived' => '$refresh',
+            ];
+        }
+
+        return [
+            'userNotificationReceived' => '$refresh',
+            "echo-notification:App.Models.User.{$userId}" => '$refresh',
+        ];
+    }
+
     public function mount(): void
     {
         if (! Auth::user()?->is_seller) {
@@ -20,6 +36,10 @@ class Dashboard extends Component
 
     public function render(): View
     {
+        if (! Auth::user()?->is_seller) {
+            $this->redirect(route('home'), navigate: true);
+        }
+
         $userId = Auth::id();
 
         $products = Product::query()->where('seller_id', $userId);

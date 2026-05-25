@@ -8,22 +8,34 @@ use Livewire\Component;
 class AuctionNotice extends Component
 {
     public bool $is_auction_allowed = false;
+
     public bool $hide_notice = false;
-    public $is_logged_in = false;
 
-    public function mount()
+    public bool $is_logged_in = false;
+
+    public function getListeners(): array
     {
-        $user = Auth::guard('web')->user();
+        $userId = Auth::id();
 
-        if ($user) {
-            $this->is_auction_allowed = (bool)$user->is_auction_allowed;
-            $this->is_logged_in = true;
+        if (! $userId) {
+            return [
+                'userNotificationReceived' => '$refresh',
+            ];
         }
 
+        return [
+            'userNotificationReceived' => '$refresh',
+            "echo-notification:App.Models.User.{$userId}" => '$refresh',
+        ];
+    }
+
+    public function mount(): void
+    {
+        $this->syncState();
         $this->hide_notice = session('hide_auction_notice', false);
     }
 
-    public function hide()
+    public function hide(): void
     {
         session(['hide_auction_notice' => true]);
         $this->hide_notice = true;
@@ -31,6 +43,16 @@ class AuctionNotice extends Component
 
     public function render()
     {
+        $this->syncState();
+
         return view('livewire.components.user.auction-notice');
+    }
+
+    private function syncState(): void
+    {
+        $user = Auth::guard('web')->user();
+
+        $this->is_logged_in = (bool) $user;
+        $this->is_auction_allowed = (bool) $user?->is_auction_allowed;
     }
 }
