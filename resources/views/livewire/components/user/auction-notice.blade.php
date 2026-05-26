@@ -31,10 +31,10 @@
                         </p>
 
                         <!-- Button -->
-                        <button
-                            class="mt-4 px-4 py-2 rounded-lg bg-white text-[#1F6F5F] font-semibold text-sm hover:bg-gray-100 transition">
+                        <a href="{{route('user.join-auction')}}"
+                            class="mt-4 inline-block px-4 py-2 rounded-lg bg-white text-[#1F6F5F] font-semibold text-sm hover:bg-gray-100 transition">
                             Apply Now
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>

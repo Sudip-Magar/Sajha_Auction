@@ -163,7 +163,7 @@
                     <button
                         type="submit"
                         @disabled(! $canSubmit)
-                        class="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#1F6F5F] to-[#2FA084] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        class="cursor-pointer inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#1F6F5F] to-[#2FA084] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                     >
                         Join Auction
                     </button>
