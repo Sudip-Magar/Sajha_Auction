@@ -13,17 +13,21 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
+            $table->string('sku')->unique()->comment('Stock Keeping Unit');
+            $table->string('name');
             $table->foreignId('seller_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('category_id')->constrained('categories')->onDelete('cascade');
-            $table->string('name');
+
             $table->string('slug')->unique();
             $table->text('description');
             $table->text('specifications')->nullable();
-            $table->string('condition')->default('new');
+            $table->string('condition');
+            $table->string('quantity');
+
             $table->decimal('retail_price', 15, 2);
-            $table->string('type');
+            $table->string('listing_type')->comment('direct sell, auction');
             $table->boolean('is_approved')->default(false);
-            $table->string('status')->default('pending');
+            $table->string('status');
             $table->timestamps();
         });
     }
