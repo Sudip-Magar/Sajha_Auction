@@ -53,15 +53,15 @@
                 @php($auctionType = $product->auction_type)
                 <div class="flex flex-col">
                     <span class="font-bold text-gray-900 text-sm">
-                        @if($product->type->value === 'direct_seller')
+                        @if($product->listing_type->value === 'direct_seller')
                             Rs. {{ number_format($product->sale_price) }}
-                        @elseif($auctionType?->value === 'penny')
-                            Rs. {{ number_format($product->starting_price_cents / 100, 2) }} (Penny)
+                        @elseif($product->auction?->auction_type === 'penny')
+                            Rs. {{ number_format($product->auction->current_price, 2) }} (Penny)
                         @else
-                            Rs. {{ number_format($product->starting_bid) }}
+                            Rs. {{ number_format($product->auction?->traditionalAuction?->starting_bid) }}
                         @endif
                     </span>
-                    <span class="text-[9px] uppercase font-black text-gray-400 tracking-tighter">{{ $product->type->label() }}</span>
+                    <span class="text-[9px] uppercase font-black text-gray-400 tracking-tighter">{{ $product->listing_type->label() }}</span>
                 </div>
             @endscope
 

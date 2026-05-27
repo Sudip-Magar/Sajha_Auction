@@ -50,6 +50,8 @@ Route::middleware('user')->group(function () {
     Route::get('/notifications', UserNotifications::class)->name('user.notifications');
     Route::get('/settings', Settings::class)->name('user.settings');
     Route::get('/my-products', Products::class)->name('user.products');
+    Route::get('/my-products/create', \App\Livewire\User\ManageProduct::class)->name('user.products.create');
+    Route::get('/my-products/{product}/edit', \App\Livewire\User\ManageProduct::class)->name('user.products.edit');
     Route::get('/join-auction', JoinAuction::class)->name('user.join-auction');
 });
 

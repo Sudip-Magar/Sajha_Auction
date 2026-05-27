@@ -45,7 +45,7 @@
                         <div class="min-w-0">
                             <p class="font-bold text-gray-900 truncate">{{ $product->name }}</p>
                             <p class="text-xs text-gray-400 uppercase tracking-wider mt-1">
-                                {{ $product->category?->name ?? 'Uncategorized' }} • {{ ucfirst($product->type) }}
+                                {{ $product->category?->name ?? 'Uncategorized' }} • {{ $product->listing_type->label() }}
                             </p>
                         </div>
                         <div class="flex items-center gap-2">

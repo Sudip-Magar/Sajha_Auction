@@ -17,6 +17,7 @@ class Login extends Component
     public $email = '';
 
     public string $password = '';
+    public bool $rememberMe = false;
 
     public function mount()
     {
@@ -50,7 +51,7 @@ class Login extends Component
             return;
         }
 
-        Auth::login($user, remember: true);
+        Auth::login($user,  remember: (bool)$this->rememberMe);
 
         session([
             'google_user' => [

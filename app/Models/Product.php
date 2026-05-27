@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 class Product extends Model
 {
     protected $fillable = [
+        'sku',
         'seller_id',
         'category_id',
         'name',
@@ -21,14 +22,16 @@ class Product extends Model
         'description',
         'specifications',
         'condition',
+        'quantity',
         'retail_price',
-        'type',
+        'sale_price',
+        'listing_type',
         'is_approved',
         'status',
     ];
 
     protected $casts = [
-        'type' => ProductSaleType::class,
+        'listing_type' => ProductSaleType::class,
         'is_approved' => 'boolean',
         'specifications' => 'string',
     ];
@@ -38,6 +41,9 @@ class Product extends Model
         parent::boot();
         static::creating(function (Product $product): void {
             $product->slug = Str::slug($product->name).'-'.Str::random(5);
+            if (empty($product->sku)) {
+                $product->sku = 'PRD-' . strtoupper(Str::random(8));
+            }
         });
     }
 
@@ -56,21 +62,6 @@ class Product extends Model
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
 
-    public function directSellerProduct(): HasOne
-    {
-        return $this->hasOne(DirectSellerProduct::class);
-    }
-
-    public function pennyAuction(): HasOne
-    {
-        return $this->hasOne(PennyAuction::class);
-    }
-
-    public function traditionalAuction(): HasOne
-    {
-        return $this->hasOne(TraditionalAuction::class);
-    }
-
     public function auction(): HasOne
     {
         return $this->hasOne(Auction::class);
@@ -83,39 +74,8 @@ class Product extends Model
             'status' => 'active',
         ]);
 
-        if ($this->type !== ProductSaleType::AUCTION || $this->auction) {
-            return;
-        }
-
-        $auctionType = $this->auction_type;
-
-        if ($auctionType === ProductAuctionType::PENNY && $this->pennyAuction) {
-            $this->auction()->create([
-                'auction_type' => ProductAuctionType::PENNY->value,
-                'quantity' => $this->pennyAuction->quantity,
-                'starts_at_en' => $this->pennyAuction->auction_start_en,
-                'starts_at_np' => $this->pennyAuction->auction_start_np,
-                'starting_price_cents' => $this->pennyAuction->starting_price_cents,
-                'current_price_cents' => $this->pennyAuction->starting_price_cents,
-                'bid_increment_cents' => $this->pennyAuction->bid_increment_cents,
-                'timer_seconds' => $this->pennyAuction->timer_seconds,
-                'timer_extension_seconds' => $this->pennyAuction->timer_extension_seconds,
-            ]);
-
-            return;
-        }
-
-        if ($auctionType === ProductAuctionType::TRADITIONAL && $this->traditionalAuction) {
-            $this->auction()->create([
-                'auction_type' => ProductAuctionType::TRADITIONAL->value,
-                'quantity' => $this->traditionalAuction->quantity,
-                'starts_at_en' => $this->traditionalAuction->auction_start_en,
-                'starts_at_np' => $this->traditionalAuction->auction_start_np,
-                'ends_at_en' => $this->traditionalAuction->auction_end_en,
-                'ends_at_np' => $this->traditionalAuction->auction_end_np,
-                'starting_bid' => $this->traditionalAuction->starting_bid,
-                'current_bid' => $this->traditionalAuction->starting_bid,
-            ]);
+        if ($this->auction) {
+            $this->auction->update(['status' => 'active']);
         }
     }
 
@@ -126,14 +86,6 @@ class Product extends Model
 
     public function getAuctionTypeAttribute(): ?ProductAuctionType
     {
-        if ($this->pennyAuction) {
-            return ProductAuctionType::PENNY;
-        }
-
-        if ($this->traditionalAuction) {
-            return ProductAuctionType::TRADITIONAL;
-        }
-
         if ($this->auction?->auction_type) {
             return ProductAuctionType::tryFrom($this->auction->auction_type);
         }
@@ -141,68 +93,35 @@ class Product extends Model
         return null;
     }
 
-    public function getSalePriceAttribute(): ?float
-    {
-        return $this->directSellerProduct?->price !== null
-            ? (float) $this->directSellerProduct->price
-            : null;
-    }
-
-    public function getStockQuantityAttribute(): int
-    {
-        return (int) (
-            $this->directSellerProduct?->quantity
-            ?? $this->traditionalAuction?->quantity
-            ?? $this->pennyAuction?->quantity
-            ?? $this->auction?->quantity
-            ?? 0
-        );
-    }
-
     public function getStartingBidAttribute(): ?float
     {
-        return $this->traditionalAuction?->starting_bid !== null
-            ? (float) $this->traditionalAuction->starting_bid
+        return $this->auction?->traditionalAuction?->starting_bid !== null
+            ? (float) $this->auction->traditionalAuction->starting_bid
             : null;
-    }
-
-    public function getStartingPriceCentsAttribute(): int
-    {
-        return (int) ($this->pennyAuction?->starting_price_cents ?? 0);
-    }
-
-    public function getBidIncrementCentsAttribute(): int
-    {
-        return (int) ($this->pennyAuction?->bid_increment_cents ?? 1);
-    }
-
-    public function getTimerSecondsAttribute(): int
-    {
-        return (int) ($this->pennyAuction?->timer_seconds ?? 60);
-    }
-
-    public function getTimerExtensionSecondsAttribute(): int
-    {
-        return (int) ($this->pennyAuction?->timer_extension_seconds ?? 15);
     }
 
     public function getAuctionStartEnAttribute(): ?Carbon
     {
-        return $this->traditionalAuction?->auction_start_en ?? $this->pennyAuction?->auction_start_en;
+        return $this->auction?->start_time;
     }
 
     public function getAuctionStartNpAttribute(): ?string
     {
-        return $this->traditionalAuction?->auction_start_np ?? $this->pennyAuction?->auction_start_np;
+        return $this->auction?->start_time_np;
     }
 
     public function getAuctionEndEnAttribute(): ?Carbon
     {
-        return $this->traditionalAuction?->auction_end_en;
+        return $this->auction?->end_time;
     }
 
     public function getAuctionEndNpAttribute(): ?string
     {
-        return $this->traditionalAuction?->auction_end_np;
+        return $this->auction?->end_time_np;
+    }
+
+    public function getStockQuantityAttribute(): int
+    {
+        return (int) ($this->quantity ?? 0);
     }
 }

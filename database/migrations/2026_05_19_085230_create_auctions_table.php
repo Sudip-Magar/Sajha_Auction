@@ -15,9 +15,10 @@ return new class extends Migration {
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
             $table->string('auction_type')->comment('penny or traditional');
             $table->foreignId('winner_id')->nullable()->constrained('users')->cascadeOnDelete();
-            $table->string('auction_type')->comment('penny or traditional');
             $table->timestamp('start_time')->nullable();
+            $table->string('start_time_np')->nullable();
             $table->timestamp('end_time')->nullable();
+            $table->string('end_time_np')->nullable();
             $table->timestamp('extended_end_time')->nullable();
              $table->decimal('current_price', 12, 2)->default(0);
             $table->unsignedInteger('total_bids')->default(0);

@@ -16,8 +16,8 @@ class MarketplaceProducts extends Component
 
     public function render(): View
     {
-        $products = Product::with(['category', 'images', 'directSellerProduct', 'user'])
-            ->where('type', ProductSaleType::DIRECT_SELLER->value)
+        $products = Product::with(['category', 'images', 'user'])
+            ->where('listing_type', ProductSaleType::DIRECT_SELLER->value)
             ->where('is_approved', true)
             ->where('status', 'active')
             ->latest()

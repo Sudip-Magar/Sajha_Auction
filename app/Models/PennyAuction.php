@@ -8,22 +8,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PennyAuction extends Model
 {
     protected $fillable = [
-        'product_id',
-        'quantity',
-        'starting_price_cents',
-        'bid_increment_cents',
-        'timer_seconds',
-        'timer_extension_seconds',
-        'auction_start_en',
-        'auction_start_np',
+        'auction_id',
+        'bid_cost_credits',
+        'price_increment',
+        'timer_start_seconds',
+        'timer_reset_seconds',
+        'max_bids_per_user',
+        'credit_refund_on_loss',
     ];
 
     protected $casts = [
-        'auction_start_en' => 'datetime',
+        'price_increment' => 'decimal:2',
+        'credit_refund_on_loss' => 'boolean',
     ];
 
-    public function product(): BelongsTo
+    public function auction(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Auction::class);
     }
 }

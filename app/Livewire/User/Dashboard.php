@@ -48,7 +48,7 @@ class Dashboard extends Component
             'totalProducts' => (clone $products)->count(),
             'activeProducts' => (clone $products)->where('status', 'active')->count(),
             'pendingProducts' => (clone $products)->where('is_approved', false)->count(),
-            'auctionProducts' => (clone $products)->where('type', 'auction')->count(),
+            'auctionProducts' => (clone $products)->where('listing_type', 'auction')->count(),
             'recentProducts' => (clone $products)->with(['category', 'images'])->latest()->take(5)->get(),
             'user' => Auth::user(),
         ]);

@@ -24,7 +24,8 @@ return new class extends Migration
             $table->string('condition');
             $table->string('quantity');
 
-            $table->decimal('retail_price', 15, 2);
+            $table->decimal('retail_price', 15, 2)->nullable();
+            $table->decimal('sale_price', 15, 2)->nullable();
             $table->string('listing_type')->comment('direct sell, auction');
             $table->boolean('is_approved')->default(false);
             $table->string('status');

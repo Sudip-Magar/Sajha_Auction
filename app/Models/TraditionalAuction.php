@@ -8,25 +8,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TraditionalAuction extends Model
 {
     protected $fillable = [
-        'product_id',
-        'quantity',
+        'auction_id',
         'starting_bid',
-        'bid_increment',
-        'auction_start_en',
-        'auction_start_np',
-        'auction_end_en',
-        'auction_end_np',
+        'reserve_price',
+        'min_bid_increment',
+        'timer_start_seconds',
+        'timer_reset_seconds',
     ];
 
     protected $casts = [
         'starting_bid' => 'decimal:2',
-        'bid_increment' => 'decimal:2',
-        'auction_start_en' => 'datetime',
-        'auction_end_en' => 'datetime',
+        'reserve_price' => 'decimal:2',
+        'min_bid_increment' => 'decimal:2',
     ];
 
-    public function product(): BelongsTo
+    public function auction(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Auction::class);
     }
 }

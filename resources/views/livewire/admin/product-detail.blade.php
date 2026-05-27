@@ -14,7 +14,7 @@
             </div>
             <div>
                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    @if($product->type->value === 'direct_seller')
+                    @if($product->listing_type->value === 'direct_seller')
                         Selling Price
                     @elseif($product->auction_type?->value === 'penny')
                         Penny Start Price
@@ -23,10 +23,10 @@
                     @endif
                 </p>
                 <p class="text-2xl font-black text-gray-900">
-                    @if($product->type->value === 'direct_seller')
+                    @if($product->listing_type->value === 'direct_seller')
                         Rs. {{ number_format($product->sale_price) }}
                     @elseif($product->auction_type?->value === 'penny')
-                        Rs. {{ number_format($product->starting_price_cents / 100, 2) }}
+                        Rs. {{ number_format($product->auction?->current_price, 2) }}
                     @else
                         Rs. {{ number_format($product->starting_bid) }}
                     @endif
@@ -80,7 +80,7 @@
                     </div>
 
                     <div class="flex items-center gap-2 shrink-0">
-                        <x-badge :value="$product->type->label()" :class="$product->type->value === 'auction' ? 'badge-info' : 'badge-success'" class="text-[10px] font-bold uppercase" />
+                        <x-badge :value="$product->listing_type->label()" :class="$product->listing_type->value === 'auction' ? 'badge-info' : 'badge-success'" class="text-[10px] font-bold uppercase" />
                         <x-badge :value="$product->category?->name ?? 'Uncategorized'" class="badge-ghost text-[10px] font-bold uppercase" />
                     </div>
                 </div>
@@ -158,7 +158,7 @@
 
                         <div class="rounded-xl bg-[#f5f2ea] p-4">
                             <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Auction End Date</p>
-                            @if($product->type->value === 'auction' && $product->auction_type?->value === 'traditional')
+                            @if($product->listing_type->value === 'auction' && $product->auction_type?->value === 'traditional')
                                 <p class="mt-2 text-sm font-black text-gray-900">
                                     {{ $product->auction_end_en?->format('M d, Y h:i A') }} /
                                     <span class="text-emerald-700 font-bold">BS: {{ $product->auction_end_np }}</span>
@@ -169,7 +169,7 @@
                         </div>
                     </div>
 
-                    @if($product->type->value === 'direct_seller')
+                    @if($product->listing_type->value === 'direct_seller')
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
                             <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
                                 <p class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Direct Sell Price</p>
@@ -182,7 +182,7 @@
                         </div>
                     @endif
 
-                    @if($product->type->value === 'auction')
+                    @if($product->listing_type->value === 'auction')
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
                             <div class="rounded-xl bg-sky-50 border border-sky-100 p-4">
                                 <p class="text-[10px] font-black uppercase tracking-widest text-sky-600">Auction Type</p>
@@ -201,23 +201,23 @@
                             </div>
                         </div>
 
-                        @if($product->auction_type?->value === 'penny')
+                        @if($product->auction_type?->value === 'penny' && $product->auction?->pennyAuction)
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
-                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Start Price</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->starting_price_cents }} cents</p>
+                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Bid Cost</p>
+                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->auction->pennyAuction->bid_cost_credits }} credits</p>
                                 </div>
                                 <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
-                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Increment</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->bid_increment_cents }} cent(s)</p>
+                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Price Increment</p>
+                                    <p class="mt-1 text-sm font-black text-gray-900">Rs. {{ $product->auction->pennyAuction->price_increment }}</p>
                                 </div>
                                 <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
                                     <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Timer</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->timer_seconds }}s</p>
+                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->auction->pennyAuction->timer_start_seconds }}s</p>
                                 </div>
                                 <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
                                     <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Extension</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">+{{ $product->timer_extension_seconds }}s</p>
+                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->auction->pennyAuction->timer_reset_seconds }}s</p>
                                 </div>
                             </div>
                         @endif

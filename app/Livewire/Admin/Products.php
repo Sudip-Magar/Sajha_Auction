@@ -34,7 +34,7 @@ class Products extends Component
 
     public function approveProduct(Product $product): void
     {
-        $product->loadMissing(['auction', 'pennyAuction', 'traditionalAuction']);
+        $product->loadMissing(['auction.traditionalAuction', 'auction.pennyAuction']);
         $product->approveListing();
 
         $product->user?->notify(new ProductApprovedNotification($product));
@@ -44,7 +44,7 @@ class Products extends Component
 
     public function render()
     {
-        $products = Product::with(['user', 'category', 'images', 'directSellerProduct', 'pennyAuction', 'traditionalAuction'])
+        $products = Product::with(['user', 'category', 'images', 'auction.pennyAuction', 'auction.traditionalAuction'])
             ->where('name', 'like', '%'.$this->search.'%')
             ->latest()
             ->paginate(10);
