@@ -14,18 +14,18 @@
             </div>
             <div>
                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    @if($product->type === 'sell')
+                    @if($product->type->value === 'direct_seller')
                         Selling Price
-                    @elseif($product->auction_type === 'penny')
+                    @elseif($product->auction_type?->value === 'penny')
                         Penny Start Price
                     @else
                         Starting Bid
                     @endif
                 </p>
                 <p class="text-2xl font-black text-gray-900">
-                    @if($product->type === 'sell')
+                    @if($product->type->value === 'direct_seller')
                         Rs. {{ number_format($product->sale_price) }}
-                    @elseif($product->auction_type === 'penny')
+                    @elseif($product->auction_type?->value === 'penny')
                         Rs. {{ number_format($product->starting_price_cents / 100, 2) }}
                     @else
                         Rs. {{ number_format($product->starting_bid) }}
@@ -80,7 +80,7 @@
                     </div>
 
                     <div class="flex items-center gap-2 shrink-0">
-                        <x-badge :value="ucfirst($product->type)" :class="$product->type === 'auction' ? 'badge-info' : 'badge-success'" class="text-[10px] font-bold uppercase" />
+                        <x-badge :value="$product->type->label()" :class="$product->type->value === 'auction' ? 'badge-info' : 'badge-success'" class="text-[10px] font-bold uppercase" />
                         <x-badge :value="$product->category?->name ?? 'Uncategorized'" class="badge-ghost text-[10px] font-bold uppercase" />
                     </div>
                 </div>
@@ -158,7 +158,7 @@
 
                         <div class="rounded-xl bg-[#f5f2ea] p-4">
                             <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Auction End Date</p>
-                            @if($product->type === 'auction' && $product->auction_type === 'traditional')
+                            @if($product->type->value === 'auction' && $product->auction_type?->value === 'traditional')
                                 <p class="mt-2 text-sm font-black text-gray-900">
                                     {{ $product->auction_end_en?->format('M d, Y h:i A') }} /
                                     <span class="text-emerald-700 font-bold">BS: {{ $product->auction_end_np }}</span>
@@ -169,7 +169,7 @@
                         </div>
                     </div>
 
-                    @if($product->type === 'sell')
+                    @if($product->type->value === 'direct_seller')
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
                             <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
                                 <p class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Direct Sell Price</p>
@@ -182,26 +182,26 @@
                         </div>
                     @endif
 
-                    @if($product->type === 'auction')
+                    @if($product->type->value === 'auction')
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
                             <div class="rounded-xl bg-sky-50 border border-sky-100 p-4">
                                 <p class="text-[10px] font-black uppercase tracking-widest text-sky-600">Auction Type</p>
-                                <p class="mt-2 text-lg font-black text-sky-950">{{ ucfirst($product->auction_type) }}</p>
+                                <p class="mt-2 text-lg font-black text-sky-950">{{ $product->auction_type?->label() }}</p>
                             </div>
                             <div class="rounded-xl bg-sky-50 border border-sky-100 p-4">
                                 <p class="text-[10px] font-black uppercase tracking-widest text-sky-600">Scheduled Start Time</p>
-                                @if($product->scheduled_for)
+                                @if($product->auction_start_en)
                                     <p class="mt-2 text-sm font-black text-sky-950">
-                                        {{ $product->scheduled_for?->format('M d, Y h:i A') }} /
-                                        <span class="text-emerald-700 font-bold">BS: {{ $product->scheduled_for_np }}</span>
+                                        {{ $product->auction_start_en?->format('M d, Y h:i A') }} /
+                                        <span class="text-emerald-700 font-bold">BS: {{ $product->auction_start_np }}</span>
                                     </p>
                                 @else
-                                    <p class="mt-2 text-sm font-black text-gray-400">Immediate on approval</p>
+                                    <p class="mt-2 text-sm font-black text-gray-400">Not scheduled</p>
                                 @endif
                             </div>
                         </div>
 
-                        @if($product->auction_type === 'penny')
+                        @if($product->auction_type?->value === 'penny')
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
                                     <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Start Price</p>

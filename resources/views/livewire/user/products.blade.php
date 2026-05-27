@@ -36,19 +36,21 @@
             @endscope
 
             @scope('cell_type', $product)
+                @php($auctionType = $product->auction_type)
                 <div class="flex flex-col gap-1">
-                    <x-badge :value="ucfirst($product->type)" :class="$product->type === 'auction' ? 'badge-info text-white' : 'badge-primary text-white'" class="font-bold text-[10px] uppercase" />
-                    @if($product->type === 'auction' && $product->auction_type)
-                        <span class="text-[9px] font-black uppercase text-gray-400 tracking-tighter">{{ $product->auction_type }}</span>
+                    <x-badge :value="$product->type->label()" :class="$product->type->value === 'auction' ? 'badge-info text-white' : 'badge-primary text-white'" class="font-bold text-[10px] uppercase" />
+                    @if($product->type->value === 'auction' && $auctionType)
+                        <span class="text-[9px] font-black uppercase text-gray-400 tracking-tighter">{{ $auctionType->label() }}</span>
                     @endif
                 </div>
             @endscope
 
             @scope('cell_price_display', $product)
+                @php($auctionType = $product->auction_type)
                 <span class="font-bold text-gray-700">
-                    @if($product->type === 'sell')
+                    @if($product->type->value === 'direct_seller')
                         Rs. {{ number_format($product->sale_price) }}
-                    @elseif($product->auction_type === 'penny')
+                    @elseif($auctionType?->value === 'penny')
                         Rs. {{ number_format($product->starting_price_cents / 100, 2) }} <span class="text-[10px] text-gray-400 font-medium">(Penny)</span>
                     @else
                         Rs. {{ number_format($product->starting_bid) }}
@@ -96,12 +98,22 @@
     {{-- Product Modal --}}
     <x-modal wire:model="productModal" title="" box-class="!w-full !max-w-[1400px] !p-0 overflow-hidden bg-[#F8FAFC]">
 
-        <x-form wire:submit="saveProduct">
+        <x-form wire:submit.prevent="saveProduct">
 
             <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] min-h-[600px]">
 
                 {{-- LEFT CONTENT --}}
                 <div class="overflow-y-auto p-6 space-y-6 max-h-[80vh]">
+                    @if($errors->any())
+                        <div class="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                            <p class="font-black">Please fix the highlighted fields before submitting.</p>
+                            <ul class="mt-2 list-disc space-y-1 pl-5">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
 
                     {{-- HERO --}}
                     <div class="rounded-3xl bg-gradient-to-r from-[#1F6F5F] to-[#2FA084] p-8 text-white">
@@ -154,7 +166,7 @@
                                     label="Sale Type"
                                     wire:model.live="type"
                                     :options="[
-                                        ['id' => 'sell', 'name' => 'Direct Sell'],
+                                        ['id' => 'direct_seller', 'name' => 'Direct Seller'],
                                         ['id' => 'auction', 'name' => 'Auction']
                                     ]"
                                     icon="o-shopping-bag"
@@ -179,7 +191,7 @@
 
                                 <x-input
                                     label="Retail Price (Rs.)"
-                                    wire:model="retail_price"
+                                    wire:model.number="retail_price"
                                     type="number"
                                     placeholder="Original market price"
                                     icon="o-banknotes"
@@ -202,13 +214,13 @@
                             </h3>
                         </div>
 
-                        @if($type === 'sell')
+                        @if($type === 'direct_seller')
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                                 <x-input
                                     label="Sale Price (Rs.)"
-                                    wire:model="sale_price"
+                                    wire:model.number="sale_price"
                                     type="number"
                                     icon="o-banknotes"
                                     class="input-bordered"
@@ -216,7 +228,7 @@
 
                                 <x-input
                                     label="Stock Quantity"
-                                    wire:model="stock_quantity"
+                                    wire:model.number="stock_quantity"
                                     type="number"
                                     icon="o-archive-box"
                                     class="input-bordered"
@@ -241,25 +253,77 @@
                                     class="select-bordered"
                                 />
 
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                                    <x-input
+                                        label="Auction Quantity"
+                                        wire:model.number="stock_quantity"
+                                        type="number"
+                                        icon="o-archive-box"
+                                        class="input-bordered"
+                                    />
+
+                                    <div>
+                                        <label for="auction_start_np" class="fieldset-legend mb-0.5">Auction Start Date (B.S.)</label>
+                                        <input
+                                            id="auction_start_np"
+                                            wire:model="auction_start_np"
+                                            data-nepali-date="auction-start"
+                                            autocomplete="off"
+                                            class="input input-bordered w-full"
+                                            placeholder="YYYY-MM-DD"
+                                        >
+                                        <input
+                                            type="hidden"
+                                            wire:model="auction_start_date_en"
+                                            data-english-date="auction-start"
+                                        >
+                                        @error('auction_start_en')
+                                            <small class="text-red-500">{{ $message }}</small>
+                                        @enderror
+                                    </div>
+
+                                    <x-input
+                                        label="Auction Start Time"
+                                        wire:model.live="auction_start_time"
+                                        type="time"
+                                        icon="o-clock"
+                                        class="input-bordered"
+                                    />
+
+                                </div>
+
                                 @if($auction_type === 'traditional')
 
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                                         <x-input
                                             label="Starting Bid (Rs.)"
-                                            wire:model="starting_bid"
+                                            wire:model.number="starting_bid"
                                             type="number"
                                             icon="o-banknotes"
                                             class="input-bordered"
                                         />
 
-                                        <x-input
-                                            label="Auction End Date"
-                                            wire:model.live="auction_end_date_en"
-                                            type="date"
-                                            icon="o-calendar"
-                                            class="input-bordered"
-                                        />
+                                        <div>
+                                            <label for="auction_end_np" class="fieldset-legend mb-0.5">Auction End Date (B.S.)</label>
+                                            <input
+                                                id="auction_end_np"
+                                                wire:model="auction_end_np"
+                                                data-nepali-date="auction-end"
+                                                autocomplete="off"
+                                                class="input input-bordered w-full"
+                                                placeholder="YYYY-MM-DD"
+                                            >
+                                            <input
+                                                type="hidden"
+                                                wire:model="auction_end_date_en"
+                                                data-english-date="auction-end"
+                                            >
+                                            @error('auction_end_en')
+                                                <small class="text-red-500">{{ $message }}</small>
+                                            @enderror
+                                        </div>
 
                                         <x-input
                                             label="Auction End Time"
@@ -267,15 +331,6 @@
                                             type="time"
                                             icon="o-clock"
                                             class="input-bordered"
-                                        />
-
-                                        <x-input
-                                            label="Auction End Date (Nepali)"
-                                            wire:model="auction_end_np"
-                                            placeholder="e.g. 2081-02-05"
-                                            icon="o-calendar-days"
-                                            class="input-bordered"
-                                            hint="Optional – Bikram Sambat date"
                                         />
 
                                     </div>
@@ -288,28 +343,28 @@
 
                                         <x-input
                                             label="Starting Price (Cents)"
-                                            wire:model="starting_price_cents"
+                                            wire:model.number="starting_price_cents"
                                             type="number"
                                             class="input-bordered"
                                         />
 
                                         <x-input
                                             label="Bid Increment (Cents)"
-                                            wire:model="bid_increment_cents"
+                                            wire:model.number="bid_increment_cents"
                                             type="number"
                                             class="input-bordered"
                                         />
 
                                         <x-input
                                             label="Initial Timer (seconds)"
-                                            wire:model="timer_seconds"
+                                            wire:model.number="timer_seconds"
                                             type="number"
                                             class="input-bordered"
                                         />
 
                                         <x-input
                                             label="Timer Extension (seconds)"
-                                            wire:model="timer_extension_seconds"
+                                            wire:model.number="timer_extension_seconds"
                                             type="number"
                                             class="input-bordered"
                                         />
@@ -318,6 +373,7 @@
 
                                 @endif
 
+                                @if(false)
                                 {{-- SCHEDULE START (optional) --}}
                                 <div class="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-5">
                                     <p class="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
@@ -352,6 +408,7 @@
 
                                     </div>
                                 </div>
+                                @endif
 
                             </div>
 
@@ -400,7 +457,7 @@
 
                                 <div>
                                     <p class="text-[11px] font-black uppercase tracking-widest text-gray-400">Type</p>
-                                    <p class="mt-2 text-sm font-black text-[#1F6F5F]">{{ ucfirst($type) }}</p>
+                                    <p class="mt-2 text-sm font-black text-[#1F6F5F]">{{ $type === 'direct_seller' ? 'Direct Seller' : ucfirst($type) }}</p>
                                 </div>
 
                                 <div>
@@ -431,7 +488,7 @@
                                 <input
                                     id="product-images-upload"
                                     type="file"
-                                    wire:model="newImages"
+                                    wire:model.live="newImages"
                                     accept="image/*"
                                     multiple
                                     class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
@@ -449,6 +506,9 @@
                             </label>
 
                             @error('newImages')
+                                <p class="mt-2 text-sm text-red-500">{{ $message }}</p>
+                            @enderror
+                            @error('newImages.*')
                                 <p class="mt-2 text-sm text-red-500">{{ $message }}</p>
                             @enderror
 

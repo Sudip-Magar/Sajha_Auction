@@ -18,6 +18,7 @@ use App\Livewire\Auth\User\VerifyOtp;
 use App\Livewire\Home;
 use App\Livewire\User\Dashboard;
 use App\Livewire\User\JoinAuction;
+use App\Livewire\User\MarketplaceProducts;
 use App\Livewire\User\Notifications as UserNotifications;
 use App\Livewire\User\Products;
 use App\Livewire\User\Settings;
@@ -28,6 +29,7 @@ Route::get('/', function () {
 });
 
 Route::get('/home', Home::class)->name('home');
+Route::get('/products', MarketplaceProducts::class)->name('user.marketplace-products');
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
 

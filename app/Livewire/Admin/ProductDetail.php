@@ -20,7 +20,7 @@ class ProductDetail extends Component
 
     public function mount(Product $product): void
     {
-        $this->product = $product->load(['user', 'category', 'images']);
+        $this->product = $product->load(['user', 'category', 'images', 'directSellerProduct', 'pennyAuction', 'traditionalAuction', 'auction']);
     }
 
     public function approveProduct(): void
@@ -31,12 +31,9 @@ class ProductDetail extends Component
             return;
         }
 
-        $this->product->update([
-            'is_approved' => true,
-            'status' => 'active',
-        ]);
+        $this->product->approveListing();
 
-        $this->product->refresh()->load(['user', 'category', 'images']);
+        $this->product->refresh()->load(['user', 'category', 'images', 'directSellerProduct', 'pennyAuction', 'traditionalAuction', 'auction']);
 
         if ($this->product->user) {
             try {

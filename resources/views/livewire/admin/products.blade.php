@@ -35,7 +35,7 @@
                     </div>
                     <div>
                         <div class="font-black text-gray-900">{{ $product->name }}</div>
-                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{{ $product->category->name }}</div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{{ $product->category->name ?? 'Uncategorized' }}</div>
                     </div>
                 </div>
             @endscope
@@ -43,24 +43,25 @@
             @scope('cell_user.name', $product)
                 <div class="flex items-center gap-2">
                     <div class="w-6 h-6 rounded-full bg-[#1F6F5F] flex items-center justify-center text-[8px] text-white font-bold">
-                        {{ substr($product->user->name, 0, 1) }}
+                        {{ substr($product->user->name ?? 'S', 0, 1) }}
                     </div>
-                    <span class="text-xs font-bold text-gray-600">{{ $product->user->name }}</span>
+                    <span class="text-xs font-bold text-gray-600">{{ $product->user->name ?? 'Unknown seller' }}</span>
                 </div>
             @endscope
 
             @scope('cell_price_display', $product)
+                @php($auctionType = $product->auction_type)
                 <div class="flex flex-col">
                     <span class="font-bold text-gray-900 text-sm">
-                        @if($product->type === 'sell')
+                        @if($product->type->value === 'direct_seller')
                             Rs. {{ number_format($product->sale_price) }}
-                        @elseif($product->auction_type === 'penny')
+                        @elseif($auctionType?->value === 'penny')
                             Rs. {{ number_format($product->starting_price_cents / 100, 2) }} (Penny)
                         @else
                             Rs. {{ number_format($product->starting_bid) }}
                         @endif
                     </span>
-                    <span class="text-[9px] uppercase font-black text-gray-400 tracking-tighter">{{ $product->type }}</span>
+                    <span class="text-[9px] uppercase font-black text-gray-400 tracking-tighter">{{ $product->type->label() }}</span>
                 </div>
             @endscope
 

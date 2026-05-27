@@ -2,14 +2,16 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\ProductAuctionType;
+use App\Enums\ProductSaleType;
 use App\Models\Admin;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Notifications\NewProductUploadedNotification;
-use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
@@ -17,6 +19,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
+use Throwable;
 
 #[Layout('layouts.app')]
 class Products extends Component
@@ -47,31 +50,39 @@ class Products extends Component
 
     public string $description = '';
 
-    public ?int $category_id = null;
+    public mixed $category_id = null;
 
-    public string $type = 'sell';
+    public string $type = 'direct_seller';
 
     public string $condition = 'new';
 
-    public ?float $retail_price = null;
+    public mixed $retail_price = null;
 
-    public ?float $sale_price = null;
+    public mixed $sale_price = null;
 
-    public int $stock_quantity = 1;
+    public mixed $stock_quantity = 1;
 
     public ?string $specifications = null;
 
     public ?string $auction_type = 'traditional';
 
-    public ?float $starting_bid = null;
+    public mixed $starting_bid = null;
 
-    public int $starting_price_cents = 0;
+    public mixed $starting_price_cents = 0;
 
-    public int $bid_increment_cents = 1;
+    public mixed $bid_increment_cents = 1;
 
-    public int $timer_seconds = 60;
+    public mixed $timer_seconds = 60;
 
-    public int $timer_extension_seconds = 15;
+    public mixed $timer_extension_seconds = 15;
+
+    public ?string $auction_start_en = null;
+
+    public string $auction_start_np = '';
+
+    public string $auction_start_date_en = '';
+
+    public string $auction_start_time = '';
 
     public ?string $auction_end_en = null;
 
@@ -80,14 +91,6 @@ class Products extends Component
     public string $auction_end_date_en = '';
 
     public string $auction_end_time = '';
-
-    public ?string $scheduled_for = null;
-
-    public string $scheduled_for_np = '';
-
-    public string $scheduled_for_date_en = '';
-
-    public string $scheduled_for_time = '';
 
     public array $newImages = [];
 
@@ -110,6 +113,7 @@ class Products extends Component
     {
         $this->resetForm();
         $this->productModal = true;
+        $this->dispatch('init-nepali-date-pickers');
     }
 
     public function editProduct(Product $product): void
@@ -125,18 +129,30 @@ class Products extends Component
         $this->name = $product->name;
         $this->description = $product->description;
         $this->category_id = $product->category_id;
-        $this->type = $product->type;
+        $this->type = $product->type->value;
         $this->condition = $product->condition;
         $this->retail_price = (float) $product->retail_price;
         $this->sale_price = $product->sale_price ? (float) $product->sale_price : null;
         $this->stock_quantity = (int) $product->stock_quantity;
         $this->specifications = $product->specifications;
-        $this->auction_type = $product->auction_type ?: 'traditional';
+        $this->auction_type = $product->auction_type?->value ?: ProductAuctionType::TRADITIONAL->value;
         $this->starting_bid = $product->starting_bid ? (float) $product->starting_bid : null;
         $this->starting_price_cents = (int) $product->starting_price_cents;
         $this->bid_increment_cents = (int) $product->bid_increment_cents;
         $this->timer_seconds = (int) $product->timer_seconds;
         $this->timer_extension_seconds = (int) $product->timer_extension_seconds;
+
+        if ($product->auction_start_en) {
+            $this->auction_start_en = $product->auction_start_en->format('Y-m-d H:i');
+            $this->auction_start_date_en = $product->auction_start_en->format('Y-m-d');
+            $this->auction_start_time = $product->auction_start_en->format('H:i');
+            $this->auction_start_np = $product->auction_start_np ?? '';
+        } else {
+            $this->auction_start_en = null;
+            $this->auction_start_date_en = '';
+            $this->auction_start_time = '';
+            $this->auction_start_np = '';
+        }
 
         if ($product->auction_end_en) {
             $this->auction_end_en = $product->auction_end_en->format('Y-m-d H:i');
@@ -150,18 +166,6 @@ class Products extends Component
             $this->auction_end_np = '';
         }
 
-        if ($product->scheduled_for) {
-            $this->scheduled_for = $product->scheduled_for->format('Y-m-d H:i');
-            $this->scheduled_for_date_en = $product->scheduled_for->format('Y-m-d');
-            $this->scheduled_for_time = $product->scheduled_for->format('H:i');
-            $this->scheduled_for_np = $product->scheduled_for_np ?? '';
-        } else {
-            $this->scheduled_for = null;
-            $this->scheduled_for_date_en = '';
-            $this->scheduled_for_time = '';
-            $this->scheduled_for_np = '';
-        }
-
         $this->newImages = [];
         $this->imagesToDelete = [];
         $this->existingImages = $product->images
@@ -171,6 +175,7 @@ class Products extends Component
             ])
             ->all();
         $this->productModal = true;
+        $this->dispatch('init-nepali-date-pickers');
     }
 
     public function removeExistingImage(int $imageId): void
@@ -196,19 +201,19 @@ class Products extends Component
 
     public function saveProduct(): void
     {
-        $this->auction_end_en = $this->type === 'auction' && $this->auction_type === 'traditional' && $this->auction_end_date_en && $this->auction_end_time
-            ? "{$this->auction_end_date_en} {$this->auction_end_time}"
+        $this->auction_start_en = $this->type === ProductSaleType::AUCTION->value && $this->auction_start_date_en && $this->auction_start_time
+            ? "{$this->auction_start_date_en} {$this->auction_start_time}"
             : null;
 
-        $this->scheduled_for = $this->type === 'auction' && $this->scheduled_for_date_en && $this->scheduled_for_time
-            ? "{$this->scheduled_for_date_en} {$this->scheduled_for_time}"
+        $this->auction_end_en = $this->type === ProductSaleType::AUCTION->value && $this->auction_type === ProductAuctionType::TRADITIONAL->value && $this->auction_end_date_en && $this->auction_end_time
+            ? "{$this->auction_end_date_en} {$this->auction_end_time}"
             : null;
 
         $rules = [
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
-            'type' => 'required|in:sell,auction',
+            'type' => 'required|in:'.ProductSaleType::DIRECT_SELLER->value.','.ProductSaleType::AUCTION->value,
             'condition' => 'required|in:new,like-new,used',
             'retail_price' => 'required|numeric|min:0',
             'specifications' => 'nullable|string',
@@ -216,31 +221,34 @@ class Products extends Component
             'newImages.*' => 'image|max:2048',
         ];
 
-        if ($this->type === 'sell') {
+        if ($this->type === ProductSaleType::DIRECT_SELLER->value) {
             $rules['sale_price'] = 'required|numeric|min:0';
             $rules['stock_quantity'] = 'required|integer|min:1';
         } else {
-            $rules['auction_type'] = 'required|in:traditional,penny';
+            $rules['auction_type'] = 'required|in:'.ProductAuctionType::TRADITIONAL->value.','.ProductAuctionType::PENNY->value;
+            $rules['stock_quantity'] = 'required|integer|min:1';
+            $rules['auction_start_en'] = 'required|after_or_equal:'.now()->addDay()->format('Y-m-d H:i');
+            $rules['auction_start_np'] = 'required|string|max:20';
 
-            if ($this->auction_type === 'traditional') {
+            if ($this->auction_type === ProductAuctionType::TRADITIONAL->value) {
                 $rules['starting_bid'] = 'required|numeric|min:0';
-                $rules['auction_end_en'] = 'required|after:now';
+                $rules['auction_end_en'] = 'required|after:auction_start_en';
+                $rules['auction_end_np'] = 'required|string|max:20';
             } else {
                 $rules['starting_price_cents'] = 'required|integer|min:0';
                 $rules['bid_increment_cents'] = 'required|integer|min:1';
                 $rules['timer_seconds'] = 'required|integer|min:10';
                 $rules['timer_extension_seconds'] = 'required|integer|min:1';
             }
-
-            if ($this->scheduled_for) {
-                $rules['scheduled_for'] = 'required|after:now';
-            }
         }
 
         $data = $this->validate($rules, [
+            'auction_start_en.required' => 'The auction start date and time are required.',
+            'auction_start_en.after_or_equal' => 'The auction start date and time must be at least 24 hours from now.',
+            'auction_start_np.required' => 'The auction start Nepali date is required.',
             'auction_end_en.required' => 'The auction end date and time are required.',
-            'auction_end_en.after' => 'The auction end date and time must be in the future.',
-            'scheduled_for.after' => 'The scheduled auction start must be in the future.',
+            'auction_end_en.after' => 'The auction end date and time must be after the start date and time.',
+            'auction_end_np.required' => 'The auction end Nepali date is required.',
         ]);
 
         if (count($this->existingImages) === 0 && count($this->newImages) === 0) {
@@ -250,78 +258,111 @@ class Products extends Component
         }
 
         $data['seller_id'] = Auth::id();
+        $data['category_id'] = (int) $this->category_id;
         $data['condition'] = $this->condition;
-        $data['retail_price'] = $this->retail_price;
+        $data['retail_price'] = (float) $this->retail_price;
         $data['specifications'] = $this->specifications;
 
-        if ($this->type === 'sell') {
-            $data['sale_price'] = $this->sale_price;
-            $data['stock_quantity'] = $this->stock_quantity;
-            $data['auction_type'] = null;
-            $data['starting_bid'] = null;
-            $data['starting_price_cents'] = 0;
-            $data['bid_increment_cents'] = 1;
-            $data['timer_seconds'] = 60;
-            $data['timer_extension_seconds'] = 15;
-            $data['auction_start_en'] = null;
-            $data['auction_start_np'] = null;
-            $data['auction_end_en'] = null;
-            $data['auction_end_np'] = null;
-            $data['scheduled_for'] = null;
-        } else {
-            $data['sale_price'] = null;
-            $data['stock_quantity'] = 0;
-            $data['auction_type'] = $this->auction_type;
-            $data['scheduled_for'] = $this->scheduled_for;
+        $directSellerData = null;
+        $pennyAuctionData = null;
+        $traditionalAuctionData = null;
 
-            if ($this->auction_type === 'traditional') {
-                $data['starting_bid'] = $this->starting_bid;
-                $data['starting_price_cents'] = 0;
-                $data['bid_increment_cents'] = 1;
-                $data['timer_seconds'] = 60;
-                $data['timer_extension_seconds'] = 15;
-                $data['auction_end_en'] = $this->auction_end_en;
-                $data['auction_end_np'] = $this->auction_end_np ?: null;
+        if ($this->type === ProductSaleType::DIRECT_SELLER->value) {
+            $directSellerData = [
+                'price' => (float) $this->sale_price,
+                'quantity' => (int) $this->stock_quantity,
+            ];
+        } else {
+            if ($this->auction_type === ProductAuctionType::TRADITIONAL->value) {
+                $traditionalAuctionData = [
+                    'quantity' => (int) $this->stock_quantity,
+                    'starting_bid' => (float) $this->starting_bid,
+                    'bid_increment' => 1,
+                    'auction_start_en' => $this->auction_start_en,
+                    'auction_start_np' => $this->auction_start_np,
+                    'auction_end_en' => $this->auction_end_en,
+                    'auction_end_np' => $this->auction_end_np,
+                ];
             } else {
-                $data['starting_bid'] = null;
-                $data['starting_price_cents'] = $this->starting_price_cents;
-                $data['bid_increment_cents'] = $this->bid_increment_cents;
-                $data['timer_seconds'] = $this->timer_seconds;
-                $data['timer_extension_seconds'] = $this->timer_extension_seconds;
-                $data['auction_end_en'] = null;
-                $data['auction_end_np'] = null;
+                $pennyAuctionData = [
+                    'quantity' => (int) $this->stock_quantity,
+                    'starting_price_cents' => (int) $this->starting_price_cents,
+                    'bid_increment_cents' => (int) $this->bid_increment_cents,
+                    'timer_seconds' => (int) $this->timer_seconds,
+                    'timer_extension_seconds' => (int) $this->timer_extension_seconds,
+                    'auction_start_en' => $this->auction_start_en,
+                    'auction_start_np' => $this->auction_start_np,
+                ];
             }
         }
 
-        unset($data['newImages']);
+        $productData = collect($data)
+            ->only([
+                'name',
+                'description',
+                'category_id',
+                'type',
+                'condition',
+                'retail_price',
+                'specifications',
+                'seller_id',
+            ])
+            ->all();
+
+        try {
+            DB::transaction(function () use ($productData, $directSellerData, $pennyAuctionData, $traditionalAuctionData): void {
+                if ($this->editingProduct) {
+                    $this->editingProduct->update($productData);
+                    $this->syncListingDetails($this->editingProduct, $directSellerData, $pennyAuctionData, $traditionalAuctionData);
+                    $this->syncProductImages($this->editingProduct);
+
+                    return;
+                }
+
+                $product = Product::create($productData);
+                $this->syncListingDetails($product, $directSellerData, $pennyAuctionData, $traditionalAuctionData);
+                $this->storeNewImages($product);
+                $this->notifyAdminsAboutProduct($product);
+            });
+        } catch (Throwable $exception) {
+            Log::error('Product upload failed.', [
+                'seller_id' => Auth::id(),
+                'message' => $exception->getMessage(),
+            ]);
+
+            $this->addError('form', config('app.debug')
+                ? $exception->getMessage()
+                : 'Product upload failed. Please try again.');
+            $this->error('Product upload failed. Please check the form and try again.');
+
+            return;
+        }
 
         if ($this->editingProduct) {
-            $this->editingProduct->update($data);
-            $this->syncProductImages($this->editingProduct);
-
             $this->success('Product updated successfully.');
         } else {
-            $product = Product::create($data);
-            $this->storeNewImages($product);
-
-            $admins = Admin::all();
-            foreach ($admins as $admin) {
-                try {
-                    $admin->notify(new NewProductUploadedNotification($product));
-                } catch (BroadcastException $exception) {
-                    Log::warning('Product upload notification broadcast failed.', [
-                        'product_id' => $product->id,
-                        'admin_id' => $admin->id,
-                        'message' => $exception->getMessage(),
-                    ]);
-                }
-            }
-
             $this->success('Product uploaded and waiting for admin approval.');
         }
 
         $this->productModal = false;
         $this->resetForm();
+    }
+
+    private function notifyAdminsAboutProduct(Product $product): void
+    {
+        $product->loadMissing('user');
+
+        foreach (Admin::all() as $admin) {
+            try {
+                $admin->notify(new NewProductUploadedNotification($product));
+            } catch (Throwable $exception) {
+                Log::warning('Product upload notification failed.', [
+                    'product_id' => $product->id,
+                    'admin_id' => $admin->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
     }
 
     public function deleteProduct(Product $product): void
@@ -362,6 +403,31 @@ class Products extends Component
         $this->storeNewImages($product, $nextSortOrder);
     }
 
+    private function syncListingDetails(Product $product, ?array $directSellerData, ?array $pennyAuctionData, ?array $traditionalAuctionData): void
+    {
+        if ($directSellerData !== null) {
+            $product->directSellerProduct()->updateOrCreate([], $directSellerData);
+            $product->pennyAuction()->delete();
+            $product->traditionalAuction()->delete();
+
+            return;
+        }
+
+        $product->directSellerProduct()->delete();
+
+        if ($pennyAuctionData !== null) {
+            $product->pennyAuction()->updateOrCreate([], $pennyAuctionData);
+            $product->traditionalAuction()->delete();
+
+            return;
+        }
+
+        if ($traditionalAuctionData !== null) {
+            $product->traditionalAuction()->updateOrCreate([], $traditionalAuctionData);
+            $product->pennyAuction()->delete();
+        }
+    }
+
     private function storeNewImages(Product $product, int $startingSortOrder = 0): void
     {
         foreach ($this->newImages as $index => $image) {
@@ -379,26 +445,26 @@ class Products extends Component
         $this->name = '';
         $this->description = '';
         $this->category_id = null;
-        $this->type = 'sell';
+        $this->type = ProductSaleType::DIRECT_SELLER->value;
         $this->condition = 'new';
         $this->retail_price = null;
         $this->sale_price = null;
         $this->stock_quantity = 1;
         $this->specifications = null;
-        $this->auction_type = 'traditional';
+        $this->auction_type = ProductAuctionType::TRADITIONAL->value;
         $this->starting_bid = null;
         $this->starting_price_cents = 0;
         $this->bid_increment_cents = 1;
         $this->timer_seconds = 60;
         $this->timer_extension_seconds = 15;
+        $this->auction_start_en = null;
+        $this->auction_start_np = '';
+        $this->auction_start_date_en = '';
+        $this->auction_start_time = '';
         $this->auction_end_en = null;
         $this->auction_end_np = '';
         $this->auction_end_date_en = '';
         $this->auction_end_time = '';
-        $this->scheduled_for = null;
-        $this->scheduled_for_np = '';
-        $this->scheduled_for_date_en = '';
-        $this->scheduled_for_time = '';
         $this->newImages = [];
         $this->existingImages = [];
         $this->imagesToDelete = [];
@@ -410,7 +476,7 @@ class Products extends Component
             $this->redirect(route('home'), navigate: true);
         }
 
-        $userProducts = Product::with(['category', 'images'])
+        $userProducts = Product::with(['category', 'images', 'directSellerProduct', 'pennyAuction', 'traditionalAuction'])
             ->where('seller_id', Auth::id())
             ->latest()
             ->paginate(10);

@@ -32,12 +32,10 @@ class Products extends Component
 
     public string $search = '';
 
-    public function approveProduct(Product $product)
+    public function approveProduct(Product $product): void
     {
-        $product->update([
-            'is_approved' => true,
-            'status' => 'active',
-        ]);
+        $product->loadMissing(['auction', 'pennyAuction', 'traditionalAuction']);
+        $product->approveListing();
 
         $product->user?->notify(new ProductApprovedNotification($product));
 
@@ -46,7 +44,7 @@ class Products extends Component
 
     public function render()
     {
-        $products = Product::with(['user', 'category', 'images'])
+        $products = Product::with(['user', 'category', 'images', 'directSellerProduct', 'pennyAuction', 'traditionalAuction'])
             ->where('name', 'like', '%'.$this->search.'%')
             ->latest()
             ->paginate(10);

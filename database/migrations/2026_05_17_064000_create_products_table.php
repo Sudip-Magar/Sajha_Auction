@@ -18,25 +18,12 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description');
-            $table->text('specifications')->nullable(); // JSON field for detailed specs
-            $table->string('condition')->default('new'); // 'new', 'like-new', 'used'
-            $table->decimal('retail_price', 15, 2); // Original manufacturer price (for reference)
-            $table->decimal('sale_price', 15, 2)->nullable(); // Direct sell price (ecommerce mode)
-            $table->integer('stock_quantity')->default(0); // For ecommerce products
-            $table->string('auction_type')->nullable()->comment('penny, traditional');
-            $table->decimal('starting_bid', 15, 2)->nullable(); // First bid price (auction mode)
-            $table->decimal('starting_price_cents', 10, 0)->default(0); // Penny auction: starts at 0 cents
-            $table->integer('bid_increment_cents')->default(1); // How much each bid raises price (1 cent)
-            $table->integer('timer_seconds')->default(60); // Initial countdown timer
-            $table->integer('timer_extension_seconds')->default(15); // How much timer extends per bid
-            $table->dateTime('auction_start_en')->nullable(); // When auction opens
-            $table->string('auction_start_np')->nullable(); // When auction opens
-            $table->dateTime('auction_end_en')->nullable(); // When auction closes (for traditional)
-            $table->string('auction_end_np')->nullable(); // When auction closes (for traditional)
-            $table->dateTime('scheduled_for')->nullable(); // Future auction scheduling
-            $table->string('type'); // 'auction' or 'sell'
+            $table->text('specifications')->nullable();
+            $table->string('condition')->default('new');
+            $table->decimal('retail_price', 15, 2);
+            $table->string('type');
             $table->boolean('is_approved')->default(false);
-            $table->string('status')->default('pending'); // 'pending', 'active', 'sold', 'expired'
+            $table->string('status')->default('pending');
             $table->timestamps();
         });
     }
