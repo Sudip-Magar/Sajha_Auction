@@ -68,6 +68,24 @@
                         'w-0 group-hover:w-full' => ! request()->routeIs('user.marketplace-products'),
                     ])></span>
                 </a>
+
+                <a
+                    href="{{ route('user.auction') }}"
+                    wire:navigate
+                    @class([
+                        'text-sm font-semibold transition-colors relative group px-1 py-2',
+                        'text-[#1F6F5F]' => request()->routeIs('user.auction'),
+                        'text-gray-600 hover:text-[#2FA084]' => ! request()->routeIs('user.auction'),
+                    ])
+                >
+                    Auction
+                    <span @class([
+                        'absolute -bottom-1 left-0 h-0.5 bg-[#2FA084] transition-all duration-300',
+                        'w-full' => request()->routeIs('user.auction'),
+                        'w-0 group-hover:w-full' => ! request()->routeIs('user.auction'),
+                    ])></span>
+                </a>
+
                 <a href="#"
                    class="text-sm font-semibold text-gray-600 hover:text-[#2FA084] transition-colors relative group">
                     How it Works
@@ -324,6 +342,17 @@
                 ])
             >
                 Products
+            </a>
+            <a
+                href="{{ route('user.auction') }}"
+                wire:navigate
+                @class([
+                    'block px-4 py-3 rounded-xl text-base font-bold transition-all',
+                    'bg-[#2FA084]/10 text-[#1F6F5F]' => request()->routeIs('user.auction'),
+                    'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084]' => ! request()->routeIs('user.auction'),
+                ])
+            >
+                Auction
             </a>
             <a href="#"
                class="block px-4 py-3 rounded-xl text-base font-bold text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">

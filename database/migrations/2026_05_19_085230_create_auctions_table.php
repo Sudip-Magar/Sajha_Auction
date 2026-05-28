@@ -13,7 +13,7 @@ return new class extends Migration {
         Schema::create('auctions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
-            $table->string('auction_type')->comment('penny or traditional');
+            $table->string('auction_type')->comment('traditional');
             $table->foreignId('winner_id')->nullable()->constrained('users')->cascadeOnDelete();
             $table->timestamp('start_time')->nullable();
             $table->string('start_time_np')->nullable();

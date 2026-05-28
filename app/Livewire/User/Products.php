@@ -68,7 +68,7 @@ class Products extends Component
             $this->redirect(route('home'), navigate: true);
         }
 
-        $userProducts = Product::with(['category', 'images', 'auction.traditionalAuction', 'auction.pennyAuction'])
+        $userProducts = Product::with(['category', 'images', 'auction.traditionalAuction'])
             ->where('seller_id', Auth::id())
             ->latest()
             ->paginate(10);

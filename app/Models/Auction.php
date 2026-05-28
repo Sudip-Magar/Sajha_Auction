@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Auction extends Model
@@ -39,8 +40,27 @@ class Auction extends Model
         return $this->hasOne(TraditionalAuction::class);
     }
 
-    public function pennyAuction(): HasOne
+    public function bids(): HasMany
     {
-        return $this->hasOne(PennyAuction::class);
+        return $this->hasMany(Bid::class)->latest();
+    }
+
+    public function isLive(): bool
+    {
+        $now = now();
+        return $this->status === 'active' 
+            && $this->start_time <= $now 
+            && $this->end_time >= $now;
+    }
+
+    public function isUpcoming(): bool
+    {
+        return $this->status === 'pending' || ($this->status === 'active' && $this->start_time > now());
+    }
+
+    public function getMinNextBid(): float
+    {
+        $increment = $this->traditionalAuction?->min_bid_increment ?? 0;
+        return (float) ($this->current_price + $increment);
     }
 }

@@ -61,8 +61,7 @@
 
                         @if($listing_type === 'auction')
                             <x-select label="Auction Type" wire:model.live="auction_type" :options="[
-                                ['id' => 'traditional', 'name' => 'Traditional Auction'],
-                                ['id' => 'penny', 'name' => 'Penny Auction']
+                                ['id' => 'traditional', 'name' => 'Traditional Auction']
                             ]" icon="o-ticket" />
                         @endif
                     </div>
@@ -88,37 +87,27 @@
 
                                 <x-input label="Start Time" wire:model="auction_start_time" type="time" icon="o-clock" />
 
-                                @if($auction_type === 'traditional')
-                                    {{-- Traditional Specifics --}}
-                                    <div>
-                                        <label class="label font-bold text-sm">Auction End Date (B.S.)</label>
-                                        <input
-                                            type="text"
-                                            id="auction_end_np"
-                                            wire:model="auction_end_np"
-                                            data-nepali-date="auction-end"
-                                            class="input input-bordered w-full"
-                                            placeholder="YYYY-MM-DD"
-                                            autocomplete="off"
-                                        />
-                                        <input type="hidden" wire:model="auction_end_date_en" data-english-date="auction-end">
-                                        @error('auction_end_date_en') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                                    </div>
+                                {{-- Traditional Specifics --}}
+                                <div>
+                                    <label class="label font-bold text-sm">Auction End Date (B.S.)</label>
+                                    <input
+                                        type="text"
+                                        id="auction_end_np"
+                                        wire:model="auction_end_np"
+                                        data-nepali-date="auction-end"
+                                        class="input input-bordered w-full"
+                                        placeholder="YYYY-MM-DD"
+                                        autocomplete="off"
+                                    />
+                                    <input type="hidden" wire:model="auction_end_date_en" data-english-date="auction-end">
+                                    @error('auction_end_date_en') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
 
-                                    <x-input label="End Time" wire:model="auction_end_time" type="time" icon="o-clock" />
+                                <x-input label="End Time" wire:model="auction_end_time" type="time" icon="o-clock" />
 
-                                    <x-input label="Starting Bid (Rs.)" wire:model="starting_bid" type="number" step="0.01" icon="o-banknotes" />
-                                    <x-input label="Reserve Price (Rs.)" wire:model="reserve_price" type="number" step="0.01" icon="o-shield-check" hint="Optional" />
-                                    <x-input label="Min Bid Increment (Rs.)" wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" />
-                                @endif
-
-                                @if($auction_type === 'penny')
-                                    {{-- Penny Specifics --}}
-                                    <x-input label="Bid Cost (Credits)" wire:model="bid_cost_credits" type="number" icon="o-credit-card" />
-                                    <x-input label="Price Increment (Rs.)" wire:model="price_increment" type="number" step="0.01" icon="o-plus-circle" />
-                                    <x-input label="Timer Start (Seconds)" wire:model="penny_timer_start_seconds" type="number" icon="o-clock" />
-                                    <x-input label="Timer Reset (Seconds)" wire:model="penny_timer_reset_seconds" type="number" icon="o-arrow-path" />
-                                @endif
+                                <x-input label="Starting Bid (Rs.)" wire:model="starting_bid" type="number" step="0.01" icon="o-banknotes" />
+                                <x-input label="Reserve Price (Rs.)" wire:model="reserve_price" type="number" step="0.01" icon="o-shield-check" hint="Optional" />
+                                <x-input label="Min Bid Increment (Rs.)" wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" />
                             </div>
                         </div>
                     @endif

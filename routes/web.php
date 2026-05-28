@@ -53,6 +53,8 @@ Route::middleware('user')->group(function () {
     Route::get('/my-products/create', \App\Livewire\User\ManageProduct::class)->name('user.products.create');
     Route::get('/my-products/{product}/edit', \App\Livewire\User\ManageProduct::class)->name('user.products.edit');
     Route::get('/join-auction', JoinAuction::class)->name('user.join-auction');
+    Route::get('/auction', \App\Livewire\User\AuctionMarketplace::class)->name('user.auction');
+    Route::get('/auction/{auction}', \App\Livewire\User\AuctionDetail::class)->name('user.auction.detail');
 });
 
 Route::prefix('admin')->middleware('admin')->group(function () {

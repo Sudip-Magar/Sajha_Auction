@@ -49,8 +49,6 @@
                 <span class="font-bold text-gray-700">
                     @if($product->listing_type->value === 'direct_seller')
                         Rs. {{ number_format($product->sale_price) }}
-                    @elseif($product->auction?->auction_type === 'penny')
-                        Rs. {{ number_format($product->auction->current_price, 2) }} <span class="text-[10px] text-gray-400 font-medium">(Penny)</span>
                     @else
                         Rs. {{ number_format($product->auction->traditionalAuction?->starting_bid) }}
                     @endif

@@ -16,8 +16,6 @@
                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     @if($product->listing_type->value === 'direct_seller')
                         Selling Price
-                    @elseif($product->auction_type?->value === 'penny')
-                        Penny Start Price
                     @else
                         Starting Bid
                     @endif
@@ -25,8 +23,6 @@
                 <p class="text-2xl font-black text-gray-900">
                     @if($product->listing_type->value === 'direct_seller')
                         Rs. {{ number_format($product->sale_price) }}
-                    @elseif($product->auction_type?->value === 'penny')
-                        Rs. {{ number_format($product->auction?->current_price, 2) }}
                     @else
                         Rs. {{ number_format($product->starting_bid) }}
                     @endif
@@ -158,13 +154,13 @@
 
                         <div class="rounded-xl bg-[#f5f2ea] p-4">
                             <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Auction End Date</p>
-                            @if($product->listing_type->value === 'auction' && $product->auction_type?->value === 'traditional')
+                            @if($product->listing_type->value === 'auction')
                                 <p class="mt-2 text-sm font-black text-gray-900">
                                     {{ $product->auction_end_en?->format('M d, Y h:i A') }} /
                                     <span class="text-emerald-700 font-bold">BS: {{ $product->auction_end_np }}</span>
                                 </p>
                             @else
-                                <p class="mt-2 text-sm font-black text-gray-900 text-gray-400">Not applicable (Traditional Auction only)</p>
+                                <p class="mt-2 text-sm font-black text-gray-900 text-gray-400">Not applicable</p>
                             @endif
                         </div>
                     </div>
@@ -200,27 +196,6 @@
                                 @endif
                             </div>
                         </div>
-
-                        @if($product->auction_type?->value === 'penny' && $product->auction?->pennyAuction)
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
-                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Bid Cost</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->auction->pennyAuction->bid_cost_credits }} credits</p>
-                                </div>
-                                <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
-                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Price Increment</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">Rs. {{ $product->auction->pennyAuction->price_increment }}</p>
-                                </div>
-                                <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
-                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Timer</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->auction->pennyAuction->timer_start_seconds }}s</p>
-                                </div>
-                                <div class="rounded-xl bg-sky-50/50 border border-sky-100/50 p-3">
-                                    <p class="text-[9px] font-black uppercase tracking-widest text-sky-600">Extension</p>
-                                    <p class="mt-1 text-sm font-black text-gray-900">{{ $product->auction->pennyAuction->timer_reset_seconds }}s</p>
-                                </div>
-                            </div>
-                        @endif
                     @endif
                 </div>
             </div>

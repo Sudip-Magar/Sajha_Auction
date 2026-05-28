@@ -55,14 +55,6 @@ class ManageProduct extends Component
     public int $timer_start_seconds = 60;
     public int $timer_reset_seconds = 15;
 
-    // Penny Auction Details
-    public int $bid_cost_credits = 1;
-    public mixed $price_increment = 1;
-    public int $penny_timer_start_seconds = 60;
-    public int $penny_timer_reset_seconds = 15;
-    public ?int $max_bids_per_user = null;
-    public bool $credit_refund_on_loss = false;
-
     // Images
     public array $newImages = [];
     public array $existingImages = [];
@@ -126,14 +118,6 @@ class ManageProduct extends Component
                 $this->min_bid_increment = (float)$trad->min_bid_increment;
                 $this->timer_start_seconds = $trad->timer_start_seconds;
                 $this->timer_reset_seconds = $trad->timer_reset_seconds;
-            } elseif ($this->auction_type === ProductAuctionType::PENNY->value && $auction->pennyAuction) {
-                $penny = $auction->pennyAuction;
-                $this->bid_cost_credits = $penny->bid_cost_credits;
-                $this->price_increment = (float)$penny->price_increment;
-                $this->penny_timer_start_seconds = $penny->timer_start_seconds;
-                $this->penny_timer_reset_seconds = $penny->timer_reset_seconds;
-                $this->max_bids_per_user = $penny->max_bids_per_user;
-                $this->credit_refund_on_loss = $penny->credit_refund_on_loss;
             }
         }
 
@@ -178,20 +162,15 @@ class ManageProduct extends Component
         ];
 
         if ($this->listing_type === 'auction') {
-            $rules['auction_type'] = 'required|in:traditional,penny';
+            $rules['auction_type'] = 'required|in:traditional';
             $rules['auction_start_date_en'] = 'required|date|after_or_equal:today';
             $rules['auction_start_time'] = 'required';
             $rules['auction_start_np'] = 'required';
 
-            if ($this->auction_type === 'traditional') {
-                $rules['starting_bid'] = 'required|numeric|min:0';
-                $rules['auction_end_date_en'] = 'required|date|after:auction_start_date_en';
-                $rules['auction_end_time'] = 'required';
-                $rules['auction_end_np'] = 'required';
-            } else {
-                $rules['bid_cost_credits'] = 'required|integer|min:1';
-                $rules['price_increment'] = 'required|numeric|min:0.01';
-            }
+            $rules['starting_bid'] = 'required|numeric|min:0';
+            $rules['auction_end_date_en'] = 'required|date|after:auction_start_date_en';
+            $rules['auction_end_time'] = 'required';
+            $rules['auction_end_np'] = 'required';
         }
 
         $this->validate($rules);
@@ -244,9 +223,7 @@ class ManageProduct extends Component
                 // Handle Auction
                 if ($this->listing_type === 'auction') {
                     $startTime = Carbon::parse($this->auction_start_date_en . ' ' . $this->auction_start_time);
-                    $endTime = $this->auction_type === 'traditional'
-                        ? Carbon::parse($this->auction_end_date_en . ' ' . $this->auction_end_time)
-                        : null;
+                    $endTime = Carbon::parse($this->auction_end_date_en . ' ' . $this->auction_end_time);
 
                     $auction = $product->auction()->updateOrCreate([], [
                         'auction_type' => $this->auction_type,
@@ -255,29 +232,16 @@ class ManageProduct extends Component
                         'end_time' => $endTime,
                         'end_time_np' => $this->auction_end_np,
                         'status' => 'pending',
-                        'current_price' => ($this->auction_type === 'traditional') ? $this->starting_bid : 0,
+                        'current_price' => $this->starting_bid,
                     ]);
 
-                    if ($this->auction_type === 'traditional') {
-                        $auction->traditionalAuction()->updateOrCreate([], [
-                            'starting_bid' => $this->starting_bid,
-                            'reserve_price' => $this->reserve_price,
-                            'min_bid_increment' => $this->min_bid_increment,
-                            'timer_start_seconds' => $this->timer_start_seconds,
-                            'timer_reset_seconds' => $this->timer_reset_seconds,
-                        ]);
-                        $auction->pennyAuction()->delete();
-                    } else {
-                        $auction->pennyAuction()->updateOrCreate([], [
-                            'bid_cost_credits' => $this->bid_cost_credits,
-                            'price_increment' => $this->price_increment,
-                            'timer_start_seconds' => $this->penny_timer_start_seconds,
-                            'timer_reset_seconds' => $this->penny_timer_reset_seconds,
-                            'max_bids_per_user' => $this->max_bids_per_user,
-                            'credit_refund_on_loss' => $this->credit_refund_on_loss,
-                        ]);
-                        $auction->traditionalAuction()->delete();
-                    }
+                    $auction->traditionalAuction()->updateOrCreate([], [
+                        'starting_bid' => $this->starting_bid,
+                        'reserve_price' => $this->reserve_price,
+                        'min_bid_increment' => $this->min_bid_increment,
+                        'timer_start_seconds' => $this->timer_start_seconds,
+                        'timer_reset_seconds' => $this->timer_reset_seconds,
+                    ]);
                 } else {
                     if ($product->auction) {
                         $product->auction->delete();
@@ -294,7 +258,6 @@ class ManageProduct extends Component
 
         } catch (Throwable $e) {
             Log::error('ManageProduct Error: ' . $e->getMessage());
-            dd($e->getMessage());
             $this->error('An error occurred while saving the product.');
         }
     }
