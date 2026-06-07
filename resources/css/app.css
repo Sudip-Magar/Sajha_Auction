@@ -3,6 +3,8 @@
 @import 'tailwindcss';
 @plugin "daisyui/index.js";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @source "../../vendor/robsontenorio/mary/src/View/Components/**/*.php";
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -17,6 +19,52 @@
 body {
     font-family: "Poppins", sans-serif !important;
     font-size: 12px !important;
+}
+
+.marketplace-ui {
+    font-size: 11px;
+}
+
+.marketplace-ui .ui-icon {
+    width: 1rem;
+    height: 1rem;
+}
+
+.marketplace-ui .ui-icon-lg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.marketplace-ui h1,
+.marketplace-ui h2,
+.marketplace-ui h3 {
+    line-height: 1.25;
+}
+
+.marketplace-ui h1 {
+    font-size: 13px;
+}
+
+.marketplace-ui h2,
+.marketplace-ui h3 {
+    font-size: 12px;
+}
+
+.marketplace-ui .ui-heading {
+    font-size: 13px;
+}
+
+.marketplace-ui .ui-subheading,
+.marketplace-ui .ui-price {
+    font-size: 12px;
+}
+
+.marketplace-ui .ui-small {
+    font-size: 10px;
+}
+
+[x-cloak] {
+    display: none !important;
 }
 
 .no-spinner::-webkit-outer-spin-button,

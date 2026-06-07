@@ -38,6 +38,10 @@
                         @endif
 
                         <x-input label="Quantity" wire:model="quantity" type="number" icon="o-archive-box" />
+
+                        <x-input label="Location" wire:model="location" placeholder="e.g. Kathmandu, Nepal" icon="o-map-pin" />
+
+                        <x-checkbox label="Delivery Available" wire:model="delivery_available" />
                     </div>
 
                     <div class="mt-6 space-y-4">

@@ -266,6 +266,36 @@
                         <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Category</p>
                         <p class="mt-2 text-sm font-black text-gray-900">{{ $product->category?->name ?? 'Uncategorized' }}</p>
                     </div>
+
+                    <div class="grid grid-cols-1 gap-3 border-t border-gray-200 pt-4">
+                        <button
+                            type="button"
+                            wire:click="toggleFeatured"
+                            class="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left"
+                        >
+                            <span>
+                                <span class="block text-[10px] font-black uppercase tracking-widest text-gray-400">Featured Product</span>
+                                <span class="mt-1 block text-sm font-black text-gray-900">{{ $product->is_featured ? 'Shown in recommended products' : 'Not featured' }}</span>
+                            </span>
+                            <span class="rounded-full px-3 py-1 text-xs font-bold {{ $product->is_featured ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500' }}">
+                                {{ $product->is_featured ? 'On' : 'Off' }}
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            wire:click="toggleTrending"
+                            class="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left"
+                        >
+                            <span>
+                                <span class="block text-[10px] font-black uppercase tracking-widest text-gray-400">Trending Product</span>
+                                <span class="mt-1 block text-sm font-black text-gray-900">{{ $product->is_trending ? 'Pinned in trending products' : 'Ranked by views only' }}</span>
+                            </span>
+                            <span class="rounded-full px-3 py-1 text-xs font-bold {{ $product->is_trending ? 'bg-sky-100 text-sky-700' : 'bg-gray-100 text-gray-500' }}">
+                                {{ $product->is_trending ? 'On' : 'Off' }}
+                            </span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="px-4 pb-4 pt-2">

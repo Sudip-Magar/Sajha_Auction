@@ -50,6 +50,28 @@ class ProductDetail extends Component
         $this->success("Product '{$this->product->name}' has been approved.");
     }
 
+    public function toggleFeatured(): void
+    {
+        $this->product->update([
+            'is_featured' => ! $this->product->is_featured,
+        ]);
+
+        $this->product->refresh()->load(['user', 'category', 'images', 'auction.traditionalAuction']);
+
+        $this->success('Featured status updated.');
+    }
+
+    public function toggleTrending(): void
+    {
+        $this->product->update([
+            'is_trending' => ! $this->product->is_trending,
+        ]);
+
+        $this->product->refresh()->load(['user', 'category', 'images', 'auction.traditionalAuction']);
+
+        $this->success('Trending status updated.');
+    }
+
     public function render(): View
     {
         return view('livewire.admin.product-detail');

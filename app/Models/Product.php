@@ -6,6 +6,7 @@ use App\Enums\ProductAuctionType;
 use App\Enums\ProductSaleType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
@@ -27,12 +28,23 @@ class Product extends Model
         'sale_price',
         'listing_type',
         'is_approved',
+        'is_featured',
+        'is_trending',
+        'views_count',
+        'location',
+        'delivery_available',
+        'expires_at',
         'status',
     ];
 
     protected $casts = [
         'listing_type' => ProductSaleType::class,
         'is_approved' => 'boolean',
+        'is_featured' => 'boolean',
+        'is_trending' => 'boolean',
+        'views_count' => 'integer',
+        'delivery_available' => 'boolean',
+        'expires_at' => 'datetime',
         'specifications' => 'string',
     ];
 
@@ -42,7 +54,7 @@ class Product extends Model
         static::creating(function (Product $product): void {
             $product->slug = Str::slug($product->name).'-'.Str::random(5);
             if (empty($product->sku)) {
-                $product->sku = 'PRD-' . strtoupper(Str::random(8));
+                $product->sku = 'PRD-'.strtoupper(Str::random(8));
             }
         });
     }
@@ -67,10 +79,16 @@ class Product extends Model
         return $this->hasOne(Auction::class);
     }
 
+    public function bookmarkedByUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'bookmarks')->withTimestamps();
+    }
+
     public function approveListing(): void
     {
         $this->update([
             'is_approved' => true,
+            'expires_at' => $this->expires_at ?? now()->addDays(30),
             'status' => 'active',
         ]);
 

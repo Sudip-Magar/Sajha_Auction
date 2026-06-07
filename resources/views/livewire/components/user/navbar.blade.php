@@ -1,5 +1,14 @@
-<nav x-data="{ mobileMenuOpen: false, userDropdownOpen: false }"
-     class="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all duration-300">
+<nav x-data="{
+        mobileMenuOpen: false,
+        userDropdownOpen: false,
+        darkMode: document.documentElement.classList.contains('dark'),
+        toggleTheme() {
+            this.darkMode = ! this.darkMode;
+            document.documentElement.classList.toggle('dark', this.darkMode);
+            localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
+        }
+     }"
+     class="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/90 backdrop-blur-md transition-all duration-300 dark:border-gray-800 dark:bg-[#101114]/90">
     <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-15">
             <!-- Logo Area -->
@@ -10,8 +19,8 @@
                         <x-icon name="o-bolt" class="w-6 h-6 text-white"/>
                     </div>
                     <span
-                        class="ml-3 text-2xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-[#1F6F5F] to-[#2FA084]">
-                        Sajha<span class="text-gray-900">Auction</span>
+                        class="ml-3 text-2xl font-black tracking-tight text-[#1F6F5F] dark:text-[#7CE0C5]">
+                        Sajha<span class="text-gray-900 dark:text-white">Auction</span>
                     </span>
                 </a>
             </div>
@@ -24,7 +33,7 @@
                     @class([
                         'text-sm font-semibold transition-colors relative group px-1 py-2',
                         'text-[#1F6F5F]' => request()->routeIs('home'),
-                        'text-gray-600 hover:text-[#2FA084]' => ! request()->routeIs('home'),
+                        'text-gray-600 hover:text-[#2FA084] dark:text-gray-300' => ! request()->routeIs('home'),
                     ])
                 >
                     Home
@@ -41,7 +50,7 @@
                         @class([
                             'text-sm font-semibold transition-colors relative group px-1 py-2',
                             'text-[#1F6F5F]' => request()->routeIs('dashboard'),
-                            'text-gray-600 hover:text-[#2FA084]' => ! request()->routeIs('dashboard'),
+                            'text-gray-600 hover:text-[#2FA084] dark:text-gray-300' => ! request()->routeIs('dashboard'),
                         ])
                     >
                         Dashboard
@@ -52,71 +61,37 @@
                         ])></span>
                     </a>
                 @endif
-                <a
-                    href="{{ route('user.marketplace-products') }}"
-                    wire:navigate
-                    @class([
-                        'text-sm font-semibold transition-colors relative group px-1 py-2',
-                        'text-[#1F6F5F]' => request()->routeIs('user.marketplace-products'),
-                        'text-gray-600 hover:text-[#2FA084]' => ! request()->routeIs('user.marketplace-products'),
-                    ])
-                >
-                    Products
-                    <span @class([
-                        'absolute -bottom-1 left-0 h-0.5 bg-[#2FA084] transition-all duration-300',
-                        'w-full' => request()->routeIs('user.marketplace-products'),
-                        'w-0 group-hover:w-full' => ! request()->routeIs('user.marketplace-products'),
-                    ])></span>
-                </a>
 
-                <a
-                    href="{{ route('user.auction') }}"
-                    wire:navigate
-                    @class([
-                        'text-sm font-semibold transition-colors relative group px-1 py-2',
-                        'text-[#1F6F5F]' => request()->routeIs('user.auction'),
-                        'text-gray-600 hover:text-[#2FA084]' => ! request()->routeIs('user.auction'),
-                    ])
-                >
-                    Auction
-                    <span @class([
-                        'absolute -bottom-1 left-0 h-0.5 bg-[#2FA084] transition-all duration-300',
-                        'w-full' => request()->routeIs('user.auction'),
-                        'w-0 group-hover:w-full' => ! request()->routeIs('user.auction'),
-                    ])></span>
-                </a>
-
-                <a href="#"
-                   class="text-sm font-semibold text-gray-600 hover:text-[#2FA084] transition-colors relative group">
-                    How it Works
+                <a href="{{ route('home') }}#buyer-safety"
+                   class="text-sm font-semibold text-gray-600 hover:text-[#2FA084] transition-colors relative group dark:text-gray-300">
+                    FAQ
                     <span
                         class="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#2FA084] transition-all duration-300 group-hover:w-full"></span>
                 </a>
-                @if (Auth::user() && Auth::user()->is_seller)
-                    <a
-                        href="{{ route('user.products') }}"
-                        wire:navigate
-                        @class([
-                            'text-sm font-semibold transition-colors relative group px-1 py-2',
-                            'text-[#1F6F5F]' => request()->routeIs('user.products'),
-                            'text-gray-600 hover:text-[#2FA084]' => ! request()->routeIs('user.products'),
-                        ])
-                    >
-                        My Products
-                        <span @class([
-                            'absolute -bottom-1 left-0 h-0.5 bg-[#2FA084] transition-all duration-300',
-                            'w-full' => request()->routeIs('user.products'),
-                            'w-0 group-hover:w-full' => ! request()->routeIs('user.products'),
-                        ])></span>
-                    </a>
-                @endif
+                <a href="{{ route('home') }}#buyer-safety"
+                   class="text-sm font-semibold text-gray-600 hover:text-[#2FA084] transition-colors relative group dark:text-gray-300">
+                    Contact us
+                    <span
+                        class="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#2FA084] transition-all duration-300 group-hover:w-full"></span>
+                </a>
+
             </div>
 
             <!-- Right Side Actions -->
             <div class="hidden md:flex items-center space-x-4">
+                <button
+                    type="button"
+                    @click="toggleTheme"
+                    class="rounded-xl bg-gray-50 p-2 text-gray-600 transition-colors hover:text-[#2FA084] dark:bg-gray-800 dark:text-gray-200"
+                    aria-label="Toggle dark mode"
+                >
+                    <x-icon name="o-moon" x-show="!darkMode" class="h-5 w-5"/>
+                    <x-icon name="o-sun" x-show="darkMode" x-cloak class="h-5 w-5"/>
+                </button>
+
                 @guest
                     <a href="{{ route('user.login') }}" wire:navigate
-                       class="text-sm font-bold text-gray-700 hover:text-[#1F6F5F] px-4 py-2 transition-colors">
+                       class="text-sm font-bold text-gray-700 hover:text-[#1F6F5F] px-4 py-2 transition-colors dark:text-gray-200">
                         Sign In
                     </a>
                     <a href="{{ route('user.register') }}" wire:navigate
@@ -130,7 +105,7 @@
                     <x-dropdown right>
                         <x-slot:trigger>
                             <button
-                                class="relative p-2 text-gray-500 hover:text-[#2FA084] transition-colors cursor-pointer bg-gray-50 rounded-xl">
+                                class="relative p-2 text-gray-500 hover:text-[#2FA084] transition-colors cursor-pointer bg-gray-50 rounded-xl dark:bg-gray-800 dark:text-gray-200">
                                 <x-icon name="o-bell" class="w-6 h-6"/>
                                 @php
                                     $unreadCount = $notifications->where('read_at', null)->count();
@@ -199,7 +174,7 @@
                         <button @click="userDropdownOpen = !userDropdownOpen"
                                 class="flex items-center space-x-3 p-1.5 rounded-xl cursor-pointer hover:bg-gray-50 transition-all duration-300 focus:outline-none">
                             <div class="text-right mr-2 hidden lg:block">
-                                <p class="text-sm font-bold text-gray-900 leading-none">{{ auth()->user()->name }}</p>
+                                <p class="text-sm font-bold text-gray-900 leading-none dark:text-white">{{ auth()->user()->name }}</p>
                                 <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">User</p>
                             </div>
                             <div class="w-10 h-10 rounded-xl overflow-hidden border-2 border-[#2FA084]/20 shadow-sm">
@@ -226,7 +201,7 @@
                              x-transition:leave="transition ease-in duration-75"
                              x-transition:leave-start="opacity-100 scale-100 translate-y-0"
                              x-transition:leave-end="opacity-0 scale-95 translate-y-2"
-                             class="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-50 overflow-hidden"
+                             class="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-50 overflow-hidden dark:border-gray-800 dark:bg-[#181A1F]"
                              style="display: none;">
                             <div class="px-4 py-3 border-b border-gray-50 mb-1">
                                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Account</p>
@@ -236,6 +211,20 @@
                                 <x-icon name="o-user" class="w-4 h-4"/>
                                 <span>My Profile</span>
                             </a>
+                            @auth
+                                <a href="{{ route('user.bookmarks') }}" wire:navigate
+                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                    <x-icon name="o-bookmark" class="w-4 h-4"/>
+                                    <span>Bookmarks</span>
+                                </a>
+                                @if (Auth::user() && Auth::user()->is_seller)
+                                    <a href="{{ route('user.products') }}" wire:navigate
+                                       class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                        <x-icon name="o-cube" class="w-4 h-4"/>
+                                        <span>My Products</span>
+                                    </a>
+                                @endif
+                            @endauth
                             @if($isAuctioner)
                                 @if (!$isSeller)
                                     @if ($sellerApplicationPending)
@@ -260,11 +249,6 @@
                                 @endif
                                 <a href="#"
                                    class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                                    <x-icon name="o-shopping-bag" class="w-4 h-4"/>
-                                    <span>My Bids</span>
-                                </a>
-                                <a href="#"
-                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
                                     <x-icon name="o-gift" class="w-4 h-4"/>
                                     <span>My Auctions</span>
                                 </a>
@@ -287,9 +271,18 @@
             </div>
 
             <!-- Mobile Menu Button -->
-            <div class="md:hidden flex items-center">
+            <div class="md:hidden flex items-center gap-2">
+                <button
+                    type="button"
+                    @click="toggleTheme"
+                    class="rounded-xl bg-gray-50 p-2 text-gray-600 transition-colors dark:bg-gray-800 dark:text-gray-200"
+                    aria-label="Toggle dark mode"
+                >
+                    <x-icon name="o-moon" x-show="!darkMode" class="h-6 w-6"/>
+                    <x-icon name="o-sun" x-show="darkMode" x-cloak class="h-6 w-6"/>
+                </button>
                 <button @click="mobileMenuOpen = !mobileMenuOpen"
-                        class="p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all duration-300 focus:outline-none">
+                        class="p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all duration-300 focus:outline-none dark:text-gray-200 dark:hover:bg-gray-800">
                     <x-icon name="o-bars-3-bottom-right" x-show="!mobileMenuOpen" class="w-7 h-7"/>
                     <x-icon name="o-x-mark" x-show="mobileMenuOpen" class="w-7 h-7" style="display: none;"/>
                 </button>
@@ -305,7 +298,7 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 -translate-y-4"
-         class="md:hidden bg-white border-t border-gray-50 overflow-hidden"
+         class="md:hidden bg-white border-t border-gray-50 overflow-hidden dark:border-gray-800 dark:bg-[#101114]"
          style="display: none;">
         <div class="px-4 pt-4 pb-6 space-y-2">
             <a
@@ -314,7 +307,7 @@
                 @class([
                     'block px-4 py-3 rounded-xl text-base font-bold transition-all',
                     'bg-[#2FA084]/10 text-[#1F6F5F]' => request()->routeIs('home'),
-                    'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084]' => ! request()->routeIs('home'),
+                    'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] dark:text-gray-200 dark:hover:bg-gray-800' => ! request()->routeIs('home'),
                 ])
             >
                 Home
@@ -326,51 +319,21 @@
                     @class([
                         'block px-4 py-3 rounded-xl text-base font-bold transition-all',
                         'bg-[#2FA084]/10 text-[#1F6F5F]' => request()->routeIs('dashboard'),
-                        'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084]' => ! request()->routeIs('dashboard'),
+                        'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] dark:text-gray-200 dark:hover:bg-gray-800' => ! request()->routeIs('dashboard'),
                     ])
                 >
                     Dashboard
                 </a>
             @endif
-            <a
-                href="{{ route('user.marketplace-products') }}"
-                wire:navigate
-                @class([
-                    'block px-4 py-3 rounded-xl text-base font-bold transition-all',
-                    'bg-[#2FA084]/10 text-[#1F6F5F]' => request()->routeIs('user.marketplace-products'),
-                    'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084]' => ! request()->routeIs('user.marketplace-products'),
-                ])
-            >
-                Products
+
+            <a href="{{ route('home') }}#buyer-safety"
+               class="block px-4 py-3 rounded-xl text-base font-bold text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all dark:text-gray-200 dark:hover:bg-gray-800">
+                FAQ
             </a>
-            <a
-                href="{{ route('user.auction') }}"
-                wire:navigate
-                @class([
-                    'block px-4 py-3 rounded-xl text-base font-bold transition-all',
-                    'bg-[#2FA084]/10 text-[#1F6F5F]' => request()->routeIs('user.auction'),
-                    'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084]' => ! request()->routeIs('user.auction'),
-                ])
-            >
-                Auction
+            <a href="{{ route('home') }}#buyer-safety"
+               class="block px-4 py-3 rounded-xl text-base font-bold text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all dark:text-gray-200 dark:hover:bg-gray-800">
+                Contact us
             </a>
-            <a href="#"
-               class="block px-4 py-3 rounded-xl text-base font-bold text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                How it Works
-            </a>
-            @if (Auth::user() && Auth::user()->is_seller)
-                <a
-                    href="{{ route('user.products') }}"
-                    wire:navigate
-                    @class([
-                        'block px-4 py-3 rounded-xl text-base font-bold transition-all',
-                        'bg-[#2FA084]/10 text-[#1F6F5F]' => request()->routeIs('user.products'),
-                        'text-gray-700 hover:bg-gray-50 hover:text-[#2FA084]' => ! request()->routeIs('user.products'),
-                    ])
-                >
-                    My Products
-                </a>
-            @endif
 
             @guest
                 <div class="pt-4 grid grid-cols-2 gap-3">
@@ -411,6 +374,20 @@
                             <x-icon name="o-user" class="w-5 h-5"/>
                             <span>My Profile</span>
                         </a>
+                        @auth
+                            <a href="{{ route('user.bookmarks') }}" wire:navigate
+                               class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                <x-icon name="o-bookmark" class="w-4 h-4"/>
+                                <span>Bookmarks</span>
+                            </a>
+                            @if (Auth::user() && Auth::user()->is_seller)
+                                <a href="{{ route('user.products') }}" wire:navigate
+                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                    <x-icon name="o-cube" class="w-4 h-4"/>
+                                    <span>My Product</span>
+                                </a>
+                            @endif
+                        @endauth
                         @if (! $isSeller)
                             @if ($sellerApplicationPending)
                                 <div
@@ -431,11 +408,7 @@
                                 </button>
                             @endif
                         @endif
-                        <a href="#"
-                           class="flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                            <x-icon name="o-shopping-bag" class="w-5 h-5"/>
-                            <span>My Bids</span>
-                        </a>
+
                         <button wire:click="logout" type="button"
                                 class="w-full cursor-pointer flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-red-600 hover:bg-red-50 transition-all">
                             <x-icon name="o-arrow-left-on-rectangle" class="w-5 h-5"/>

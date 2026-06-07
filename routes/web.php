@@ -16,10 +16,13 @@ use App\Livewire\Auth\User\Login;
 use App\Livewire\Auth\User\Register;
 use App\Livewire\Auth\User\VerifyOtp;
 use App\Livewire\Home;
+use App\Livewire\User\AuctionDetail;
+use App\Livewire\User\Bookmarks;
 use App\Livewire\User\Dashboard;
 use App\Livewire\User\JoinAuction;
-use App\Livewire\User\MarketplaceProducts;
+use App\Livewire\User\ManageProduct;
 use App\Livewire\User\Notifications as UserNotifications;
+use App\Livewire\User\ProductDetail as UserProductDetail;
 use App\Livewire\User\Products;
 use App\Livewire\User\Settings;
 use Illuminate\Support\Facades\Route;
@@ -29,7 +32,8 @@ Route::get('/', function () {
 });
 
 Route::get('/home', Home::class)->name('home');
-Route::get('/products', MarketplaceProducts::class)->name('user.marketplace-products');
+Route::redirect('/products', '/home')->name('user.marketplace-products');
+Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.products.show');
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
 
@@ -47,14 +51,15 @@ Route::middleware('auth.otp')->group(function () {
 
 Route::middleware('user')->group(function () {
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
+    Route::get('/bookmarks', Bookmarks::class)->name('user.bookmarks');
     Route::get('/notifications', UserNotifications::class)->name('user.notifications');
     Route::get('/settings', Settings::class)->name('user.settings');
     Route::get('/my-products', Products::class)->name('user.products');
-    Route::get('/my-products/create', \App\Livewire\User\ManageProduct::class)->name('user.products.create');
-    Route::get('/my-products/{product}/edit', \App\Livewire\User\ManageProduct::class)->name('user.products.edit');
+    Route::get('/my-products/create', ManageProduct::class)->name('user.products.create');
+    Route::get('/my-products/{product}/edit', ManageProduct::class)->name('user.products.edit');
     Route::get('/join-auction', JoinAuction::class)->name('user.join-auction');
-    Route::get('/auction', \App\Livewire\User\AuctionMarketplace::class)->name('user.auction');
-    Route::get('/auction/{auction}', \App\Livewire\User\AuctionDetail::class)->name('user.auction.detail');
+    Route::redirect('/auction', '/home')->name('user.auction');
+    Route::get('/auction/{auction}', AuctionDetail::class)->name('user.auction.detail');
 });
 
 Route::prefix('admin')->middleware('admin')->group(function () {

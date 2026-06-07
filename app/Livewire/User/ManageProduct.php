@@ -30,51 +30,77 @@ class ManageProduct extends Component
 
     // Product Basic Info
     public string $name = '';
+
     public string $description = '';
+
     public mixed $category_id = null;
+
     public string $listing_type = 'direct_seller';
+
     public string $condition = 'new';
+
     public mixed $retail_price = null;
+
     public mixed $sale_price = null;
+
     public mixed $quantity = 1;
+
+    public ?string $location = null;
+
+    public bool $delivery_available = false;
+
     public ?string $specifications = null;
 
     // Auction Info
     public string $auction_type = 'traditional';
+
     public string $auction_start_np = '';
+
     public string $auction_start_date_en = '';
+
     public string $auction_start_time = '';
+
     public string $auction_end_np = '';
+
     public string $auction_end_date_en = '';
+
     public string $auction_end_time = '';
 
     // Traditional Auction Details
     public mixed $starting_bid = null;
+
     public mixed $reserve_price = null;
+
     public mixed $min_bid_increment = 100;
+
     public int $timer_start_seconds = 60;
+
     public int $timer_reset_seconds = 15;
 
     // Images
     public array $newImages = [];
+
     public array $existingImages = [];
+
     public array $imagesToDelete = [];
 
     public function mount(?Product $product = null): void
     {
-        if (!Auth::user()->is_seller) {
+        if (! Auth::user()->is_seller) {
             $this->redirect(route('home'), navigate: true);
+
             return;
         }
 
         if ($product && $product->exists) {
-            if ((int)$product->seller_id !== (int)Auth::id()) {
+            if ((int) $product->seller_id !== (int) Auth::id()) {
                 abort(403);
             }
 
             if ($product->is_approved) {
                 $this->error('Approved products cannot be edited.');
                 $this->redirect(route('user.products'), navigate: true);
+
                 return;
             }
 
@@ -90,9 +116,11 @@ class ManageProduct extends Component
         $this->category_id = $this->product->category_id;
         $this->listing_type = $this->product->listing_type->value;
         $this->condition = $this->product->condition;
-        $this->retail_price = (float)$this->product->retail_price;
-        $this->sale_price = (float)$this->product->sale_price;
+        $this->retail_price = (float) $this->product->retail_price;
+        $this->sale_price = (float) $this->product->sale_price;
         $this->quantity = $this->product->quantity;
+        $this->location = $this->product->location;
+        $this->delivery_available = $this->product->delivery_available;
         $this->specifications = $this->product->specifications;
 
         if ($this->listing_type === ProductSaleType::AUCTION->value && $this->product->auction) {
@@ -113,16 +141,16 @@ class ManageProduct extends Component
 
             if ($this->auction_type === ProductAuctionType::TRADITIONAL->value && $auction->traditionalAuction) {
                 $trad = $auction->traditionalAuction;
-                $this->starting_bid = (float)$trad->starting_bid;
-                $this->reserve_price = $trad->reserve_price ? (float)$trad->reserve_price : null;
-                $this->min_bid_increment = (float)$trad->min_bid_increment;
+                $this->starting_bid = (float) $trad->starting_bid;
+                $this->reserve_price = $trad->reserve_price ? (float) $trad->reserve_price : null;
+                $this->min_bid_increment = (float) $trad->min_bid_increment;
                 $this->timer_start_seconds = $trad->timer_start_seconds;
                 $this->timer_reset_seconds = $trad->timer_reset_seconds;
             }
         }
 
         $this->existingImages = $this->product->images
-            ->map(fn(ProductImage $image): array => [
+            ->map(fn (ProductImage $image): array => [
                 'id' => $image->id,
                 'path' => $image->path,
             ])
@@ -136,7 +164,7 @@ class ManageProduct extends Component
 
         $this->existingImages = array_values(array_filter(
             $this->existingImages,
-            fn(array $image): bool => $image['id'] !== $imageId
+            fn (array $image): bool => $image['id'] !== $imageId
         ));
     }
 
@@ -157,6 +185,8 @@ class ManageProduct extends Component
             'retail_price' => 'nullable|numeric|min:0',
             'sale_price' => 'required_if:listing_type,direct_seller|nullable|numeric|min:0',
             'quantity' => 'required|integer|min:1',
+            'location' => 'nullable|string|max:255',
+            'delivery_available' => 'boolean',
             'specifications' => 'nullable|string',
             'newImages.*' => 'image|max:2048',
         ];
@@ -177,6 +207,7 @@ class ManageProduct extends Component
 
         if (count($this->existingImages) === 0 && count($this->newImages) === 0) {
             $this->addError('newImages', 'Please upload at least one image.');
+
             return;
         }
 
@@ -192,6 +223,8 @@ class ManageProduct extends Component
                     'quantity' => $this->quantity,
                     'retail_price' => $this->retail_price,
                     'sale_price' => $this->listing_type === 'direct_seller' ? $this->sale_price : null,
+                    'location' => $this->location,
+                    'delivery_available' => $this->delivery_available,
                     'listing_type' => $this->listing_type,
                     'status' => 'pending',
                 ];
@@ -222,8 +255,8 @@ class ManageProduct extends Component
 
                 // Handle Auction
                 if ($this->listing_type === 'auction') {
-                    $startTime = Carbon::parse($this->auction_start_date_en . ' ' . $this->auction_start_time);
-                    $endTime = Carbon::parse($this->auction_end_date_en . ' ' . $this->auction_end_time);
+                    $startTime = Carbon::parse($this->auction_start_date_en.' '.$this->auction_start_time);
+                    $endTime = Carbon::parse($this->auction_end_date_en.' '.$this->auction_end_time);
 
                     $auction = $product->auction()->updateOrCreate([], [
                         'auction_type' => $this->auction_type,
@@ -248,7 +281,7 @@ class ManageProduct extends Component
                     }
                 }
 
-                if (!$this->product) {
+                if (! $this->product) {
                     $this->notifyAdmins($product);
                 }
             });
@@ -257,7 +290,7 @@ class ManageProduct extends Component
             $this->redirect(route('user.products'), navigate: true);
 
         } catch (Throwable $e) {
-            Log::error('ManageProduct Error: ' . $e->getMessage());
+            Log::error('ManageProduct Error: '.$e->getMessage());
             $this->error('An error occurred while saving the product.');
         }
     }
