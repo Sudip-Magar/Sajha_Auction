@@ -14,6 +14,7 @@ use Mary\Traits\Toast;
 class Home extends Component
 {
     use Toast;
+    public $categorySearch = '';
 
     public function toggleBookmark(int $productId): void
     {

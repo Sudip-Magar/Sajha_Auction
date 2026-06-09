@@ -60,6 +60,7 @@ Route::middleware('user')->group(function () {
     Route::get('/join-auction', JoinAuction::class)->name('user.join-auction');
     Route::redirect('/auction', '/home')->name('user.auction');
     Route::get('/auction/{auction}', AuctionDetail::class)->name('user.auction.detail');
+    Route::get('search-product', \App\Livewire\User\SearchProduct::class)->name('user.search.product');
 });
 
 Route::prefix('admin')->middleware('admin')->group(function () {
