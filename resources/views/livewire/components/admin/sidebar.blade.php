@@ -131,7 +131,7 @@
 
     <!-- Collapse Toggle Button (Desktop) -->
     <button @click="$store.adminSidebar.toggle()"
-            x-bind:class="$store.adminSidebar.collapsed ? 'lg:left-[58px]' : 'lg:left-[266px]'"
+            x-bind:class="$store.adminSidebar.collapsed ? 'lg:left-14.5' : 'lg:left-66.5'"
             class="hidden lg:flex fixed top-15 z-60 w-10 h-10 bg-[#2FA084] text-white rounded-xl cursor-pointer items-center justify-center shadow-lg hover:scale-110 transition-all duration-300 group">
         <x-icon name="o-chevron-left" class="w-4 h-4 transition-transform duration-300" x-bind:class="$store.adminSidebar.collapsed ? 'rotate-180' : ''" />
     </button>
