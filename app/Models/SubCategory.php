@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Category extends Model
+class SubCategory extends Model
 {
     protected $fillable = [
+        'category_id',
         'name',
         'slug',
         'description',
@@ -18,13 +20,13 @@ class Category extends Model
         'sort_order',
     ];
 
-    public function subCategories(): HasMany
+    public function category(): BelongsTo
     {
-        return $this->hasMany(SubCategory::class)->orderBy('sort_order');
+        return $this->belongsTo(Category::class);
     }
 
-    public function children(): HasMany
+    public function products(): HasMany
     {
-        return $this->subCategories();
+        return $this->hasMany(Product::class);
     }
 }

@@ -3,11 +3,12 @@
 namespace App\Livewire\User;
 
 use App\Enums\ProductAuctionType;
+use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
 use App\Models\Admin;
-use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\SubCategory;
 use App\Notifications\NewProductUploadedNotification;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
@@ -33,7 +34,7 @@ class ManageProduct extends Component
 
     public string $description = '';
 
-    public mixed $category_id = null;
+    public mixed $sub_category_id = null;
 
     public string $listing_type = 'direct_seller';
 
@@ -42,6 +43,8 @@ class ManageProduct extends Component
     public mixed $retail_price = null;
 
     public mixed $sale_price = null;
+
+    public string $negotiable = 'fixed';
 
     public mixed $quantity = 1;
 
@@ -113,11 +116,12 @@ class ManageProduct extends Component
     {
         $this->name = $this->product->name;
         $this->description = $this->product->description;
-        $this->category_id = $this->product->category_id;
+        $this->sub_category_id = $this->product->sub_category_id;
         $this->listing_type = $this->product->listing_type->value;
         $this->condition = $this->product->condition;
         $this->retail_price = (float) $this->product->retail_price;
         $this->sale_price = (float) $this->product->sale_price;
+        $this->negotiable = $this->product->negotiable?->value ?? ProductNegotiability::FIXED->value;
         $this->quantity = $this->product->quantity;
         $this->location = $this->product->location;
         $this->delivery_available = $this->product->delivery_available;
@@ -179,11 +183,12 @@ class ManageProduct extends Component
         $rules = [
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'category_id' => 'required|exists:categories,id',
+            'sub_category_id' => 'required|exists:sub_categories,id',
             'listing_type' => 'required|in:direct_seller,auction',
             'condition' => 'required|in:new,like-new,used',
             'retail_price' => 'nullable|numeric|min:0',
             'sale_price' => 'required_if:listing_type,direct_seller|nullable|numeric|min:0',
+            'negotiable' => 'required|in:'.ProductNegotiability::NEGOTIABLE->value.','.ProductNegotiability::FIXED->value,
             'quantity' => 'required|integer|min:1',
             'location' => 'nullable|string|max:255',
             'delivery_available' => 'boolean',
@@ -215,7 +220,7 @@ class ManageProduct extends Component
             DB::transaction(function () {
                 $productData = [
                     'seller_id' => Auth::id(),
-                    'category_id' => $this->category_id,
+                    'sub_category_id' => $this->sub_category_id,
                     'name' => $this->name,
                     'description' => $this->description,
                     'specifications' => $this->specifications,
@@ -223,6 +228,7 @@ class ManageProduct extends Component
                     'quantity' => $this->quantity,
                     'retail_price' => $this->retail_price,
                     'sale_price' => $this->listing_type === 'direct_seller' ? $this->sale_price : null,
+                    'negotiable' => $this->negotiable,
                     'location' => $this->location,
                     'delivery_available' => $this->delivery_available,
                     'listing_type' => $this->listing_type,
@@ -306,7 +312,26 @@ class ManageProduct extends Component
     public function render(): View
     {
         return view('livewire.user.manage-product', [
-            'categories' => Category::where('status', 'active')->get(),
+            'subCategories' => SubCategory::query()
+                ->with('category')
+                ->where('status', 'active')
+                ->whereHas('category', function ($query): void {
+                    $query->where('status', 'active');
+                })
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (SubCategory $subCategory): array => [
+                    'id' => $subCategory->id,
+                    'name' => $subCategory->category?->name
+                        ? $subCategory->category->name.' - '.$subCategory->name
+                        : $subCategory->name,
+                ])
+                ->all(),
+            'negotiabilityOptions' => [
+                ['id' => ProductNegotiability::FIXED->value, 'name' => ProductNegotiability::FIXED->label()],
+                ['id' => ProductNegotiability::NEGOTIABLE->value, 'name' => ProductNegotiability::NEGOTIABLE->label()],
+            ],
         ]);
     }
 }

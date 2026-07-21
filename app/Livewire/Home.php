@@ -14,6 +14,7 @@ use Mary\Traits\Toast;
 class Home extends Component
 {
     use Toast;
+
     public $categorySearch = '';
 
     public function toggleBookmark(int $productId): void
@@ -71,7 +72,6 @@ class Home extends Component
                         ->orderBy('name');
                 }])
                 ->where('status', 'active')
-                ->whereNull('parent_id')
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->take(14)

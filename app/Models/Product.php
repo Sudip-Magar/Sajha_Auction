@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ProductAuctionType;
+use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,7 +18,7 @@ class Product extends Model
     protected $fillable = [
         'sku',
         'seller_id',
-        'category_id',
+        'sub_category_id',
         'name',
         'slug',
         'description',
@@ -26,6 +27,7 @@ class Product extends Model
         'quantity',
         'retail_price',
         'sale_price',
+        'negotiable',
         'listing_type',
         'is_approved',
         'is_featured',
@@ -39,6 +41,7 @@ class Product extends Model
 
     protected $casts = [
         'listing_type' => ProductSaleType::class,
+        'negotiable' => ProductNegotiability::class,
         'is_approved' => 'boolean',
         'is_featured' => 'boolean',
         'is_trending' => 'boolean',
@@ -66,7 +69,7 @@ class Product extends Model
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(SubCategory::class, 'sub_category_id');
     }
 
     public function images(): HasMany

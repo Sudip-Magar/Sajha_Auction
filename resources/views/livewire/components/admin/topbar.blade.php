@@ -16,7 +16,7 @@
                 </button>
             </x-slot:trigger>
 
-            <div class="w-85 max-h-[32rem] overflow-y-auto overflow-x-hidden">
+            <div class="w-85 max-h-128 overflow-y-auto overflow-x-hidden">
                 <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <h3 class="font-bold text-sm text-gray-800">Notifications</h3>
                     <span class="px-2 py-0.5 rounded-full bg-[#1F6F5F]/10 text-[#1F6F5F] text-[10px] font-bold uppercase tracking-wider">{{ $unreadCount }} New</span>

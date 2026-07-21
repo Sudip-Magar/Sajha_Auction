@@ -31,8 +31,6 @@ class CategorySetup extends Component
 
     public $image;
 
-    public ?int $parent_id = null;
-
     public string $icon = '';
 
     public string $color = '#000000';
@@ -46,7 +44,6 @@ class CategorySetup extends Component
         'slug' => 'required|string|max:255|unique:categories,slug',
         'description' => 'nullable|string',
         'image' => 'nullable|image|max:1024',
-        'parent_id' => 'nullable|exists:categories,id',
         'icon' => 'nullable|string',
         'color' => 'nullable|string',
         'status' => 'required|in:active,inactive',
@@ -70,7 +67,6 @@ class CategorySetup extends Component
         $this->name = $category->name;
         $this->slug = $category->slug;
         $this->description = $category->description ?? '';
-        $this->parent_id = $category->parent_id;
         $this->icon = $category->icon ?? '';
         $this->color = $category->color ?? '#000000';
         $this->status = $category->status;
@@ -85,7 +81,6 @@ class CategorySetup extends Component
             'slug' => 'required|string|max:255|unique:categories,slug,'.($this->editingCategory?->id ?? 'NULL'),
             'description' => 'nullable|string',
             'image' => $this->image ? 'image|max:1024' : 'nullable',
-            'parent_id' => 'nullable|exists:categories,id',
             'icon' => 'nullable|string',
             'color' => 'nullable|string',
             'status' => 'required|in:active,inactive',
@@ -145,7 +140,6 @@ class CategorySetup extends Component
         $this->slug = '';
         $this->description = '';
         $this->image = null;
-        $this->parent_id = null;
         $this->icon = '';
         $this->color = '#000000';
         $this->status = 'active';
@@ -154,18 +148,13 @@ class CategorySetup extends Component
 
     public function render()
     {
-        $categories = Category::with('parent')
+        $categories = Category::query()
             ->where('name', 'like', '%'.$this->search.'%')
             ->orderBy('sort_order')
             ->paginate(10);
 
-        $parentCategories = Category::whereNull('parent_id')
-            ->when($this->editingCategory, fn ($q) => $q->where('id', '!=', $this->editingCategory->id))
-            ->get();
-
         return view('livewire.admin.category-setup', [
             'categories' => $categories,
-            'parentCategories' => $parentCategories,
         ]);
     }
 }

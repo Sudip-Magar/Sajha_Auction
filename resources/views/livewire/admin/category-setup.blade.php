@@ -31,8 +31,8 @@
                 <x-icon name="o-folder" class="w-6 h-6" />
             </div>
             <div>
-                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Main Departments</p>
-                <p class="text-2xl font-black text-gray-900">{{ \App\Models\Category::whereNull('parent_id')->count() }}</p>
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Departments</p>
+                <p class="text-2xl font-black text-gray-900">{{ \App\Models\Category::count() }}</p>
             </div>
         </div>
     </div>
@@ -53,7 +53,6 @@
             $headers = [
                 ['key' => 'id', 'label' => 'ID', 'class' => 'w-16 text-gray-400'],
                 ['key' => 'name', 'label' => 'Category Information'],
-                ['key' => 'parent.name', 'label' => 'Parent Dept'],
                 ['key' => 'status', 'label' => 'Status'],
                 ['key' => 'sort_order', 'label' => 'Rank'],
                 ['key' => 'actions', 'label' => '', 'sortable' => false],
@@ -75,14 +74,6 @@
                         <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{{ $category->slug }}</div>
                     </div>
                 </div>
-            @endscope
-
-            @scope('cell_parent.name', $category)
-                @if($category->parent)
-                    <x-badge :value="$category->parent->name" class="badge-ghost font-bold text-[10px] uppercase" />
-                @else
-                    <span class="text-gray-300 text-[10px] font-bold uppercase italic">Master</span>
-                @endif
             @endscope
 
             @scope('cell_status', $category)
@@ -124,10 +115,7 @@
 
             <x-textarea label="Description" wire:model="description" placeholder="Brief overview of this category..." rows="3" />
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <x-select label="Parent Department" wire:model="parent_id" :options="$parentCategories" placeholder="Top Level Master" icon="o-chevron-double-up" />
-                <x-input label="Icon Name" wire:model="icon" placeholder="o-sparkles" icon="o-face-smile" hint="Use HeroIcons names" />
-            </div>
+            <x-input label="Icon Name" wire:model="icon" placeholder="o-sparkles" icon="o-face-smile" hint="Use HeroIcons names" />
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <x-input label="Theme Color" wire:model="color" type="color" class="h-12" />

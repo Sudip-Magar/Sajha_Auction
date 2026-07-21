@@ -1,6 +1,6 @@
 <div>
     <section class="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-[#15171B]">
-        <div class="mx-auto flex max-w-[1480px] flex-col gap-3 px-3 py-3 lg:px-4">
+        <div class="mx-auto flex max-w-370 flex-col gap-3 px-3 py-3 lg:px-4">
             <form @submit.prevent="$store.searchProductStore.searchProduct()">
                 <div class="grid grid-cols-1 gap-2 lg:grid-cols-[280px_minmax(0,1fr)_180px]">
                     <button type="button"
@@ -49,7 +49,8 @@
              if (this.category) {
                 params.append('category', this.category);
             }
-            window.location.href = '{{ route('user.search.product') }}' + '?' + params.toString();
+            let query = params.toString();
+            window.location.href = '{{ route('user.search.product') }}' + (query ? '?' + query : '');
         },
     })
 </script>

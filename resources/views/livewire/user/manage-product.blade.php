@@ -23,7 +23,7 @@
                             <x-input label="Product Name" wire:model="name" placeholder="e.g. Vintage Leather Jacket" icon="o-tag" />
                         </div>
 
-                        <x-select label="Category" wire:model="category_id" :options="$categories" placeholder="Select Category" icon="o-squares-2x2" />
+                        <x-select label="Category" wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
 
                         <x-select label="Condition" wire:model="condition" :options="[
                             ['id' => 'new', 'name' => 'Brand New'],
@@ -36,6 +36,8 @@
                         @if($listing_type === 'direct_seller')
                             <x-input label="Sale Price (Rs.)" wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" />
                         @endif
+
+                        <x-select label="Price Type" wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
 
                         <x-input label="Quantity" wire:model="quantity" type="number" icon="o-archive-box" />
 

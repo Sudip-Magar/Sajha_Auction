@@ -13,65 +13,8 @@
 <div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-[#101114] dark:text-gray-100">
     @livewire('components.user.search-filter-component')
 
-    <section class="mx-auto grid max-w-[1480px] grid-cols-1 gap-4 px-3 pb-16 pt-4 lg:grid-cols-[280px_minmax(0,1fr)_230px] lg:px-4">
-        <aside class="hidden overflow-hidden rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#181A1F] lg:block">
-            <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-                <h2 class="ui-heading flex items-center gap-2 font-black">
-                    <x-icon name="o-squares-2x2" class="ui-icon-lg text-[#0C8FE8]" />
-                    All Categories
-                </h2>
-                <span class="ui-small font-bold text-gray-500">{{ $categories->count() }}</span>
-            </div>
-
-            <a href="{{ $postRoute }}" wire:navigate class="flex items-center gap-3 border-b border-gray-200 bg-sky-50 px-4 py-3 dark:border-gray-800 dark:bg-sky-950/30">
-                <div class="flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#0C8FE8] shadow-sm dark:bg-[#202228]">
-                    <x-icon name="o-bolt" class="ui-icon" />
-                </div>
-                <div class="min-w-0">
-                    <p class="truncate font-black">Boost your listing</p>
-                    <p class="truncate ui-small font-semibold text-gray-500">Reach buyers faster</p>
-                </div>
-                <x-icon name="o-chevron-right" class="ui-icon ml-auto text-gray-500" />
-            </a>
-
-            <div class="divide-y divide-gray-100 dark:divide-gray-800">
-                @forelse($categories as $category)
-                    <div x-data="{ open: false }">
-                        @if($category->children->isNotEmpty())
-                            <button type="button" @click="open = ! open" class="flex w-full items-center justify-between px-4 py-3 text-left font-bold hover:bg-gray-50 dark:hover:bg-gray-800/70">
-                                <span class="flex min-w-0 items-center gap-3">
-                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                                        <x-icon name="o-folder" class="ui-icon" />
-                                    </span>
-                                    <span class="truncate">{{ $category->name }}</span>
-                                </span>
-                                <x-icon name="o-chevron-right" class="ui-icon shrink-0 text-gray-400 transition-transform" ::class="open ? 'rotate-90' : ''" />
-                            </button>
-                            <div x-show="open" x-transition class="border-t border-gray-100 bg-gray-50/70 dark:border-gray-800 dark:bg-[#101114]" style="display: none;">
-                                @foreach($category->children as $childCategory)
-                                    <a href="#category-{{ $childCategory->id }}" class="flex items-center gap-3 px-4 py-2.5 pl-12 font-semibold text-gray-600 hover:text-[#0C8FE8] dark:text-gray-300">
-                                        <x-icon name="o-tag" class="ui-icon shrink-0" />
-                                        <span class="truncate">{{ $childCategory->name }}</span>
-                                    </a>
-                                @endforeach
-                            </div>
-                        @else
-                            <a href="#category-{{ $category->id }}" class="flex items-center justify-between px-4 py-3 font-bold hover:bg-gray-50 dark:hover:bg-gray-800/70">
-                                <span class="flex min-w-0 items-center gap-3">
-                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                                        <x-icon name="o-tag" class="ui-icon" />
-                                    </span>
-                                    <span class="truncate">{{ $category->name }}</span>
-                                </span>
-                                <x-icon name="o-chevron-right" class="ui-icon shrink-0 text-gray-400" />
-                            </a>
-                        @endif
-                    </div>
-                @empty
-                    <div class="px-4 py-8 font-semibold text-gray-500">No categories available.</div>
-                @endforelse
-            </div>
-        </aside>
+    <section class="mx-auto grid max-w-370 grid-cols-1 gap-4 px-3 pb-16 pt-4 lg:grid-cols-[280px_minmax(0,1fr)_230px] lg:px-4">
+        <x-user.category-sidebar :categories="$categories" :post-route="$postRoute" />
 
         <main class="min-w-0 space-y-4">
             <div class="flex gap-2 overflow-x-auto pb-1 lg:hidden">
@@ -84,11 +27,11 @@
                             </button>
                             <div x-show="open" @click.outside="open = false" class="absolute z-30 mt-2 min-w-44 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-[#181A1F]" style="display: none;">
                                 @foreach($category->children as $childCategory)
-                                    <a href="#category-{{ $childCategory->id }}" class="block px-3 py-2 font-semibold text-gray-600 hover:bg-gray-50 hover:text-[#0C8FE8] dark:text-gray-300 dark:hover:bg-gray-800">{{ $childCategory->name }}</a>
+                                    <a href="{{ route('user.search.product', ['category' => $childCategory->id]) }}" wire:navigate class="block px-3 py-2 font-semibold text-gray-600 hover:bg-gray-50 hover:text-[#0C8FE8] dark:text-gray-300 dark:hover:bg-gray-800">{{ $childCategory->name }}</a>
                                 @endforeach
                             </div>
                         @else
-                            <a href="#category-{{ $category->id }}" class="block rounded-md border border-gray-200 bg-white px-3 py-2 font-bold dark:border-gray-800 dark:bg-[#181A1F]">{{ $category->name }}</a>
+                            <button type="button" class="block rounded-md border border-gray-200 bg-white px-3 py-2 font-bold text-gray-500 dark:border-gray-800 dark:bg-[#181A1F] dark:text-gray-400">{{ $category->name }}</button>
                         @endif
                     </div>
                 @endforeach
@@ -128,7 +71,7 @@
                 @mouseleave="start()"
                 class="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-gray-200 dark:bg-[#181A1F] dark:ring-gray-800"
             >
-                <div class="relative aspect-[16/7] min-h-[210px] overflow-hidden sm:aspect-[16/5]">
+                <div class="relative aspect-16/7 min-h-52.5 overflow-hidden sm:aspect-16/5">
                     @foreach($bannerSlides as $index => $slide)
                         <div
                             x-show="current === {{ $index }}"
@@ -186,8 +129,8 @@
 
                 <div id="trending-carousel" class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
                     @forelse($trendingProducts as $product)
-                        <a href="{{ route('user.products.show', $product->slug) }}" wire:navigate class="group min-w-[160px] snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-[#101114] sm:min-w-[190px] lg:min-w-[180px]">
-                            <div class="aspect-[4/3] bg-gray-100 dark:bg-gray-800">
+                        <a href="{{ route('user.products.show', $product->slug) }}" wire:navigate class="group min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-[#101114] sm:min-w-47.5 lg:min-w-45">
+                            <div class="aspect-4/3 bg-gray-100 dark:bg-gray-800">
                                 @if($product->image)
                                     <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover transition group-hover:scale-105">
                                 @else

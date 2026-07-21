@@ -34,7 +34,7 @@ class ProductDetail extends Component
                 ->where('is_approved', true)
                 ->where('status', 'active')
                 ->where('id', '!=', $this->product->id)
-                ->where('category_id', $this->product->category_id)
+                ->where('sub_category_id', $this->product->sub_category_id)
                 ->latest()
                 ->take(4)
                 ->get(),
