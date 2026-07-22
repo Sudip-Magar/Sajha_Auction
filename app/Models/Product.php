@@ -24,6 +24,7 @@ class Product extends Model
         'description',
         'specifications',
         'condition',
+        'usage_duration',
         'quantity',
         'retail_price',
         'sale_price',
@@ -34,6 +35,8 @@ class Product extends Model
         'is_trending',
         'views_count',
         'location',
+        'meetup_location',
+        'meetup_instructions',
         'delivery_available',
         'expires_at',
         'status',
@@ -87,6 +90,62 @@ class Product extends Model
         return $this->belongsToMany(User::class, 'bookmarks')->withTimestamps();
     }
 
+    public function wishlistedByUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'wishlists')->withTimestamps();
+    }
+
+    public function cartItems(): HasMany
+    {
+        return $this->hasMany(CartItem::class);
+    }
+
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
+    public function timelines(): HasMany
+    {
+        return $this->hasMany(ProductTimeline::class)->orderBy('created_at', 'asc');
+    }
+
+    public function isDirectSell(): bool
+    {
+        return $this->listing_type === ProductSaleType::DIRECT_SELLER;
+    }
+
+    public function isAuction(): bool
+    {
+        return $this->listing_type === ProductSaleType::AUCTION;
+    }
+
+    public function isWishlistedBy(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return Wishlist::where('user_id', $user->id)
+            ->where('product_id', $this->id)
+            ->exists();
+    }
+
+    public function logTimeline(string $eventType, string $title, ?string $description = null, ?User $actor = null): ProductTimeline
+    {
+        return $this->timelines()->create([
+            'event_type' => $eventType,
+            'title' => $title,
+            'description' => $description,
+            'actor_id' => $actor?->id,
+        ]);
+    }
+
     public function approveListing(): void
     {
         $this->update([
@@ -98,6 +157,12 @@ class Product extends Model
         if ($this->auction) {
             $this->auction->update(['status' => 'active']);
         }
+
+        $this->logTimeline(
+            'approved',
+            'Product Approved',
+            'Product listing approved by admin and published live on the marketplace.'
+        );
     }
 
     public function getImageAttribute(): ?string

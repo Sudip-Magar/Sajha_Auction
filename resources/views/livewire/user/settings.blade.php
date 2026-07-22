@@ -49,6 +49,53 @@
                                 <x-input label="Phone Number" wire:model="phone" icon="o-phone" placeholder="+977-9800000000" />
                                 
                                 <x-textarea label="Bio" wire:model="bio" placeholder="Tell us a little bit about yourself..." rows="4" hint="Maximum 500 characters" />
+
+                                {{-- Seller Access Card --}}
+                                <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mt-6">
+                                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-10 h-10 bg-[#2FA084]/10 rounded-xl flex items-center justify-center shrink-0">
+                                                <x-icon name="o-shopping-bag" class="w-5 h-5 text-[#2FA084]"/>
+                                            </div>
+                                            <div>
+                                                <h4 class="text-sm font-bold text-gray-900">Seller Account Status</h4>
+                                                @if(auth()->user()->is_seller)
+                                                    <p class="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                                                        <x-icon name="o-check-circle" class="w-4 h-4" />
+                                                        <span>Active Seller — You can list products and auctions</span>
+                                                    </p>
+                                                @elseif(auth()->user()->seller_application_pending)
+                                                    <p class="text-xs text-amber-600 font-semibold flex items-center gap-1 mt-0.5">
+                                                        <x-icon name="o-clock" class="w-4 h-4" />
+                                                        <span>Application Pending — Under admin review</span>
+                                                    </p>
+                                                @else
+                                                    <p class="text-xs text-gray-500 font-medium mt-0.5">
+                                                        Buyer Account — Apply to become a seller and start listing products
+                                                    </p>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        @if(!auth()->user()->is_seller)
+                                            @if(auth()->user()->seller_application_pending)
+                                                <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 font-bold text-xs">
+                                                    <x-icon name="o-clock" class="w-3.5 h-3.5" /> Pending Review
+                                                </span>
+                                            @else
+                                                <x-button
+                                                    label="Apply as Seller"
+                                                    icon="o-user-plus"
+                                                    wire:click="requestSellerAccess"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="requestSellerAccess"
+                                                    type="button"
+                                                    class="btn-primary btn-sm bg-[#1F6F5F] hover:bg-[#2FA084] text-white"
+                                                />
+                                            @endif
+                                        @endif
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

@@ -11,8 +11,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
-        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+    )
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        ['middleware' => ['web', 'auth']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
@@ -20,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => AdminMiddleware::class,
             'auth.otp' => EnsureGoogleSession::class,
         ]);
-        //
+        $middleware->redirectGuestsTo(fn ($request) => $request->is('admin*') ? route('admin.login') : route('user.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

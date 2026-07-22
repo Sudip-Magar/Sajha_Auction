@@ -2,8 +2,10 @@
 
 namespace App\Livewire;
 
+use App\Models\CartItem;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Wishlist;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -17,7 +19,7 @@ class Home extends Component
 
     public $categorySearch = '';
 
-    public function toggleBookmark(int $productId): void
+    public function toggleWishlist(int $productId): void
     {
         $user = Auth::user();
 
@@ -39,22 +41,65 @@ class Home extends Component
             return;
         }
 
-        $bookmark = $user->bookmarks()
+        $wishlist = Wishlist::where('user_id', $user->id)
             ->where('product_id', $productId)
             ->first();
 
-        if ($bookmark) {
-            $bookmark->delete();
-            $this->success('Product removed from bookmarks.');
+        if ($wishlist) {
+            $wishlist->delete();
+            $user->bookmarks()->where('product_id', $productId)->delete();
+            $this->success('Product removed from wishlist.');
+        } else {
+            Wishlist::create([
+                'user_id' => $user->id,
+                'product_id' => $productId,
+            ]);
+            $user->bookmarks()->firstOrCreate(['product_id' => $productId]);
+            $this->success('Product added to wishlist!');
+        }
+
+        $this->dispatch('wishlistUpdated');
+    }
+
+    public function toggleBookmark(int $productId): void
+    {
+        $this->toggleWishlist($productId);
+    }
+
+    public function addToCart(int $productId): void
+    {
+        $user = Auth::user();
+        if (! $user) {
+            $this->warning('Please sign in to add items to cart.');
+            $this->redirect(route('user.login'), navigate: true);
 
             return;
         }
 
-        $user->bookmarks()->create([
-            'product_id' => $productId,
-        ]);
+        $product = Product::find($productId);
+        if (! $product || ! $product->isDirectSell()) {
+            $this->error('Item is not available for direct buy.');
 
-        $this->success('Product added to bookmarks.');
+            return;
+        }
+
+        if ((int) $product->seller_id === (int) $user->id) {
+            $this->error('You cannot add your own product to cart.');
+
+            return;
+        }
+
+        $cartItem = CartItem::firstOrCreate(
+            ['user_id' => $user->id, 'product_id' => $productId],
+            ['quantity' => 1]
+        );
+
+        if (! $cartItem->wasRecentlyCreated) {
+            $cartItem->increment('quantity');
+        }
+
+        $this->success('Product added to cart!');
+        $this->dispatch('cartUpdated');
     }
 
     public function render(): View
@@ -62,6 +107,11 @@ class Home extends Component
         $productsQuery = Product::with(['auction.traditionalAuction', 'category', 'images', 'user'])
             ->where('is_approved', true)
             ->where('status', 'active');
+
+        $user = Auth::user();
+        $wishlistedIds = $user
+            ? Wishlist::where('user_id', $user->id)->pluck('product_id')->all()
+            : [];
 
         return view('livewire.home', [
             'bannerSlides' => $this->bannerSlides(),
@@ -84,9 +134,8 @@ class Home extends Component
                 'Furniture',
                 'Services',
             ],
-            'bookmarkedProductIds' => Auth::user()
-                ? Auth::user()->bookmarks()->pluck('product_id')->all()
-                : [],
+            'bookmarkedProductIds' => $wishlistedIds,
+            'wishlistedProductIds' => $wishlistedIds,
             'featuredProducts' => (clone $productsQuery)
                 ->where('is_featured', true)
                 ->latest()
@@ -115,26 +164,26 @@ class Home extends Component
     {
         return [
             [
-                'eyebrow' => 'Verified marketplace',
-                'title' => 'Buy and auction locally across Nepal',
-                'copy' => 'Browse approved listings, inspect seller details, and join active auctions from one clean feed.',
-                'cta' => 'Explore listings',
+                'eyebrow' => 'Second-Hand & Auction Marketplace',
+                'title' => 'Buy, Sell & Auction Second-Hand Items in Nepal',
+                'copy' => 'Browse approved listings with verified meetup places, inspect seller details, and order directly or join live auctions.',
+                'cta' => 'Explore Marketplace',
                 'icon' => 'o-shield-check',
-                'gradient' => 'linear-gradient(115deg, #0C8FE8 0%, #28C2E0 100%)',
+                'gradient' => 'linear-gradient(115deg, #1F6F5F 0%, #2FA084 100%)',
             ],
             [
-                'eyebrow' => 'Seller tools',
-                'title' => 'Post products and reach serious buyers',
-                'copy' => 'Create fixed-price listings or auction products with approval, visibility, and safer account controls.',
-                'cta' => 'Post for free',
+                'eyebrow' => 'Seller Tools',
+                'title' => 'Post Second-Hand Products & Set Meetup Places',
+                'copy' => 'List your second-hand products, set prices and meetup places, and manage buyer orders effortlessly.',
+                'cta' => 'Upload Product',
                 'icon' => 'o-megaphone',
                 'gradient' => 'linear-gradient(115deg, #0F9F6E 0%, #20B6A8 100%)',
             ],
             [
-                'eyebrow' => 'Trending now',
-                'title' => 'Catch popular deals before they move',
-                'copy' => 'Featured and trending products stay easy to scan with prices, condition, seller, and location.',
-                'cta' => 'View trending',
+                'eyebrow' => 'Trending Deals',
+                'title' => 'Catch Popular Direct-Sell & Auction Deals',
+                'copy' => 'Featured products, condition reports, meetup places, and pricing details updated live.',
+                'cta' => 'View Trending',
                 'icon' => 'o-arrow-trending-up',
                 'gradient' => 'linear-gradient(115deg, #F59E0B 0%, #F97316 100%)',
             ],

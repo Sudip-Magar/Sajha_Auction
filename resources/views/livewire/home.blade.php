@@ -38,7 +38,10 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <a href="{{ Auth::check() ? route('user.bookmarks') : route('user.login') }}" wire:navigate class="hidden rounded-md border border-gray-200 bg-white px-3 py-2 font-bold text-gray-700 hover:border-sky-400 hover:text-sky-600 dark:border-gray-800 dark:bg-[#181A1F] dark:text-gray-200 sm:inline-flex">Bookmarks</a>
+                <a href="{{ Auth::check() ? route('user.wishlist') : route('user.login') }}" wire:navigate class="hidden rounded-md border border-gray-200 bg-white px-3 py-2 font-bold text-gray-700 hover:border-rose-400 hover:text-rose-600 dark:border-gray-800 dark:bg-[#181A1F] dark:text-gray-200 sm:inline-flex gap-1.5 items-center">
+                    <x-icon name="o-heart" class="w-4 h-4 text-rose-500" />
+                    Wishlist
+                </a>
                 @guest
                     <a href="{{ route('user.login') }}" wire:navigate class="rounded-md border border-gray-200 bg-white px-3 py-2 font-bold text-gray-700 hover:border-sky-400 hover:text-sky-600 dark:border-gray-800 dark:bg-[#181A1F] dark:text-gray-200">Sign in / Sign up</a>
                 @endguest

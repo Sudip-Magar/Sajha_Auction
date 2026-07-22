@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Events\AuctionBidPlaced;
 use App\Models\Auction;
 use App\Models\Bid;
 use Illuminate\Contracts\View\View;
@@ -19,12 +20,13 @@ class AuctionDetail extends Component
     use Toast;
 
     public Auction $auction;
+
     public float $bidAmount = 0;
 
     public function getListeners(): array
     {
         return [
-            'echo:auctions.' . $this->auction->id . ',AuctionBidPlaced' => '$refresh',
+            'echo:auctions.'.$this->auction->id.',AuctionBidPlaced' => '$refresh',
         ];
     }
 
@@ -36,26 +38,36 @@ class AuctionDetail extends Component
 
     public function placeBid(): void
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             $this->error('Please login to place a bid.');
             $this->redirect(route('user.login'), navigate: true);
+
             return;
         }
 
-        if (!Auth::user()->is_auction_allowed) {
+        if (! Auth::user()->is_auction_allowed) {
             $this->error('Your account is not approved for bidding. Please submit your documents first.');
             $this->redirect(route('user.join-auction'), navigate: true);
+
             return;
         }
 
-        if (!$this->auction->isLive()) {
+        if ((int) $this->auction->product?->seller_id === (int) Auth::id()) {
+            $this->error('You cannot bid on your own product listing.');
+
+            return;
+        }
+
+        if (! $this->auction->isLive()) {
             $this->error('This auction is not currently live.');
+
             return;
         }
 
         $minNextBid = $this->auction->getMinNextBid();
         if ($this->bidAmount < $minNextBid) {
-            $this->error("Your bid must be at least Rs. " . number_format($minNextBid));
+            $this->error('Your bid must be at least Rs. '.number_format($minNextBid));
+
             return;
         }
 
@@ -65,7 +77,7 @@ class AuctionDetail extends Component
                 $auction = Auction::where('id', $this->auction->id)->lockForUpdate()->first();
 
                 if ($this->bidAmount < $auction->getMinNextBid()) {
-                    throw new \Exception("Someone else just placed a higher bid.");
+                    throw new \Exception('Someone else just placed a higher bid.');
                 }
 
                 $bid = Bid::create([
@@ -82,15 +94,15 @@ class AuctionDetail extends Component
                 ]);
 
                 $this->auction = $auction->load(['product.images', 'product.category', 'traditionalAuction', 'bids.bidder']);
-                
-                event(new \App\Events\AuctionBidPlaced($auction, $bid));
+
+                event(new AuctionBidPlaced($auction, $bid));
             });
 
             $this->success('Your bid has been placed successfully!');
             $this->bidAmount = (float) $this->auction->getMinNextBid();
 
         } catch (Throwable $e) {
-            Log::error('Bidding Error: ' . $e->getMessage());
+            Log::error('Bidding Error: '.$e->getMessage());
             $this->error($e->getMessage() ?: 'An error occurred while placing your bid.');
         }
     }

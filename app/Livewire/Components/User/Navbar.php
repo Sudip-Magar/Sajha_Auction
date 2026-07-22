@@ -66,11 +66,15 @@ class Navbar extends Component
         if (! $userId) {
             return [
                 'userNotificationReceived' => '$refresh',
+                'cartUpdated' => '$refresh',
+                'wishlistUpdated' => '$refresh',
             ];
         }
 
         return [
             'userNotificationReceived' => '$refresh',
+            'cartUpdated' => '$refresh',
+            'wishlistUpdated' => '$refresh',
             "echo-notification:App.Models.User.{$userId}" => '$refresh',
         ];
     }
@@ -126,6 +130,14 @@ class Navbar extends Component
         ) {
             return $this->redirect(route('user.join-auction'), navigate: true);
         }
+        if ($type === 'App\Notifications\NewChatMessageNotification') {
+            $conversationId = $notification->data['conversation_id'] ?? null;
+            if ($conversationId) {
+                return $this->redirect(route('user.messages', ['conversation' => $conversationId]), navigate: true);
+            }
+
+            return $this->redirect(route('user.messages'), navigate: true);
+        }
         if ($type === 'App\Notifications\AccountStatusChangedNotification') {
             return $this->redirect(route('home'), navigate: true);
         }
@@ -174,13 +186,18 @@ class Navbar extends Component
         if ($this->logoutIfInactive()) {
             return view('livewire.components.user.navbar', [
                 'notifications' => collect(),
+                'cartCount' => 0,
+                'wishlistCount' => 0,
             ]);
         }
 
         $this->syncSellerState();
+        $user = Auth::user();
 
         return view('livewire.components.user.navbar', [
             'notifications' => $this->notificationData(),
+            'cartCount' => $user ? $user->cartItems()->sum('quantity') : 0,
+            'wishlistCount' => $user ? $user->wishlists()->count() : 0,
         ]);
     }
 }

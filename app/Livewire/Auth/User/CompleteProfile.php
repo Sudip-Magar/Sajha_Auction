@@ -4,7 +4,9 @@ namespace App\Livewire\Auth\User;
 
 use App\Enums\GenderState;
 use App\Enums\StatusState;
+use App\Models\Admin;
 use App\Models\User;
+use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -43,7 +45,7 @@ class CompleteProfile extends Component
 
     public $confirm_password = '';
 
-    //    public bool $is_seller = false;
+    public bool $apply_as_seller = false;
 
     public $genderStates = [];
 
@@ -151,18 +153,18 @@ class CompleteProfile extends Component
                 'avatar' => $avatarPath,
                 'bio' => $this->bio ?: null,
                 'is_seller' => false,
-                'seller_application_pending' => false,
+                'seller_application_pending' => $this->apply_as_seller,
                 'is_auction_allowed' => false,
                 'status' => StatusState::ACTIVE->value,
             ]
         );
 
-        //        if ($this->is_seller === true) {
-        //            $admins = Admin::get();
-        //            foreach ($admins as $admin) {
-        //                $admin->notify(new SellerRegisteredNotification($user));
-        //            }
-        //        }
+        if ($this->apply_as_seller) {
+            $admins = Admin::all();
+            foreach ($admins as $admin) {
+                $admin->notify(new SellerRegisteredNotification($user));
+            }
+        }
 
         session()->forget(['google_user', 'otp_verified']);
 

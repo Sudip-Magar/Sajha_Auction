@@ -38,7 +38,9 @@ class ManageProduct extends Component
 
     public string $listing_type = 'direct_seller';
 
-    public string $condition = 'new';
+    public string $condition = 'like-new';
+
+    public ?string $usage_duration = null;
 
     public mixed $retail_price = null;
 
@@ -49,6 +51,10 @@ class ManageProduct extends Component
     public mixed $quantity = 1;
 
     public ?string $location = null;
+
+    public ?string $meetup_location = null;
+
+    public ?string $meetup_instructions = null;
 
     public bool $delivery_available = false;
 
@@ -89,10 +95,16 @@ class ManageProduct extends Component
 
     public function mount(?Product $product = null): void
     {
-        if (! Auth::user()->is_seller) {
-            $this->redirect(route('home'), navigate: true);
+        $user = Auth::user();
+        if (! $user || ! $user->is_seller) {
+            $this->warning('You must be an approved seller to create or edit products.');
+            $this->redirect(route('user.products'), navigate: true);
 
             return;
+        }
+
+        if (! $user->is_auction_allowed) {
+            $this->listing_type = 'direct_seller';
         }
 
         if ($product && $product->exists) {
@@ -119,11 +131,14 @@ class ManageProduct extends Component
         $this->sub_category_id = $this->product->sub_category_id;
         $this->listing_type = $this->product->listing_type->value;
         $this->condition = $this->product->condition;
+        $this->usage_duration = $this->product->usage_duration;
         $this->retail_price = (float) $this->product->retail_price;
         $this->sale_price = (float) $this->product->sale_price;
         $this->negotiable = $this->product->negotiable?->value ?? ProductNegotiability::FIXED->value;
         $this->quantity = $this->product->quantity;
         $this->location = $this->product->location;
+        $this->meetup_location = $this->product->meetup_location;
+        $this->meetup_instructions = $this->product->meetup_instructions;
         $this->delivery_available = $this->product->delivery_available;
         $this->specifications = $this->product->specifications;
 
@@ -178,19 +193,44 @@ class ManageProduct extends Component
         $this->newImages = array_values($this->newImages);
     }
 
+    public function updatedListingType($value): void
+    {
+        if (! Auth::user()?->is_auction_allowed && $value === 'auction') {
+            $this->listing_type = 'direct_seller';
+            $this->warning('Your account is not approved for hosting auctions.');
+        }
+    }
+
     public function save(): void
     {
+        $user = Auth::user();
+        if (! $user || ! $user->is_seller) {
+            $this->error('You must be an approved seller to upload products.');
+            $this->redirect(route('user.products'), navigate: true);
+
+            return;
+        }
+
+        if (! $user->is_auction_allowed) {
+            $this->listing_type = 'direct_seller';
+        }
+
+        $allowedListingTypes = $user->is_auction_allowed ? 'direct_seller,auction' : 'direct_seller';
+
         $rules = [
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'sub_category_id' => 'required|exists:sub_categories,id',
-            'listing_type' => 'required|in:direct_seller,auction',
-            'condition' => 'required|in:new,like-new,used',
+            'listing_type' => 'required|in:'.$allowedListingTypes,
+            'condition' => 'required|in:new,like-new,lightly-used,well-used,refurbished,used',
+            'usage_duration' => 'nullable|string|max:255',
             'retail_price' => 'nullable|numeric|min:0',
             'sale_price' => 'required_if:listing_type,direct_seller|nullable|numeric|min:0',
             'negotiable' => 'required|in:'.ProductNegotiability::NEGOTIABLE->value.','.ProductNegotiability::FIXED->value,
             'quantity' => 'required|integer|min:1',
             'location' => 'nullable|string|max:255',
+            'meetup_location' => 'required_if:listing_type,direct_seller|nullable|string|max:255',
+            'meetup_instructions' => 'nullable|string',
             'delivery_available' => 'boolean',
             'specifications' => 'nullable|string',
             'newImages.*' => 'image|max:2048',
@@ -218,6 +258,7 @@ class ManageProduct extends Component
 
         try {
             DB::transaction(function () {
+                $isNewProduct = ! $this->product;
                 $productData = [
                     'seller_id' => Auth::id(),
                     'sub_category_id' => $this->sub_category_id,
@@ -225,11 +266,14 @@ class ManageProduct extends Component
                     'description' => $this->description,
                     'specifications' => $this->specifications,
                     'condition' => $this->condition,
+                    'usage_duration' => $this->usage_duration,
                     'quantity' => $this->quantity,
                     'retail_price' => $this->retail_price,
                     'sale_price' => $this->listing_type === 'direct_seller' ? $this->sale_price : null,
                     'negotiable' => $this->negotiable,
                     'location' => $this->location,
+                    'meetup_location' => $this->meetup_location,
+                    'meetup_instructions' => $this->meetup_instructions,
                     'delivery_available' => $this->delivery_available,
                     'listing_type' => $this->listing_type,
                     'status' => 'pending',
@@ -257,6 +301,23 @@ class ManageProduct extends Component
                         'path' => $path,
                         'sort_order' => count($this->existingImages) + $index,
                     ]);
+                }
+
+                // Log product timeline
+                if ($isNewProduct) {
+                    $product->logTimeline(
+                        'uploaded',
+                        'Product Uploaded for Review',
+                        'Product listed on marketplace by seller ('.Auth::user()->name.'). Awaiting admin approval.',
+                        Auth::user()
+                    );
+                } else {
+                    $product->logTimeline(
+                        'updated',
+                        'Product Details Updated',
+                        'Product listing information updated by seller.',
+                        Auth::user()
+                    );
                 }
 
                 // Handle Auction
@@ -287,7 +348,7 @@ class ManageProduct extends Component
                     }
                 }
 
-                if (! $this->product) {
+                if ($isNewProduct) {
                     $this->notifyAdmins($product);
                 }
             });
@@ -312,6 +373,7 @@ class ManageProduct extends Component
     public function render(): View
     {
         return view('livewire.user.manage-product', [
+            'isAuctionAllowed' => (bool) Auth::user()?->is_auction_allowed,
             'subCategories' => SubCategory::query()
                 ->with('category')
                 ->where('status', 'active')
@@ -331,6 +393,13 @@ class ManageProduct extends Component
             'negotiabilityOptions' => [
                 ['id' => ProductNegotiability::FIXED->value, 'name' => ProductNegotiability::FIXED->label()],
                 ['id' => ProductNegotiability::NEGOTIABLE->value, 'name' => ProductNegotiability::NEGOTIABLE->label()],
+            ],
+            'conditionOptions' => [
+                ['id' => 'new', 'name' => 'Brand New'],
+                ['id' => 'like-new', 'name' => 'Like New (Minimal Use)'],
+                ['id' => 'lightly-used', 'name' => 'Lightly Used'],
+                ['id' => 'well-used', 'name' => 'Well Used / Fair'],
+                ['id' => 'refurbished', 'name' => 'Refurbished'],
             ],
         ]);
     }

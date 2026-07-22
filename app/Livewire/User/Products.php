@@ -2,7 +2,9 @@
 
 namespace App\Livewire\User;
 
+use App\Models\Admin;
 use App\Models\Product;
+use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -20,7 +22,7 @@ class Products extends Component
     {
         $userId = Auth::id();
 
-        if (!$userId) {
+        if (! $userId) {
             return [
                 'userNotificationReceived' => '$refresh',
             ];
@@ -32,23 +34,47 @@ class Products extends Component
         ];
     }
 
-    public function mount(): mixed
+    public function requestSellerAccess(): void
     {
-        if (!Auth::user()->is_seller) {
-            return $this->redirect(route('home'), navigate: true);
+        $user = Auth::user();
+
+        if (! $user) {
+            return;
         }
 
-        return null;
+        if ($user->is_seller) {
+            $this->info('Your account already has seller access.');
+
+            return;
+        }
+
+        if ($user->seller_application_pending) {
+            $this->warning('Your seller request is already pending review.');
+
+            return;
+        }
+
+        $user->update([
+            'seller_application_pending' => true,
+        ]);
+
+        $admins = Admin::all();
+        foreach ($admins as $admin) {
+            $admin->notify(new SellerRegisteredNotification($user));
+        }
+
+        $this->success('Seller access request sent for admin review.');
     }
 
     public function deleteProduct(Product $product): void
     {
-        if ((int)$product->seller_id !== (int)Auth::id()) {
+        if ((int) $product->seller_id !== (int) Auth::id()) {
             abort(403);
         }
 
         if ($product->is_approved) {
             $this->error('Approved products cannot be deleted. Please contact administration.');
+
             return;
         }
 
@@ -64,16 +90,20 @@ class Products extends Component
 
     public function render(): View
     {
-        if (!Auth::user()?->is_seller) {
-            $this->redirect(route('home'), navigate: true);
-        }
+        $user = Auth::user();
+        $isSeller = (bool) $user?->is_seller;
+        $sellerApplicationPending = (bool) $user?->seller_application_pending;
 
-        $userProducts = Product::with(['category', 'images', 'auction.traditionalAuction'])
-            ->where('seller_id', Auth::id())
-            ->latest()
-            ->paginate(10);
+        $userProducts = $isSeller
+            ? Product::with(['category', 'images', 'auction.traditionalAuction'])
+                ->where('seller_id', Auth::id())
+                ->latest()
+                ->paginate(10)
+            : null;
 
         return view('livewire.user.products', [
+            'isSeller' => $isSeller,
+            'sellerApplicationPending' => $sellerApplicationPending,
             'products' => $userProducts,
         ]);
     }

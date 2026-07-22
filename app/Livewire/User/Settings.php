@@ -2,6 +2,8 @@
 
 namespace App\Livewire\User;
 
+use App\Models\Admin;
+use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Attributes\Layout;
@@ -74,6 +76,38 @@ class Settings extends Component
 
         $this->reset(['current_password', 'new_password', 'new_password_confirmation']);
         $this->success('Password changed successfully.');
+    }
+
+    public function requestSellerAccess(): void
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return;
+        }
+
+        if ($user->is_seller) {
+            $this->info('Your account already has seller access.');
+
+            return;
+        }
+
+        if ($user->seller_application_pending) {
+            $this->warning('Your seller request is already pending review.');
+
+            return;
+        }
+
+        $user->update([
+            'seller_application_pending' => true,
+        ]);
+
+        $admins = Admin::all();
+        foreach ($admins as $admin) {
+            $admin->notify(new SellerRegisteredNotification($user));
+        }
+
+        $this->success('Seller access request sent for admin review.');
     }
 
     public function render()
