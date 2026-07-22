@@ -12,7 +12,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[720px] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-[#181A1F]">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-180 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-[#181A1F]">
             {{-- Conversations Sidebar --}}
             <aside class="lg:col-span-4 flex flex-col border-r border-gray-100 dark:border-gray-800 h-full overflow-hidden">
                 <div class="p-4 border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/50 flex items-center justify-between">
