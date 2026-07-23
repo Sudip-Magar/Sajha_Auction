@@ -7,6 +7,7 @@
 
         return $product->sale_price;
     };
+    $targetUrl = fn ($product) => route('user.products.show', $product->slug);
 @endphp
 
 <div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-[#101114] dark:text-gray-100">
@@ -70,8 +71,8 @@
                 <div class="divide-y divide-gray-100 dark:divide-gray-800">
                     @forelse($products as $product)
                         <article class="transition hover:bg-gray-50 dark:hover:bg-[#202228]">
-                            <a href="{{ route('user.products.show', $product->slug) }}" wire:navigate class="grid grid-cols-[104px_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
-                                <div class="aspect-square overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                            <a href="{{ $targetUrl($product) }}" wire:navigate class="grid grid-cols-[104px_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+                                <div class="aspect-square relative overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
                                     @if($product->image)
                                         <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover">
                                     @else
@@ -83,14 +84,22 @@
 
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
+                                        @if($product->isAuction())
+                                            <span class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                                🔨 LIVE AUCTION
+                                            </span>
+                                        @else
+                                            <span class="rounded-md bg-sky-600 px-2 py-0.5 text-[10px] font-black text-white">
+                                                🏷️ DIRECT SELL
+                                            </span>
+                                        @endif
+
                                         <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#0C8FE8] dark:bg-blue-950/40">
                                             {{ $product->category?->name ?? 'Uncategorized' }}
                                         </span>
                                         <span class="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:bg-gray-800 dark:text-gray-200">
                                             {{ $conditionLabel($product->condition) }}
-                                        </span>
-                                        <span class="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
-                                            {{ $product->negotiable?->label() ?? 'Fixed' }}
                                         </span>
                                     </div>
 
@@ -98,7 +107,9 @@
                                     <p class="mt-1.5 line-clamp-2 font-semibold text-gray-500">{{ $product->description }}</p>
 
                                     <div class="mt-3 flex flex-wrap items-center gap-3">
-                                        <span class="ui-price font-black text-[#0C8FE8]">Rs {{ number_format((float) $priceFor($product)) }}</span>
+                                        <span class="ui-price font-black text-[#0C8FE8]">
+                                            {{ $product->isAuction() ? 'Current Bid: ' : '' }}Rs {{ number_format((float) $priceFor($product)) }}
+                                        </span>
                                         <span class="font-semibold text-gray-500">{{ $product->user?->name ?? 'Seller' }}</span>
                                         @if($product->location)
                                             <span class="font-semibold text-gray-500">{{ $product->location }}</span>

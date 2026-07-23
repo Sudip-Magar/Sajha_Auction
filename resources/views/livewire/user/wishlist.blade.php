@@ -128,10 +128,10 @@
                                     Add to Cart
                                 </button>
                             @else
-                                <a href="{{ route('user.products.show', $product->slug) }}" wire:navigate
-                                   class="w-full flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-bold text-white hover:bg-purple-700">
+                                <a href="{{ route('user.auction.detail', $product->auction->id) }}" wire:navigate
+                                   class="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
                                     <x-icon name="o-ticket" class="w-4 h-4" />
-                                    View Auction
+                                    Play Live Auction
                                 </a>
                             @endif
                         </div>

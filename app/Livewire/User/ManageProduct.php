@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\SubCategory;
 use App\Notifications\NewProductUploadedNotification;
+use App\Services\AuctionEngineService;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -198,6 +199,26 @@ class ManageProduct extends Component
         if (! Auth::user()?->is_auction_allowed && $value === 'auction') {
             $this->listing_type = 'direct_seller';
             $this->warning('Your account is not approved for hosting auctions.');
+        }
+    }
+
+    public function getRecommendedReserveProperty(): ?float
+    {
+        $sellerVal = (float) ($this->retail_price ?? 0);
+        $startBid = (float) ($this->starting_bid ?? 0);
+
+        if ($sellerVal <= 0 && $startBid <= 0) {
+            return null;
+        }
+
+        return AuctionEngineService::calculateOptimalReserve($sellerVal, $startBid);
+    }
+
+    public function applyRecommendedReserve(): void
+    {
+        if ($this->recommendedReserve) {
+            $this->reserve_price = $this->recommendedReserve;
+            $this->success('Applied Myerson optimal reserve price: Rs. '.number_format($this->recommendedReserve, 2));
         }
     }
 

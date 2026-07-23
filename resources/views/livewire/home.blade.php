@@ -7,6 +7,7 @@
 
         return $product->sale_price;
     };
+    $targetUrl = fn ($product) => route('user.products.show', $product->slug);
     $postRoute = Auth::check() ? route('user.products.create') : route('user.login');
 @endphp
 
@@ -132,17 +133,31 @@
 
                 <div id="trending-carousel" class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
                     @forelse($trendingProducts as $product)
-                        <a href="{{ route('user.products.show', $product->slug) }}" wire:navigate class="group min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-[#101114] sm:min-w-47.5 lg:min-w-45">
-                            <div class="aspect-4/3 bg-gray-100 dark:bg-gray-800">
+                        <a href="{{ $targetUrl($product) }}" wire:navigate class="group min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-[#101114] sm:min-w-47.5 lg:min-w-45">
+                            <div class="aspect-4/3 relative bg-gray-100 dark:bg-gray-800">
                                 @if($product->image)
                                     <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover transition group-hover:scale-105">
                                 @else
                                     <div class="flex h-full items-center justify-center"><x-icon name="o-photo" class="h-9 w-9 text-gray-300" /></div>
                                 @endif
+                                <div class="absolute top-2 left-2">
+                                    @if($product->isAuction())
+                                        <span class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                            AUCTION
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                            DIRECT SELL
+                                        </span>
+                                    @endif
+                                </div>
                             </div>
                             <div class="p-2.5">
-                                <h3 class="line-clamp-2 min-h-9 font-black leading-snug">{{ $product->name }}</h3>
-                                <p class="ui-price mt-1 font-black text-[#0C8FE8]">Rs {{ number_format((float) $priceFor($product)) }}</p>
+                                <h3 class="line-clamp-2 min-h-9 font-black leading-snug text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
+                                <p class="ui-price mt-1 font-black text-[#0C8FE8]">
+                                    {{ $product->isAuction() ? 'Current Bid: ' : '' }}Rs {{ number_format((float) $priceFor($product)) }}
+                                </p>
                                 <span class="mt-2 inline-flex rounded-md bg-gray-100 px-2 py-1 ui-small font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $conditionLabel($product->condition) }}</span>
                             </div>
                         </a>
@@ -171,8 +186,8 @@
                     </div>
                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                         @foreach($featuredProducts->take(4) as $product)
-                            <a href="{{ route('user.products.show', $product->slug) }}" wire:navigate class="grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-md border border-gray-100 p-2 transition hover:border-[#0C8FE8] dark:border-gray-800">
-                                <div class="aspect-square overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                            <a href="{{ $targetUrl($product) }}" wire:navigate class="grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-md border border-gray-100 p-2 transition hover:border-[#0C8FE8] dark:border-gray-800">
+                                <div class="aspect-square relative overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
                                     @if($product->image)
                                         <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover">
                                     @else
@@ -180,10 +195,17 @@
                                     @endif
                                 </div>
                                 <div class="min-w-0">
-                                    <h3 class="line-clamp-2 font-black">{{ $product->name }}</h3>
-                                    <p class="mt-1 line-clamp-2 font-semibold text-gray-500">{{ $product->description }}</p>
+                                    <div class="flex items-center gap-1.5 mb-1">
+                                        @if($product->isAuction())
+                                            <span class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white">AUCTION</span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white">DIRECT SELL</span>
+                                        @endif
+                                    </div>
+                                    <h3 class="line-clamp-2 font-black text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
+                                    <p class="mt-1 line-clamp-2 font-semibold text-gray-500 text-xs">{{ $product->description }}</p>
                                     <p class="ui-price mt-2 font-black text-[#0C8FE8]">Rs {{ number_format((float) $priceFor($product)) }}</p>
-                                    <p class="mt-2 truncate font-semibold text-gray-500">{{ $product->location ?: $product->category?->name ?: 'Sajha Auction' }}</p>
+                                    <p class="mt-1 truncate font-semibold text-gray-500 text-xs">{{ $product->location ?: $product->category?->name ?: 'Sajha Auction' }}</p>
                                 </div>
                             </a>
                         @endforeach
@@ -209,8 +231,8 @@
                 <div class="divide-y divide-gray-100 dark:divide-gray-800">
                     @forelse($latestProducts as $product)
                         <article class="relative transition hover:bg-gray-50 dark:hover:bg-[#202228]">
-                            <a href="{{ route('user.products.show', $product->slug) }}" wire:navigate class="grid grid-cols-[104px_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
-                                <div class="aspect-square overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                            <a href="{{ $targetUrl($product) }}" wire:navigate class="grid grid-cols-[104px_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+                                <div class="aspect-square overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800 relative">
                                     @if($product->image)
                                         <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover">
                                     @else
@@ -220,22 +242,35 @@
 
                                 <div class="min-w-0 pr-8">
                                     <div class="flex items-start justify-between gap-4">
-                                        <h2 class="ui-heading line-clamp-2 font-black">{{ $product->name }}</h2>
-                                        <span class="hidden shrink-0 font-semibold text-gray-500 md:inline">{{ $product->created_at->diffForHumans() }}</span>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                @if($product->isAuction())
+                                                    <span class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                                        🔨 LIVE AUCTION
+                                                    </span>
+                                                @else
+                                                    <span class="rounded-md bg-sky-600 px-2 py-0.5 text-[10px] font-black text-white">
+                                                        🏷️ DIRECT SELL
+                                                    </span>
+                                                @endif
+                                                <span class="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ $conditionLabel($product->condition) }}</span>
+                                            </div>
+                                            <h2 class="ui-heading line-clamp-2 font-black text-gray-900 dark:text-gray-100 mt-0.5">{{ $product->name }}</h2>
+                                        </div>
+                                        <span class="hidden shrink-0 font-semibold text-gray-500 md:inline text-xs">{{ $product->created_at->diffForHumans() }}</span>
                                     </div>
-                                    <p class="mt-1.5 line-clamp-2 font-semibold text-gray-500">{{ $product->description }}</p>
+                                    <p class="mt-1.5 line-clamp-2 font-semibold text-gray-500 text-xs sm:text-sm">{{ $product->description }}</p>
                                     <div class="mt-3 flex flex-wrap items-center gap-2">
-                                        <span class="ui-price font-black text-[#0C8FE8]">Rs {{ number_format((float) $priceFor($product)) }}</span>
-                                        <span class="rounded-md bg-gray-100 px-2 py-0.5 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">{{ $conditionLabel($product->condition) }}</span>
-                                        @if($product->listing_type->value === 'auction')
-                                            <span class="rounded-md bg-emerald-100 px-2 py-0.5 font-black text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">Auction</span>
-                                        @endif
+                                        <span class="ui-price font-black text-[#0C8FE8]">
+                                            {{ $product->isAuction() ? 'Current Bid: ' : '' }}Rs {{ number_format((float) $priceFor($product)) }}
+                                        </span>
                                     </div>
-                                    <div class="mt-3 flex items-center justify-between gap-3 font-semibold text-gray-500">
+                                    <div class="mt-3 flex items-center justify-between gap-3 font-semibold text-gray-500 text-xs">
                                         <span class="truncate">{{ $product->location ?: $product->category?->name ?: 'Sajha Auction' }}</span>
                                         <span class="md:hidden">{{ $product->created_at->diffForHumans() }}</span>
                                     </div>
-                                    <p class="mt-2 truncate font-semibold text-gray-500">{{ $product->user?->name ?? 'Seller' }}</p>
+                                    <p class="mt-1 truncate font-semibold text-gray-500 text-xs">{{ $product->user?->name ?? 'Seller' }}</p>
                                 </div>
                             </a>
                             <button type="button" class="absolute right-3 top-4 rounded-md p-1 hover:bg-gray-100 dark:hover:bg-gray-800">

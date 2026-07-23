@@ -43,7 +43,7 @@ Route::redirect('/products', '/home')->name('user.marketplace-products');
 Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.products.show');
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
-Route::get('/login', Login::class)->name('login');
+// Route::get('/login', Login::class)->name('login');
 
 Route::prefix('admin')->group(function () {
     Route::get('/login', AdminLogin::class)->name('admin.login');

@@ -10,6 +10,23 @@
 <div class="marketplace-ui min-h-screen bg-white text-gray-950 dark:bg-[#101114] dark:text-gray-100">
     <div class="mx-auto max-w-[1280px] px-2 pb-14 pt-3 sm:px-3 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5 lg:px-4 lg:pt-5">
         <main>
+            @if($product->isAuction() && $product->auction)
+                <div class="mb-4 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-4 text-white shadow-lg flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-white/15 rounded-xl">
+                            <x-icon name="o-ticket" class="w-6 h-6 text-emerald-200" />
+                        </div>
+                        <div>
+                            <h2 class="font-black text-base text-white">This product is hosted on Live Auction!</h2>
+                            <p class="text-xs text-emerald-100">Participate in real-time bidding, set proxy limits, and follow the live bid room.</p>
+                        </div>
+                    </div>
+                    <a href="{{ route('user.auction.detail', $product->auction->id) }}" wire:navigate class="btn bg-white text-emerald-900 hover:bg-gray-100 border-none font-black rounded-xl px-5 shadow-md">
+                        Enter Live Auction Room →
+                    </a>
+                </div>
+            @endif
+
             <section class="lg:grid lg:grid-cols-[minmax(0,640px)_minmax(280px,1fr)] lg:gap-5">
                 <div>
                     {{-- Images Gallery --}}

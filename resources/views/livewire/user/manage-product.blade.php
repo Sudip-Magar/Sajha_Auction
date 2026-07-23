@@ -82,9 +82,21 @@
 
                                 <x-input label="End Time" wire:model="auction_end_time" type="time" icon="o-clock" />
 
-                                <x-input label="Starting Bid (Rs.)" wire:model="starting_bid" type="number" step="0.01" icon="o-banknotes" />
-                                <x-input label="Reserve Price (Rs.)" wire:model="reserve_price" type="number" step="0.01" icon="o-shield-check" hint="Optional" />
-                                <x-input label="Min Bid Increment (Rs.)" wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" />
+                                <x-input label="Starting Bid (Rs.) *" wire:model.live="starting_bid" type="number" step="0.01" icon="o-banknotes" />
+                                <div>
+                                    <x-input label="Reserve Price (Rs.)" wire:model="reserve_price" type="number" step="0.01" icon="o-shield-check" hint="Minimum acceptable price (Algorithm 1)" />
+                                    @if($this->recommendedReserve)
+                                        <div class="mt-2 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
+                                            <div class="text-[11px] text-emerald-900 font-medium">
+                                                <span class="font-bold">Algorithm 3 Myerson Recommendation:</span> Rs. {{ number_format($this->recommendedReserve, 2) }}
+                                            </div>
+                                            <button type="button" wire:click="applyRecommendedReserve" class="text-[11px] font-black text-emerald-700 hover:text-emerald-900 underline">
+                                                Apply
+                                            </button>
+                                        </div>
+                                    @endif
+                                </div>
+                                <x-input label="Min Bid Increment (Rs.) *" wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Algorithm 2 dynamic step minimum increment" />
                             </div>
                         </div>
                     @endif
