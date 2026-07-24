@@ -50,7 +50,9 @@ class Auction extends Model
 
     public function bids(): HasMany
     {
-        return $this->hasMany(Bid::class)->latest();
+        return $this->hasMany(Bid::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
     public function isLive(): bool

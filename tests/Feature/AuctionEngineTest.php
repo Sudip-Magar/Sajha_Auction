@@ -1,5 +1,6 @@
 <?php
 
+use App\Mail\AuctionWonMail;
 use App\Models\Auction;
 use App\Models\Bid;
 use App\Models\Category;
@@ -7,8 +8,11 @@ use App\Models\Product;
 use App\Models\SubCategory;
 use App\Models\TraditionalAuction;
 use App\Models\User;
+use App\Notifications\AuctionWonNotification;
 use App\Services\AuctionEngineService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -32,6 +36,9 @@ function createTestSubCategory(): SubCategory
 }
 
 test('algorithm 1: determines winner correctly with reserve price and earliest timestamp tie breaking', function () {
+    Mail::fake();
+    Notification::fake();
+
     $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
     $subCategory = createTestSubCategory();
 
@@ -94,6 +101,13 @@ test('algorithm 1: determines winner correctly with reserve price and earliest t
     expect($result['winner_id'])->toBe($bidder1->id);
     expect($result['winning_price'])->toBe(12000.0);
     expect($result['reason'])->toContain('earliest-timestamp tie-breaking rule');
+    $this->assertDatabaseHas('orders', [
+        'buyer_id' => $bidder1->id,
+        'seller_id' => $seller->id,
+        'total_amount' => 12000,
+    ]);
+    Notification::assertSentTo($bidder1, AuctionWonNotification::class);
+    Mail::assertSent(AuctionWonMail::class, fn (AuctionWonMail $mail): bool => $mail->hasTo($bidder1->email));
 });
 
 test('algorithm 2: calculates dynamic step increment and processes proxy bidding correctly', function () {
@@ -157,12 +171,61 @@ test('algorithm 2: calculates dynamic step increment and processes proxy bidding
     expect($automaticBid->is_proxy)->toBeTrue();
     expect((float) $automaticBid->bid_amount)->toBe(2100.0);
 
-    // The proxy maximum is the bidder's submitted sealed bid at settlement.
-    // It must beat the visible manual bid and determine the winner.
+    // Both records can share the same second. The later automatic response
+    // must still appear first in the newest-first bid history.
+    expect($auction->bids()->first()->id)->toBe($automaticBid->id);
+
+    // Algorithm 1 is first-price, so settlement uses the visible standing bid;
+    // the secret proxy ceiling only drives the automatic response.
     $result = AuctionEngineService::determineWinner($auction);
 
     expect($result['winner_id'])->toBe($bidder1->id);
-    expect($result['winning_price'])->toBe(5000.0);
+    expect($result['winning_price'])->toBe(2100.0);
+});
+
+test('algorithm 2: rejects a proxy submission whose visible bid is below the minimum increment', function () {
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Minimum Bid Test',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => now()->subHour(),
+        'end_time' => now()->addHour(),
+        'current_price' => 1000,
+        'status' => 'active',
+    ]);
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 1000,
+        'reserve_price' => 1000,
+        'min_bid_increment' => 100,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    expect(fn () => AuctionEngineService::processBid(
+        $auction,
+        User::factory()->create(['is_auction_allowed' => true]),
+        1050,
+        5000,
+    ))->toThrow('Your bid must be at least Rs. 1,100.00');
+
+    expect(fn () => AuctionEngineService::processBid(
+        $auction,
+        User::factory()->create(['is_auction_allowed' => false]),
+        1100,
+    ))->toThrow('Your account is not approved for live auction bidding.');
 });
 
 test('algorithm 3: calculates optimal reserve and equilibrium bidding strategy', function () {

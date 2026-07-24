@@ -142,9 +142,8 @@
                                 @endif
                                 <div class="absolute top-2 left-2">
                                     @if($product->isAuction())
-                                        <span class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                                            AUCTION
+                                        <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                            <span x-text="label"></span>
                                         </span>
                                     @else
                                         <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
@@ -197,7 +196,7 @@
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-1.5 mb-1">
                                         @if($product->isAuction())
-                                            <span class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white">AUCTION</span>
+                                            <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white"><span x-text="label"></span></span>
                                         @else
                                             <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white">DIRECT SELL</span>
                                         @endif
@@ -245,9 +244,9 @@
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-2">
                                                 @if($product->isAuction())
-                                                    <span class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
-                                                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                                                        🔨 LIVE AUCTION
+                                                    <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
+                                                        <span x-show="isLive" class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                                        <span x-text="label"></span>
                                                     </span>
                                                 @else
                                                     <span class="rounded-md bg-sky-600 px-2 py-0.5 text-[10px] font-black text-white">
@@ -339,4 +338,40 @@
             </div>
         </aside>
     </section>
+    <script>
+        function auctionCountdown(startTime, endTime) {
+            return {
+                startTime: new Date(startTime).getTime(),
+                endTime: new Date(endTime).getTime(),
+                label: '',
+                isLive: false,
+                timer: null,
+                init() {
+                    this.update();
+                    this.timer = setInterval(() => this.update(), 1000);
+                },
+                update() {
+                    const now = Date.now();
+                    this.isLive = now >= this.startTime && now <= this.endTime;
+
+                    if (now > this.endTime) {
+                        this.label = 'AUCTION ENDED';
+                        clearInterval(this.timer);
+                        return;
+                    }
+
+                    if (now < this.startTime) {
+                        const remaining = this.startTime - now;
+                        const hours = Math.floor(remaining / 3600000);
+                        const minutes = Math.floor((remaining % 3600000) / 60000);
+                        const seconds = Math.floor((remaining % 60000) / 1000);
+                        this.label = `STARTS IN ${hours}h ${minutes}m ${seconds}s`;
+                        return;
+                    }
+
+                    this.label = 'LIVE AUCTION';
+                },
+            };
+        }
+    </script>
 </div>

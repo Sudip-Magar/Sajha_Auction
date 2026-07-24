@@ -24,6 +24,8 @@ class AuctionDetail extends Component
 
     public ?float $maxProxyAmount = null;
 
+    public ?float $currentProxyMaximum = null;
+
     // Private valuation used to generate an optional suggested bid.
     public ?float $privateValuation = null;
 
@@ -67,6 +69,17 @@ class AuctionDetail extends Component
             $this->bidAmount = (float) $this->auction->getMinNextBid();
         }
 
+        $this->currentProxyMaximum = null;
+
+        if (Auth::check()) {
+            $proxyMaximum = $this->auction->bids()
+                ->where('bidder_id', Auth::id())
+                ->whereNotNull('max_proxy_amount')
+                ->max('max_proxy_amount');
+
+            $this->currentProxyMaximum = $proxyMaximum === null ? null : (float) $proxyMaximum;
+        }
+
         $this->calculateEquilibriumRecommendation();
     }
 
@@ -85,6 +98,11 @@ class AuctionDetail extends Component
         );
     }
 
+    public function updatedPrivateValuation(): void
+    {
+        $this->calculateEquilibriumRecommendation();
+    }
+
     public function applyRecommendedBid(): void
     {
         if ($this->recommendedBid && $this->recommendedBid >= $this->auction->getMinNextBid()) {
@@ -98,8 +116,10 @@ class AuctionDetail extends Component
     public function toggleProxyMode(): void
     {
         $this->isProxyMode = ! $this->isProxyMode;
-        if ($this->isProxyMode && ! $this->maxProxyAmount) {
-            $this->maxProxyAmount = (float) ($this->auction->getMinNextBid() * 1.1);
+
+        if ($this->isProxyMode) {
+            $this->maxProxyAmount = $this->currentProxyMaximum
+                ?? (float) ($this->auction->getMinNextBid() * 1.1);
         }
     }
 
@@ -113,6 +133,12 @@ class AuctionDetail extends Component
         }
 
         $user = Auth::user();
+
+        if (! $user->is_auction_allowed) {
+            $this->error('Your account is not approved for live auction bidding.');
+
+            return;
+        }
 
         if ((int) $this->auction->product?->seller_id === (int) $user->id) {
             $this->error('You cannot bid on your own product listing.');
@@ -185,6 +211,7 @@ class AuctionDetail extends Component
             'recentBids' => $this->auction->bids()->with('bidder')->latest()->take(10)->get(),
             'totalBidders' => $this->auction->bids()->distinct('bidder_id')->count('bidder_id'),
             'stepIncrement' => $this->auction->getStepIncrement(),
+            'canPlaceBid' => ! Auth::check() || (bool) Auth::user()?->is_auction_allowed,
         ]);
     }
 }

@@ -70,6 +70,9 @@
                                     <span class="rounded-full border px-3 py-0.5 text-xs font-extrabold {{ $order->status_badge }}">
                                         {{ $order->status_label }}
                                     </span>
+                                    @if(str_contains($order->notes ?? '', 'winning auction'))
+                                        <span class="rounded-full bg-violet-100 px-3 py-0.5 text-xs font-extrabold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">Auction Won</span>
+                                    @endif
                                 </div>
                                 <p class="mt-1 text-xs text-gray-500">
                                     Placed on {{ $order->created_at->format('M d, Y @ h:i A') }} ({{ $order->created_at->diffForHumans() }})

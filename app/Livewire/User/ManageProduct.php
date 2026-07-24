@@ -259,17 +259,30 @@ class ManageProduct extends Component
 
         if ($this->listing_type === 'auction') {
             $rules['auction_type'] = 'required|in:traditional';
-            $rules['auction_start_date_en'] = 'required|date|after_or_equal:today';
+            $rules['auction_start_date_en'] = $this->product?->exists
+                ? 'required|date'
+                : 'required|date|after:today';
             $rules['auction_start_time'] = 'required';
             $rules['auction_start_np'] = 'required';
 
             $rules['starting_bid'] = 'required|numeric|min:0';
-            $rules['auction_end_date_en'] = 'required|date|after:auction_start_date_en';
+            $rules['auction_end_date_en'] = 'required|date|after_or_equal:auction_start_date_en';
             $rules['auction_end_time'] = 'required';
             $rules['auction_end_np'] = 'required';
         }
 
         $this->validate($rules);
+
+        if ($this->listing_type === 'auction') {
+            $startTime = Carbon::parse($this->auction_start_date_en.' '.$this->auction_start_time);
+            $endTime = Carbon::parse($this->auction_end_date_en.' '.$this->auction_end_time);
+
+            if ($endTime->lessThanOrEqualTo($startTime)) {
+                $this->addError('auction_end_time', 'The auction end time must be after the start time.');
+
+                return;
+            }
+        }
 
         if (count($this->existingImages) === 0 && count($this->newImages) === 0) {
             $this->addError('newImages', 'Please upload at least one image.');

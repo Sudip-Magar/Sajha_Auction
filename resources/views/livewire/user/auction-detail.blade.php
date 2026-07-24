@@ -240,7 +240,7 @@
                     </div>
                 </div>
 
-                @if($auction->isLive())
+                @if($auction->isLive() && $canPlaceBid)
                     <form wire:submit="placeBid" class="space-y-4">
 
                         {{-- Mode Toggle (Manual vs Proxy Bidding) --}}
@@ -295,6 +295,12 @@
                                 </div>
                                 <p class="text-xs text-sky-800 dark:text-sky-300">Set your private maximum amount. We will bid for you only when needed and never go above that limit.</p>
 
+                                @if($currentProxyMaximum !== null)
+                                    <div class="rounded-xl border border-sky-200 bg-white/70 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-gray-900/70 dark:text-sky-200">
+                                        Your current private maximum: <strong>Rs. {{ number_format($currentProxyMaximum, 2) }}</strong>
+                                    </div>
+                                @endif
+
                                 <div>
                                     <label class="block text-[11px] font-black text-sky-900 dark:text-sky-200 uppercase tracking-widest mb-1">Your private maximum</label>
                                     <div class="relative">
@@ -317,6 +323,11 @@
                             <span>{{ $isProxyMode ? 'Register Secret Proxy Bid' : 'Place Live Bid' }}</span>
                         </button>
                     </form>
+                @elseif($auction->isLive())
+                    <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 text-center">
+                        <p class="text-amber-900 dark:text-amber-200 text-xs font-bold">Your account is not approved for live auction bidding.</p>
+                        <a href="{{ route('user.join-auction') }}" wire:navigate class="mt-2 inline-block text-xs font-black text-[#0C8FE8] hover:underline">Apply for auction access</a>
+                    </div>
                 @else
                     <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 text-center">
                         <p class="text-amber-900 dark:text-amber-200 text-xs font-bold">

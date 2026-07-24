@@ -22,6 +22,9 @@
                         <template x-if="isLive">
                             <x-badge value="Live" class="badge-success font-black text-[10px] uppercase tracking-wider animate-pulse" />
                         </template>
+                        <template x-if="isEnded">
+                            <x-badge value="Auction Ended" class="badge-neutral font-black text-[10px] uppercase tracking-wider" />
+                        </template>
                     </div>
 
                     <div class="absolute bottom-3 right-3">
@@ -43,7 +46,7 @@
                                 <p class="text-lg font-black text-gray-900">Rs. {{ number_format($auction->current_price) }}</p>
                             </div>
                             <div class="text-right">
-                                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest" x-text="isUpcoming ? 'Starts In' : 'Ends In'"></p>
+                                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest" x-text="isUpcoming ? 'Starts In' : (isLive ? 'Ends In' : 'Auction Ended')"></p>
                                 <p class="text-sm font-black text-primary" x-text="displayText"></p>
                             </div>
                         </div>
@@ -75,6 +78,7 @@
                 now: new Date().getTime(),
                 isUpcoming: false,
                 isLive: false,
+                isEnded: false,
                 displayText: '',
                 timer: null,
 
@@ -87,13 +91,14 @@
                     this.now = new Date().getTime();
                     this.isUpcoming = this.now < this.startTime;
                     this.isLive = this.now >= this.startTime && this.now <= this.endTime;
+                    this.isEnded = this.now > this.endTime;
 
                     let target = this.isUpcoming ? this.startTime : this.endTime;
                     let diff = target - this.now;
 
-                    if (diff <= 0) {
-                        this.displayText = this.isUpcoming ? 'Starting...' : 'Ended';
-                        if (!this.isUpcoming) clearInterval(this.timer);
+                    if (this.isEnded) {
+                        this.displayText = 'Auction ended';
+                        clearInterval(this.timer);
                         return;
                     }
 

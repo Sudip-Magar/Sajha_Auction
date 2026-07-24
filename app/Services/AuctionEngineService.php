@@ -3,10 +3,15 @@
 namespace App\Services;
 
 use App\Events\AuctionBidPlaced;
+use App\Mail\AuctionWonMail;
 use App\Models\Auction;
 use App\Models\Bid;
+use App\Models\Order;
 use App\Models\User;
+use App\Notifications\AuctionWonNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class AuctionEngineService
 {
@@ -42,6 +47,10 @@ class AuctionEngineService
         ?string $ipAddress = null
     ): Bid {
         return DB::transaction(function () use ($auction, $bidder, $bidAmount, $maxProxyAmount, $ipAddress) {
+            if (! User::whereKey($bidder->id)->where('is_auction_allowed', true)->exists()) {
+                throw new \Exception('Your account is not approved for live auction bidding.');
+            }
+
             // Lock auction row for update to prevent concurrent race conditions
             $lockedAuction = Auction::where('id', $auction->id)->lockForUpdate()->firstOrFail();
 
@@ -54,21 +63,19 @@ class AuctionEngineService
             $minIncrement = static::getStepIncrement($currentPrice, $customIncrement);
             $minNextBid = $currentPrice + $minIncrement;
 
-            // If max proxy is set, ensure it's at least the entered bid amount
-            $effectiveMaxProxy = $maxProxyAmount ? max($maxProxyAmount, $bidAmount) : $bidAmount;
-
-            if ($bidAmount < $minNextBid && $effectiveMaxProxy < $minNextBid) {
+            if ($bidAmount < $minNextBid) {
                 throw new \Exception('Your bid must be at least Rs. '.number_format($minNextBid, 2));
             }
 
-            $isProxy = $maxProxyAmount !== null && $maxProxyAmount > $bidAmount;
+            $effectiveMaxProxy = max($maxProxyAmount ?? $bidAmount, $bidAmount);
+            $isProxy = $effectiveMaxProxy > $bidAmount;
 
             // Save new bid entry
             $bid = Bid::create([
                 'auction_id' => $lockedAuction->id,
                 'bidder_id' => $bidder->id,
                 'bid_amount' => $bidAmount,
-                'max_proxy_amount' => $effectiveMaxProxy,
+                'max_proxy_amount' => $isProxy ? $effectiveMaxProxy : null,
                 'is_proxy' => $isProxy,
                 'ip_address' => $ipAddress ?? request()->ip() ?? '127.0.0.1',
                 'placed_at' => now()->toTimeString(),
@@ -77,8 +84,8 @@ class AuctionEngineService
             // Proxy Bidding Resolution (Algorithm 2)
             // Retrieve all distinct top proxy bidders for this auction
             $allBids = Bid::where('auction_id', $lockedAuction->id)
-                ->orderBy('max_proxy_amount', 'desc')
-                ->orderBy('created_at', 'asc')
+                ->orderBy('created_at')
+                ->orderBy('id')
                 ->get();
 
             // Group by bidder to get each bidder's highest maximum
@@ -91,20 +98,31 @@ class AuctionEngineService
                         'bidder_id' => $bId,
                         'max' => $maxVal,
                         'bid' => $b,
+                        'submitted_at' => $b->created_at,
                     ];
                 }
             }
 
-            // Sort bidders descending by max
-            usort($bidderMaxes, fn ($a, $b) => $b['max'] <=> $a['max']);
+            // Sort by maximum, then use the earliest maximum registration to
+            // resolve equal proxy limits deterministically.
+            usort($bidderMaxes, function (array $first, array $second): int {
+                $maximumComparison = $second['max'] <=> $first['max'];
 
-            $newStandingPrice = $bidAmount;
+                if ($maximumComparison !== 0) {
+                    return $maximumComparison;
+                }
+
+                return $first['submitted_at']->getTimestamp() <=> $second['submitted_at']->getTimestamp()
+                    ?: $first['bid']->id <=> $second['bid']->id;
+            });
+
+            $newStandingPrice = max($currentPrice, $bidAmount);
             $automaticBid = null;
 
             if (count($bidderMaxes) === 1) {
                 // Single bidder
                 $startingBid = (float) ($lockedAuction->traditionalAuction?->starting_bid ?? 0);
-                $newStandingPrice = max($bidAmount, $startingBid);
+                $newStandingPrice = max($newStandingPrice, $startingBid);
             } elseif (count($bidderMaxes) >= 2) {
                 $m1 = $bidderMaxes[0]['max']; // Leader's max
                 $m2 = $bidderMaxes[1]['max']; // Runner-up max
@@ -119,7 +137,9 @@ class AuctionEngineService
 
                 // Record the proxy response so the bid history transparently
                 // shows that automatic bidding defended the leader's position.
-                if ($leadingBid->is_proxy && $newStandingPrice > $bidAmount) {
+                if ($leadingBid->is_proxy
+                    && $leadingBid->bidder_id !== $bidder->id
+                    && $newStandingPrice > $bidAmount) {
                     $automaticBid = Bid::create([
                         'auction_id' => $lockedAuction->id,
                         'bidder_id' => $leadingBid->bidder_id,
@@ -152,26 +172,22 @@ class AuctionEngineService
      */
     public static function determineWinner(Auction $auction): array
     {
-        $reservePrice = (float) ($auction->traditionalAuction?->reserve_price ?? $auction->traditionalAuction?->starting_bid ?? 0);
+        if ($auction->status !== 'active') {
+            return [
+                'has_winner' => $auction->winner_id !== null,
+                'winner_id' => $auction->winner_id,
+                'winning_price' => (float) ($auction->winning_price ?? 0),
+                'reason' => $auction->settlement_reason ?? 'This auction has already been settled.',
+            ];
+        }
 
-        // A proxy maximum is the bidder's submitted bid for settlement purposes.
-        // Keep the maximum for each bidder, and retain its earliest submission
-        // timestamp to make equal top bids deterministic.
+        $reservePrice = (float) ($auction->traditionalAuction?->reserve_price ?? 0);
+
+        // Algorithm 1 is first-price: settlement uses the visible submitted
+        // amount, never a bidder's secret proxy ceiling.
         $admissibleBids = $auction->bids()
-            ->get()
-            ->groupBy('bidder_id')
-            ->map(function ($bids): Bid {
-                $highestAmount = (float) $bids->max(
-                    fn (Bid $bid): float => (float) ($bid->max_proxy_amount ?? $bid->bid_amount)
-                );
-
-                return $bids
-                    ->filter(fn (Bid $bid): bool => (float) ($bid->max_proxy_amount ?? $bid->bid_amount) === $highestAmount)
-                    ->sortBy('created_at')
-                    ->first();
-            })
-            ->filter(fn (Bid $bid): bool => (float) ($bid->max_proxy_amount ?? $bid->bid_amount) >= $reservePrice)
-            ->values();
+            ->where('bid_amount', '>=', $reservePrice)
+            ->get();
 
         if ($admissibleBids->isEmpty()) {
             $reason = 'No admissible bids met or exceeded the reserve price of Rs. '.number_format($reservePrice, 2).'. Item remains unsold.';
@@ -191,17 +207,18 @@ class AuctionEngineService
         }
 
         // Maximum bid amount b_{(1)}
-        $maxBidAmount = (float) $admissibleBids->max(
-            fn (Bid $bid): float => (float) ($bid->max_proxy_amount ?? $bid->bid_amount)
-        );
+        $maxBidAmount = (float) $admissibleBids->max('bid_amount');
 
         // Tied top bidders T = { i in V : b_i == b_{(1)} }
         $tiedTopBids = $admissibleBids->filter(
-            fn (Bid $bid): bool => (float) ($bid->max_proxy_amount ?? $bid->bid_amount) === $maxBidAmount
+            fn (Bid $bid): bool => (float) $bid->bid_amount === $maxBidAmount
         );
 
         // Tie-breaking rule: Earliest submission (smallest timestamp) wins: w = argmin_{i in T} t_i
-        $winningBid = $tiedTopBids->sortBy('created_at')->first();
+        $winningBid = $tiedTopBids->sortBy([
+            ['created_at', 'asc'],
+            ['id', 'asc'],
+        ])->first();
         $isTie = $tiedTopBids->count() > 1;
 
         $reason = $isTie
@@ -223,6 +240,42 @@ class AuctionEngineService
                 $reason,
                 $winningBid->bidder
             );
+        }
+
+        $winningBid->loadMissing('bidder');
+        $auction->loadMissing(['product', 'winner']);
+
+        if ($auction->product && $winningBid->bidder) {
+            $order = Order::create([
+                'buyer_id' => $winningBid->bidder_id,
+                'seller_id' => $auction->product->seller_id,
+                'status' => 'pending',
+                'total_amount' => $maxBidAmount,
+                'payment_method' => 'cash_on_meetup',
+                'payment_status' => 'pending',
+                'handover_type' => 'meetup',
+                'meetup_location' => $auction->product->meetup_location ?: $auction->product->location,
+                'buyer_phone' => $winningBid->bidder->phone,
+                'notes' => "Created automatically after winning auction #{$auction->id}.",
+            ]);
+
+            $order->items()->create([
+                'product_id' => $auction->product->id,
+                'price' => $maxBidAmount,
+                'quantity' => 1,
+                'subtotal' => $maxBidAmount,
+            ]);
+
+            try {
+                $winningBid->bidder->notify(new AuctionWonNotification($auction));
+                Mail::to($winningBid->bidder->email)->send(new AuctionWonMail($auction));
+            } catch (\Throwable $exception) {
+                Log::warning('Auction winner notification could not be delivered.', [
+                    'auction_id' => $auction->id,
+                    'winner_id' => $winningBid->bidder_id,
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
         }
 
         return [
