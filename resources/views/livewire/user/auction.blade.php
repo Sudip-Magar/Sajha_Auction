@@ -1,10 +1,10 @@
-<div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+php <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
     <x-header title="Live Auctions" subtitle="Bid on premium items in real-time" separator progress-indicator />
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         @forelse($auctions as $auction)
             <div x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->end_time }}')" class="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full">
-                
+
                 {{-- Image & Badge --}}
                 <div class="relative aspect-[4/3] overflow-hidden bg-gray-50">
                     @if($auction->product->image)
@@ -39,7 +39,7 @@
                     <div class="flex-1">
                         <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{{ $auction->product->category->name ?? 'Uncategorized' }}</p>
                         <h3 class="font-black text-gray-900 line-clamp-1 mb-2">{{ $auction->product->name }}</h3>
-                        
+
                         <div class="flex items-end justify-between gap-4 py-3 border-y border-gray-50">
                             <div>
                                 <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Current Bid</p>
@@ -53,7 +53,7 @@
                     </div>
 
                     <div class="mt-5">
-                        <x-button label="View Details" class="btn-primary w-full rounded-2xl font-black uppercase text-xs tracking-widest" 
+                        <x-button label="View Details" class="btn-primary w-full rounded-2xl font-black uppercase text-xs tracking-widest"
                             link="{{ route('user.auction.detail', $auction->id) }}" />
                     </div>
                 </div>
