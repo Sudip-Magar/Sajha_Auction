@@ -23,6 +23,7 @@ class EnsureGoogleSession
         if ($request->routeIs('complete.profile') && !session('otp_verified')) {
             return redirect()->route('verify.otp');
         }
+
         return $next($request);
     }
 }

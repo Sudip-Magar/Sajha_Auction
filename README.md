@@ -1,105 +1,251 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo">
-</p>
+# Sajha Auction
 
-<p align="center">
-  <a href="https://github.com/Sudip-Magar/Sajha_Auction">
-    <img src="https://img.shields.io/badge/status-active-success.svg" alt="Project Status">
-  </a>
-  <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
-  </a>
-</p>
+Sajha Auction is a Laravel 13 application for a marketplace-style auction/sales platform with separate user and admin experiences. The current codebase focuses on authentication, seller onboarding, product approval, admin management, and real-time notifications.
 
-# 🏆 Sajha Auction
+## Current Stack
 
-A modern **online auction platform** built with Laravel, Livewire, Alpine.js, and DaisyUI.  
-This project provides a real-time bidding system with authentication, social login, and clean UI components.
+- PHP 8.3
+- Laravel 13
+- Livewire 4
+- Alpine.js 3
+- Tailwind CSS 4
+- Mary UI
+- Laravel Socialite
+- Laravel Reverb
+- Vite
+- Pest
 
----
+## Current Product Scope
 
-## 🚀 Features
+Implemented in the current codebase:
 
-- 🔐 Authentication system (Laravel + Socialite)
-- 🔥 Real-time interactive UI (Livewire + Alpine.js)
-- 🎨 Modern UI (Tailwind CSS + DaisyUI + MaryUI)
-- 📧 Email system (Laravel Mail)
-- 👤 Social Login (Google / GitHub ready via Socialite)
-- 🗂️ Auction listing and bidding system
-- ⚡ Fast and reactive frontend experience
+- Public guest home page at `/home`
+- User login, registration, OTP verification, and profile completion
+- Google OAuth entry point via Socialite
+- Separate admin login with its own guard
+- Seller application workflow
+- Admin approval for seller requests
+- User product upload flow for seller accounts
+- Admin product approval flow
+- User and admin notification popups
+- Full notification pages for both guards
+- Admin settings management stored in the `settings` table
+- Real-time notification delivery through Reverb + Echo
 
----
+Not present yet in the current codebase:
 
-## 🛠️ Tech Stack
+- Actual bidding engine
+- Checkout or payment flow
+- Public auction browsing/catalog implementation
+- User bid history and auction history pages
 
-- **Backend:** Laravel
-- **Frontend:** Livewire, Alpine.js
-- **UI:** Tailwind CSS, DaisyUI, MaryUI
-- **Auth:** Laravel Breeze / Socialite
-- **Database:** MySQL
-- **Build Tool:** Vite
+## Main Flows
 
----
+### User flow
 
-## ⚙️ Installation Steps
+1. Guest lands on `/`, which redirects to `/home` when not authenticated.
+2. User can register with email OTP flow or start Google OAuth.
+3. New users complete profile details before account creation.
+4. User can optionally request seller status during profile completion.
+5. Admin approves seller requests.
+6. Approved sellers can upload products from `/my-products`.
+7. Admin approves uploaded products.
+8. Users receive database + broadcast notifications for seller approval and product approval.
 
-### 1. Clone the repository
+### Admin flow
 
-```bash
-git clone https://github.com/Sudip-Magar/Sajha_Auction.git
-cd Sajha_Auction
-```
+1. Admin logs in at `/admin/login`.
+2. Admin uses `/admin/dashboard` to monitor platform activity.
+3. Admin reviews seller requests at `/admin/seller-requests`.
+4. Admin reviews products at `/admin/products`.
+5. Admin receives real-time notifications when users request seller access or upload products.
+6. Admin manages system/social/security settings at `/admin/settings`.
 
-### 2. Install Following Package and Dependencies
+## Important Routes
+
+### Public / user
+
+- `/` redirects to `dashboard` for logged-in users and `home` for guests
+- `/home` guest landing page
+- `/login` user login
+- `/register` user registration start
+- `/verify-otp` OTP verification
+- `/complete-profile` user profile completion
+- `/dashboard` authenticated user dashboard
+- `/my-products` seller product management
+- `/notifications` authenticated user notifications
+- `/settings` authenticated user settings
+
+### Admin
+
+- `/admin/login`
+- `/admin/dashboard`
+- `/admin/category-setup`
+- `/admin/seller-requests`
+- `/admin/products`
+- `/admin/notifications`
+- `/admin/settings`
+
+## Key Models
+
+- `User`
+  - supports normal users and seller accounts
+  - important flags: `is_verified`, `is_seller`, `seller_application_pending`
+- `Admin`
+  - separate auth model and `admin` guard
+- `Product`
+  - belongs to `User` and `Category`
+  - supports `sell` and `auction` types
+  - approval controlled by `is_approved`
+- `Category`
+  - supports parent/child hierarchy
+- `Setting`
+  - key/value storage for admin-configured settings
+
+## Notifications
+
+Current notification classes:
+
+- `SellerRegisteredNotification`
+- `SellerApprovedNotification`
+- `NewProductUploadedNotification`
+- `ProductApprovedNotification`
+
+Notifications are stored in the `notifications` table and broadcast in real time. Frontend listeners exist in:
+
+- `app/Livewire/Components/User/Navbar.php`
+- `app/Livewire/Components/Admin/Topbar.php`
+
+## Local Setup
+
+### 1. Install dependencies
 
 ```bash
 composer install
-composer require livewire/livewire
 npm install
-npm install alpinejs
-composer require laravel/socialite
-composer require illuminate/mail
 ```
 
-### 3. Setup Environment file
+### 2. Create environment file
 
 ```bash
-1. copy .env.example file
-2. paste it in root directory i.e inside Sajha_aution
-3. renamed it to .env
-4. add the following line inside the .env file
+copy .env.example .env
 ```
 
-### 4. Configure .env file 
-```bash
+Then update `.env` with your local values.
+
+Minimum required areas:
+
+- app URL
+- database connection
+- mail credentials for OTP
+- Google OAuth credentials
+- Reverb credentials
+
+Example values you will likely need:
+
+```env
+APP_NAME="Sajha Auction"
+APP_URL=http://127.0.0.1:8000
+
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=sajha_auction
-DB_USERNAME=your-username
-DB_PASSWORD=your-password
-
-GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret
-GOOGLE_REDIRECT_URI=your-Oauth-url
+DB_USERNAME=your_db_user
+DB_PASSWORD=your_db_password
 
 MAIL_MAILER=smtp
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=587
-MAIL_USERNAME=your@gmail.com
-MAIL_PASSWORD=your-app-password
+MAIL_USERNAME=your_email
+MAIL_PASSWORD=your_app_password
 MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=your_email
+MAIL_FROM_NAME="${APP_NAME}"
+
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URL=http://127.0.0.1:8000/auth/google/callback
+
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=your_reverb_app_id
+REVERB_APP_KEY=your_reverb_app_key
+REVERB_APP_SECRET=your_reverb_app_secret
+REVERB_HOST=localhost
+REVERB_PORT=8080
+REVERB_SCHEME=http
+
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST="${REVERB_HOST}"
+VITE_REVERB_PORT="${REVERB_PORT}"
+VITE_REVERB_SCHEME="${REVERB_SCHEME}"
 ```
 
-### 5. Additional configuration and migrate
+### 3. Generate app key and migrate
+
 ```bash
 php artisan key:generate
-php artisan storage:link
 php artisan migrate
+php artisan db:seed
+php artisan storage:link
 ```
 
-### 6. Run the project
+`db:seed` currently creates the default admin account from `Database\\Seeders\\AdminSeeder`.
+
+## Running Locally
+
+### Recommended
+
 ```bash
-npm run dev 
-php artisan serve
+composer run dev
 ```
+
+This starts:
+
+- Laravel app server
+- queue listener
+- Reverb websocket server
+- Pail log viewer
+- Vite dev server
+
+### Manual alternative
+
+```bash
+php artisan serve
+php artisan queue:listen --tries=1 --timeout=0
+php artisan reverb:start
+npm run dev
+```
+
+## Testing and Formatting
+
+Run tests:
+
+```bash
+php artisan test --compact
+```
+
+Format PHP changes:
+
+```bash
+vendor/bin/pint --dirty --format agent
+```
+
+## Default Admin Seed
+
+The seeded admin account is defined in `database/seeders/AdminSeeder.php`.
+
+Current default values in code:
+
+- email: `admin@sajhaauction.com`
+- password: `password`
+
+Change these for any non-local environment.
+
+## Notes
+
+- User-facing layout is `layouts.app`.
+- Admin-facing layout is `layouts.admin`.
+- Real-time notification auth channels are defined in `routes/channels.php`.
+- The project contains only minimal automated tests right now.
+- The app currently behaves more like a moderated marketplace with auction-ready structure than a full live bidding platform.

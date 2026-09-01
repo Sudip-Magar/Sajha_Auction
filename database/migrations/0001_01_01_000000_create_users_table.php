@@ -14,15 +14,20 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('google_id')->nullable()->unique();
-            $table->string('username');
-            $table->string('email')->unique();
-            $table->string('phone')->unique();
-            $table->date('date_of_birth');
-            $table->string('gender');
-            $table->string('avatar')->nullable();
-            $table->boolean('is_verified')->default(false);
-            $table->timestamp('email_verified_at')->nullable();
+            $table->string('name');
+            $table->string('email');
+            $table->string('username')->nullable()->unique();
+            $table->string('phone')->nullable();
+            $table->date('date_of_birth_en')->nullable();
+            $table->string('daate_of_birth_np')->nullable();
+            $table->string('gender')->nullable();
+            $table->boolean('is_seller')->default(false);
+            $table->boolean('is_auction_allowed')->default(false);
             $table->string('password');
+            $table->boolean('is_verified')->default(false);
+            $table->string('avatar')->nullable();
+            $table->text('bio')->nullable();
+            $table->string('status');
             $table->rememberToken();
             $table->timestamps();
         });

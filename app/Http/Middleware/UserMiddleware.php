@@ -16,9 +16,22 @@ class UserMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if(!Auth::guard('admin')->check()){
-            return redirect()->route('admin.login');
+        if (! Auth::guard('web')->check()) {
+            return redirect()->route('user.login')->with('inactive_user_error', 'Please login first.');
         }
+
+        $user = Auth::guard('web')->user();
+
+        if ($user && ! $user->isActiveStatus()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->route('user.login')
+                ->with('inactive_user_error', 'Your account has been marked inactive by the admin.');
+        }
+
         return $next($request);
     }
 }

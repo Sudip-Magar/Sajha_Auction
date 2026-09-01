@@ -2,47 +2,73 @@
 
 namespace App\Livewire\Auth\User;
 
+use App\Enums\GenderState;
+use App\Enums\StatusState;
+use App\Models\Admin;
 use App\Models\User;
+use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
-use Livewire\WithFileUploads;
+use Livewire\Features\SupportFileUploads\WithFileUploads;
+use Mary\Traits\Toast;
 
 class CompleteProfile extends Component
 {
-    use WithFileUploads;
+    use Toast, WithFileUploads;
 
-    // Pre-filled from Google
     public string $name = '';
-    public string $email = '';
-    public ?string $avatar = null;
 
-    // User fills these in
+    public string $email = '';
+
+    public ?string $googleAvatar = null;
+
+    public $avatarFile = null;
+
     public string $username = '';
-    public string $phone = '';
-    public string $date_of_birth = '';
+
+    public $phone = null;
+
+    public string $date_of_birth_en = '';
+
+    public string $date_of_birth_np = '';
+
     public string $gender = '';
+
     public ?string $bio = null;
+
+    public $password = '';
+
+    public $confirm_password = '';
+
+    public bool $apply_as_seller = false;
+
+    public $genderStates = [];
 
     public function mount(): void
     {
-        $googleUser = session('google_user');
-        $verified = session('otp_verified');
-
-        // Guard: must have google session AND otp verified
-        if (!$googleUser || !$verified) {
-            $this->redirect(route('login'), navigate: true);
-            return;
+        if (Auth::guard('web')->check()) {
+            $this->redirect(route('home'), navigate: true);
         }
 
-        // Pre-fill from Google data
-        $this->name = $googleUser['name'];
-        $this->email = $googleUser['email'];
-        $this->avatar = $googleUser['avatar'];
-        $this->phone = $googleUser['phone'] ?? '';
+        $this->genderStates = backedEnumAsArray(GenderState::cases());
 
-        // Auto-fill username suggestion from name
-        $this->username = str($googleUser['name'])->lower()->replace(' ', '_')->toString();
+        $googleUser = session('google_user');
+        $verified = session('otp_verified');
+        if (! $googleUser || ! $verified) {
+            $this->redirect(route('user.login'), navigate: true);
+
+            return;
+        }
+        $this->name = $googleUser['name'] ?? '';
+        $this->email = $googleUser['email'] ?? '';
+        $this->googleAvatar = $googleUser['avatar'] ?? null;
+        $this->phone = $googleUser['phone'] ?? '';
+        $this->username = str($googleUser['name'] ?? '')->lower()->replace(' ', '_')->toString();
     }
 
     public function register(): void
@@ -50,37 +76,103 @@ class CompleteProfile extends Component
         $this->validate([
             'name' => 'required|string|max:255',
             'username' => ['required', 'string', 'max:30', 'alpha_dash', Rule::unique('users', 'username')],
-            'email' => 'required|email',
-            'phone' => 'nullable|string|max:20',
-            'date_of_birth' => 'nullable|date|before:today',
-            'gender' => 'nullable|in:male,female,non_binary,prefer_not_to_say',
+            'email' => 'required|email|unique:users,email',
+            'phone' => 'required|numeric|digits:10',
+            'date_of_birth_en' => 'required|date|before:today',
+            'gender' => 'required',
             'bio' => 'nullable|string|max:500',
-        ]);
+            'avatarFile' => 'nullable|image|max:2048',
+            'password' => [
+                'required',
+                'min:8',
+                'regex:/[A-Z]/',       // at least 1 uppercase
+                'regex:/[a-z]/',       // at least 1 lowercase
+                'regex:/[0-9]/',       // at least 1 number
+                'regex:/[@$!%*#?&]/',  // at least 1 special character
+                'regex:/^\S+$/',       // no spaces
+                'different:email',
+                'different:username',
+            ],
+            'confirm_password' => 'required|same:password',
+        ],
+            [
+                'phone.required' => 'Phone Number is required',
+                'phone.numeric' => 'Invalid Phone Number',
+                'phone.digits' => 'Invalid Phone Number',
+                'date_of_birth_en.required' => 'Date of Birth is required',
+                'date_of_birth_en.date' => 'Invalid Date of Birth',
+                'date_of_birth_en.before' => 'Invalid Date of Birth',
+                'gender.required' => 'Gender is required',
+                'gender.in' => 'Invalid Gender',
+                'bio.required' => 'Bio is required',
+                'bio.string' => 'Bio must be a string',
+                'bio.max' => 'Bio must be at most 500 characters',
+                'avatarFile.required' => 'Avatar is required',
+                'avatarFile.image' => 'Avatar must be an image',
+                'avatarFile.max' => 'Avatar must be at most 2MB',
+                'password.required' => 'Password is required',
+                'password.min' => 'Password must be at least 8 characters',
+                'confirm_password.required' => 'Confirm Password is required',
+                'confirm_password.min' => 'Confirm Password must be at least 8 characters',
+                'confirm_password.same' => 'Confirm Password must be the same as Password',
+            ]);
 
+        $avatarPath = null;
+
+        if ($this->avatarFile) {
+            $avatarPath = $this->avatarFile->store('avatars', 'public');
+        } elseif ($this->googleAvatar) {
+            try {
+                $response = Http::withOptions(['verify' => false])->get($this->googleAvatar);
+                if ($response->successful()) {
+                    $fileName = 'avatars/'.Str::uuid().'.jpg';
+                    Storage::disk('public')->put($fileName, $response->body());
+                    $avatarPath = $fileName;
+                }
+            } catch (\Exception $e) {
+                $avatarPath = $this->googleAvatar;
+            }
+        }
+
+        $hashPassword = Hash::make($this->password);
         $googleUser = session('google_user');
 
         $user = User::updateOrCreate(
             ['email' => $this->email],
             [
+                'google_id' => $googleUser['google_id'] ?? null,
                 'name' => $this->name,
+                'email' => $this->email,
                 'username' => $this->username,
-                'google_id' => $googleUser['google_id'],
-                'avatar' => $this->avatar,
                 'phone' => $this->phone ?: null,
-                'date_of_birth' => $this->date_of_birth ?: null,
+                'date_of_birth_en' => $this->date_of_birth_en ?: null,
+                'daate_of_birth_np' => $this->date_of_birth_np ?: null,
                 'gender' => $this->gender ?: null,
-                'bio' => $this->bio ?: null,
+                'password' => $hashPassword,
                 'is_verified' => true,
-                'password' => bcrypt(\Str::random(32)),
+                'avatar' => $avatarPath,
+                'bio' => $this->bio ?: null,
+                'is_seller' => false,
+                'seller_application_pending' => $this->apply_as_seller,
+                'is_auction_allowed' => false,
+                'status' => StatusState::ACTIVE->value,
             ]
         );
 
-        // Clean up all auth session data
+        if ($this->apply_as_seller) {
+            $admins = Admin::all();
+            foreach ($admins as $admin) {
+                $admin->notify(new SellerRegisteredNotification($user));
+            }
+        }
+
         session()->forget(['google_user', 'otp_verified']);
 
         Auth::login($user, remember: true);
 
-        $this->redirect(route('dashboard'), navigate: true);
+        $this->success('Profile completed successfully! Welcome to Sajha Auction.', position: 'toast-bottom');
+
+        $this->redirect(route('home'), navigate: true);
     }
 
     public function render()
