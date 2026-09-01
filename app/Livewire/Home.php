@@ -106,7 +106,10 @@ class Home extends Component
     {
         $productsQuery = Product::with(['auction.traditionalAuction', 'category', 'images', 'user'])
             ->where('is_approved', true)
-            ->where('status', 'active');
+            ->where(function ($query): void {
+                $query->where('status', 'active')
+                    ->orWhereHas('auction', fn ($auctionQuery) => $auctionQuery->where('end_time', '<=', now()));
+            });
 
         $user = Auth::user();
         $wishlistedIds = $user

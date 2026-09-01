@@ -110,14 +110,18 @@
                 @endscope
 
                 @scope('actions', $product)
-                    <div class="flex items-center gap-1 justify-end">
+                    <div class="flex items-center gap-2 justify-end">
                         @if(!$product->is_approved)
                             <x-button label="Edit" icon="o-pencil-square" class="btn-sm btn-ghost" link="{{ route('user.products.edit', $product->id) }}" />
                             <x-button label="Delete" icon="o-trash" class="btn-sm btn-ghost text-red-500 hover:bg-red-50"
                                 wire:click="deleteProduct({{ $product->id }})"
                                 wire:confirm="Are you sure you want to delete this product? All of its images will also be permanently deleted from the system." />
                         @else
-                            <span class="text-xs text-gray-400 font-medium italic pr-4">Approved (Locked)</span>
+                            @if($product->isAuction() && $product->auction)
+                                <x-button label="Live Auction Room" icon="o-ticket" class="btn-xs btn-primary bg-emerald-600 border-none text-white font-bold" link="{{ route('user.auction.detail', $product->auction->id) }}" />
+                            @else
+                                <x-button label="View Details" icon="o-eye" class="btn-xs btn-ghost text-gray-500" link="{{ route('user.products.show', $product->slug) }}" />
+                            @endif
                         @endif
                     </div>
                 @endscope

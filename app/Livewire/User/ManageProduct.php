@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\SubCategory;
 use App\Notifications\NewProductUploadedNotification;
+use App\Services\AuctionEngineService;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -201,6 +202,26 @@ class ManageProduct extends Component
         }
     }
 
+    public function getRecommendedReserveProperty(): ?float
+    {
+        $sellerVal = (float) ($this->retail_price ?? 0);
+        $startBid = (float) ($this->starting_bid ?? 0);
+
+        if ($sellerVal <= 0 && $startBid <= 0) {
+            return null;
+        }
+
+        return AuctionEngineService::calculateOptimalReserve($sellerVal, $startBid);
+    }
+
+    public function applyRecommendedReserve(): void
+    {
+        if ($this->recommendedReserve) {
+            $this->reserve_price = $this->recommendedReserve;
+            $this->success('Applied Myerson optimal reserve price: Rs. '.number_format($this->recommendedReserve, 2));
+        }
+    }
+
     public function save(): void
     {
         $user = Auth::user();
@@ -238,17 +259,30 @@ class ManageProduct extends Component
 
         if ($this->listing_type === 'auction') {
             $rules['auction_type'] = 'required|in:traditional';
-            $rules['auction_start_date_en'] = 'required|date|after_or_equal:today';
+            $rules['auction_start_date_en'] = $this->product?->exists
+                ? 'required|date'
+                : 'required|date|after:today';
             $rules['auction_start_time'] = 'required';
             $rules['auction_start_np'] = 'required';
 
             $rules['starting_bid'] = 'required|numeric|min:0';
-            $rules['auction_end_date_en'] = 'required|date|after:auction_start_date_en';
+            $rules['auction_end_date_en'] = 'required|date|after_or_equal:auction_start_date_en';
             $rules['auction_end_time'] = 'required';
             $rules['auction_end_np'] = 'required';
         }
 
         $this->validate($rules);
+
+        if ($this->listing_type === 'auction') {
+            $startTime = Carbon::parse($this->auction_start_date_en.' '.$this->auction_start_time);
+            $endTime = Carbon::parse($this->auction_end_date_en.' '.$this->auction_end_time);
+
+            if ($endTime->lessThanOrEqualTo($startTime)) {
+                $this->addError('auction_end_time', 'The auction end time must be after the start time.');
+
+                return;
+            }
+        }
 
         if (count($this->existingImages) === 0 && count($this->newImages) === 0) {
             $this->addError('newImages', 'Please upload at least one image.');

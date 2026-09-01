@@ -11,12 +11,16 @@ class Bid extends Model
         'auction_id',
         'bidder_id',
         'bid_amount',
+        'max_proxy_amount',
+        'is_proxy',
         'ip_address',
         'placed_at',
     ];
 
     protected $casts = [
         'bid_amount' => 'decimal:2',
+        'max_proxy_amount' => 'decimal:2',
+        'is_proxy' => 'boolean',
     ];
 
     public function auction(): BelongsTo

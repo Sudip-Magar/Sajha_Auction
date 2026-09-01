@@ -16,8 +16,7 @@ class AuctionMarketplace extends Component
     public function render(): View
     {
         $auctions = Auction::with(['product.images', 'traditionalAuction'])
-            ->whereIn('status', ['active', 'pending'])
-            ->where('end_time', '>', now())
+            ->whereIn('status', ['active', 'pending', 'completed', 'ended_unsold'])
             ->latest()
             ->paginate(12);
 

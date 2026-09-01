@@ -19,8 +19,10 @@ class Auction extends Model
         'end_time_np',
         'extended_end_time',
         'current_price',
+        'winning_price',
         'total_bids',
         'status',
+        'settlement_reason',
     ];
 
     protected $casts = [
@@ -28,11 +30,17 @@ class Auction extends Model
         'end_time' => 'datetime',
         'extended_end_time' => 'datetime',
         'current_price' => 'decimal:2',
+        'winning_price' => 'decimal:2',
     ];
 
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function winner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'winner_id');
     }
 
     public function traditionalAuction(): HasOne
@@ -42,14 +50,17 @@ class Auction extends Model
 
     public function bids(): HasMany
     {
-        return $this->hasMany(Bid::class)->latest();
+        return $this->hasMany(Bid::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
     public function isLive(): bool
     {
         $now = now();
-        return $this->status === 'active' 
-            && $this->start_time <= $now 
+
+        return $this->status === 'active'
+            && $this->start_time <= $now
             && $this->end_time >= $now;
     }
 
@@ -58,9 +69,37 @@ class Auction extends Model
         return $this->status === 'pending' || ($this->status === 'active' && $this->start_time > now());
     }
 
+    public function isEnded(): bool
+    {
+        return in_array($this->status, ['ended', 'completed', 'ended_unsold'], true)
+            || ($this->end_time && $this->end_time < now());
+    }
+
+    /**
+     * Algorithm 2: Dynamic Step Function Minimum Increment \Delta(p)
+     */
+    public function getStepIncrement(): float
+    {
+        $price = (float) $this->current_price;
+        $customIncrement = (float) ($this->traditionalAuction?->min_bid_increment ?? 0);
+
+        if ($price < 1000) {
+            $step = 50.0;
+        } elseif ($price < 5000) {
+            $step = 100.0;
+        } elseif ($price < 20000) {
+            $step = 250.0;
+        } elseif ($price < 50000) {
+            $step = 500.0;
+        } else {
+            $step = 1000.0;
+        }
+
+        return max($step, $customIncrement);
+    }
+
     public function getMinNextBid(): float
     {
-        $increment = $this->traditionalAuction?->min_bid_increment ?? 0;
-        return (float) ($this->current_price + $increment);
+        return (float) ($this->current_price + $this->getStepIncrement());
     }
 }

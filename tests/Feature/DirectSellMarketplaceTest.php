@@ -7,11 +7,14 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Wishlist;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
 class DirectSellMarketplaceTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_user_can_add_product_to_wishlist_and_remove_it(): void
     {
         $user = User::factory()->create();
