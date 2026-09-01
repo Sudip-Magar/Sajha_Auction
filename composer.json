@@ -10,6 +10,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "illuminate/mail": "*",
         "laravel/framework": "^13.0",
         "laravel/reverb": "^1.0",
         "laravel/socialite": "^5.27",
