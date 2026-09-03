@@ -1,4 +1,4 @@
-<div x-data
+<div x-data="{ agree: @entangle('agree_terms').live }"
      class="min-h-[calc(100vh-64px)] bg-linear-to-br from-[#1F6F5F] to-[#2FA084] py-8 px-4 flex items-center justify-center">
     <div
         class="w-full max-w-5xl bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl overflow-hidden border border-white/20">
@@ -149,13 +149,31 @@
                         </div>
                     </div>
 
+                    {{-- Terms Agreement --}}
+                    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" wire:model.live="agree_terms" class="checkbox checkbox-primary mt-0.5"/>
+                            <span class="text-xs font-semibold text-gray-700">
+                                I agree to the
+                                <a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}"
+                                   target="_blank" rel="noopener" @click.stop
+                                   class="font-bold text-[#1F6F5F] underline hover:text-[#2FA084]">Terms of Use and Privacy Policy</a>.
+                            </span>
+                        </label>
+                        @error('agree_terms')
+                            <small class="text-red-500">{{ $message }}</small>
+                        @enderror
+                    </div>
+
                     {{-- Action Button --}}
                     <div class="pt-2">
                         <x-button
                             label="Finalize Account"
                             wire:click="register"
                             spinner="register"
+                            x-bind:disabled="!agree"
                             class="w-full bg-linear-to-r from-[#1F6F5F] to-[#2FA084] hover:shadow-lg hover:shadow-[#2FA084]/30 text-white border-none h-14 rounded-2xl font-black text-lg transition-all transform hover:-translate-y-0.5"
+                            x-bind:class="!agree ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'"
                         />
                     </div>
                 </div>

@@ -47,6 +47,8 @@ class CompleteProfile extends Component
 
     public bool $apply_as_seller = false;
 
+    public bool $agree_terms = false;
+
     public $genderStates = [];
 
     public function mount(): void
@@ -94,6 +96,7 @@ class CompleteProfile extends Component
                 'different:username',
             ],
             'confirm_password' => 'required|same:password',
+            'agree_terms' => 'accepted',
         ],
             [
                 'phone.required' => 'Phone Number is required',
@@ -115,6 +118,7 @@ class CompleteProfile extends Component
                 'confirm_password.required' => 'Confirm Password is required',
                 'confirm_password.min' => 'Confirm Password must be at least 8 characters',
                 'confirm_password.same' => 'Confirm Password must be the same as Password',
+                'agree_terms.accepted' => 'You must agree to the Terms of Use and Privacy Policy.',
             ]);
 
         $avatarPath = null;

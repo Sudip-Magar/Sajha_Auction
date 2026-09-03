@@ -137,9 +137,13 @@ class AuctionEngineService
 
                 // Record the proxy response so the bid history transparently
                 // shows that automatic bidding defended the leader's position.
-                if ($leadingBid->is_proxy
-                    && $leadingBid->bidder_id !== $bidder->id
-                    && $newStandingPrice > $bidAmount) {
+                // This must fire even when the leader IS the bidder who just
+                // placed this request (their own proxy ceiling beat everyone
+                // else): otherwise current_price advances to the resolved
+                // price while no Bid row ever records it, and Algorithm 1
+                // (determineWinner, which settles purely off Bid.bid_amount)
+                // can under-charge the winner relative to what was displayed live.
+                if ($leadingBid->is_proxy && $newStandingPrice > $bidAmount) {
                     $automaticBid = Bid::create([
                         'auction_id' => $lockedAuction->id,
                         'bidder_id' => $leadingBid->bidder_id,

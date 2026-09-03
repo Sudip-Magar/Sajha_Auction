@@ -183,6 +183,68 @@ test('algorithm 2: calculates dynamic step increment and processes proxy bidding
     expect($result['winning_price'])->toBe(2100.0);
 });
 
+test('algorithm 2: a bidder who becomes their own leader still settles at the resolved standing price', function () {
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Self-Leader Test Item',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => now()->subHour(),
+        'end_time' => now()->addHour(),
+        'current_price' => 500,
+        'status' => 'active',
+    ]);
+
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 500,
+        'reserve_price' => 500,
+        'min_bid_increment' => 0,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    $bidderA = User::factory()->create(['is_auction_allowed' => true]);
+    $bidderB = User::factory()->create(['is_auction_allowed' => true]);
+
+    // Bidder A registers a secret proxy limit of 5000 with a visible bid of 600.
+    AuctionEngineService::processBid($auction, $bidderA, 600, 5000);
+    $auction->refresh();
+    expect((float) $auction->current_price)->toBe(600.0);
+
+    // Bidder B then registers a higher secret proxy limit (6000) and becomes
+    // the outright leader in the same request that placed their bid.
+    AuctionEngineService::processBid($auction, $bidderB, 650, 6000);
+    $auction->refresh();
+
+    // Resolved second-price: min(6000, 5000 + step(5000)=250) = 5250.
+    expect((float) $auction->current_price)->toBe(5250.0);
+
+    // A Bid row must exist recording bidder B at the resolved price -
+    // otherwise settlement would under-charge them relative to current_price.
+    $leaderBid = $auction->bids()->orderByDesc('id')->first();
+    expect($leaderBid->bidder_id)->toBe($bidderB->id);
+    expect((float) $leaderBid->bid_amount)->toBe(5250.0);
+
+    $result = AuctionEngineService::determineWinner($auction);
+
+    expect($result['winner_id'])->toBe($bidderB->id);
+    expect($result['winning_price'])->toBe(5250.0);
+});
+
 test('algorithm 2: rejects a proxy submission whose visible bid is below the minimum increment', function () {
     $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
     $subCategory = createTestSubCategory();
