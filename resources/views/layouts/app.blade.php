@@ -12,10 +12,13 @@
         (() => {
             const storedTheme = localStorage.getItem('theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const isDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
 
-            if (storedTheme === 'dark' || (!storedTheme && prefersDark)) {
-                document.documentElement.classList.add('dark');
-            }
+            document.documentElement.classList.toggle('dark', isDark);
+            // Keep daisyUI's own theme (used by inputs, buttons, checkboxes, etc.)
+            // in sync with the app's dark-mode class, instead of daisyUI falling
+            // back to the OS color scheme independently of this toggle.
+            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
         })();
     </script>
 

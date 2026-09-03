@@ -51,8 +51,8 @@
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Help Center</a></li>
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Buying Guide</a></li>
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Selling Guide</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Terms of Service</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Privacy Policy</a></li>
+                    <li><a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}" target="_blank" rel="noopener" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Terms of Service</a></li>
+                    <li><a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}" target="_blank" rel="noopener" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Privacy Policy</a></li>
                 </ul>
             </div>
 

@@ -89,13 +89,6 @@ class VerifyOtp extends Component
         $this->dispatch('start-countdown');
     }
 
-    public function updatedOtp(string $value): void
-    {
-        if (strlen($value) === 6) {
-            $this->verifyOtp();
-        }
-    }
-
     public function verifyOtp(): void
     {
         $this->validate(['otp' => 'required|digits:6']);

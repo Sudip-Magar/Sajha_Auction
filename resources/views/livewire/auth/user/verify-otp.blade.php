@@ -31,16 +31,16 @@
                 </div>
             @endif
 
-            <div class="mb-8 flex items-center justify-center">
+            <div class="mb-8 flex items-center justify-center" x-on:completed="$wire.verifyOtp()">
                 <div class="p-4 bg-gray-50 rounded-3xl border border-gray-100 shadow-inner">
-                    <x-pin wire:model.live="otp" size="6" numeric class="focus:border-[#2FA084] gap-2" />
+                    <x-pin wire:model="otp" size="6" numeric class="focus:border-[#2FA084] gap-2" />
                 </div>
             </div>
 
-            <x-button 
-                label="Verify Code" 
-                wire:click="verifyOtp" 
-                spinner="verifyOtp" 
+            <x-button
+                label="Verify Code"
+                wire:click="verifyOtp"
+                spinner="verifyOtp"
                 class="w-full bg-linear-to-r from-[#1F6F5F] to-[#2FA084] hover:shadow-lg hover:shadow-[#2FA084]/30 text-white border-none h-14 rounded-2xl font-black text-lg transition-all transform hover:-translate-y-0.5" 
             />
 

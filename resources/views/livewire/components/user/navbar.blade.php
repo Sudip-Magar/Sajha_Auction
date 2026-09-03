@@ -5,6 +5,7 @@
         toggleTheme() {
             this.darkMode = ! this.darkMode;
             document.documentElement.classList.toggle('dark', this.darkMode);
+            document.documentElement.setAttribute('data-theme', this.darkMode ? 'dark' : 'light');
             localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
         }
      }"

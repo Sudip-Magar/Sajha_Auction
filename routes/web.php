@@ -44,6 +44,7 @@ Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.pro
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
 // Route::get('/login', Login::class)->name('login');
+Route::get('search-product', SearchProduct::class)->name('user.search.product');
 
 Route::prefix('admin')->group(function () {
     Route::get('/login', AdminLogin::class)->name('admin.login');
@@ -74,7 +75,6 @@ Route::middleware('user')->group(function () {
     Route::redirect('/auction', '/home')->name('user.auction');
     Route::get('/auction/{auction}', AuctionDetail::class)->name('user.auction.detail');
     Route::get('/messages/{conversation?}', Messages::class)->name('user.messages');
-    Route::get('search-product', SearchProduct::class)->name('user.search.product');
 });
 
 Route::prefix('admin')->middleware('admin')->group(function () {
@@ -90,14 +90,4 @@ Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/settings', App\Livewire\Admin\Settings::class)->name('admin.settings');
     Route::get('/auction-application', AuctionApplication::class)->name('admin.auction-application');
     Route::get('/auction-application/{user}', AuctionApplicationDetail::class)->name('admin.auction-application.show');
-});
-
-Route::get('/register', Register::class)->name('user.register');
-
-Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
-Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
-
-Route::middleware('auth.otp')->group(function () {
-    Route::get('/verify-otp', fn() => view('pages.verify-otp'))->name('verify.otp');
-    Route::get('/complete-profile', fn() => view('pages.complete-profile'))->name('complete.profile');
 });
