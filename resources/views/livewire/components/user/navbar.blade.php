@@ -9,7 +9,7 @@
             localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
         }
      }"
-     class="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/90 backdrop-blur-md transition-all duration-300 dark:border-gray-800 dark:bg-[#101114]/90">
+     class="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/90 backdrop-blur-md transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
     <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-15">
             <!-- Logo Area -->
@@ -232,7 +232,7 @@
 
                     <div class="relative" @click.away="userDropdownOpen = false">
                         <button @click="userDropdownOpen = !userDropdownOpen"
-                                class="flex items-center space-x-3 p-1.5 rounded-xl cursor-pointer hover:bg-gray-50 transition-all duration-300 focus:outline-none">
+                                class="flex items-center space-x-3 p-1.5 rounded-xl cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300 focus:outline-none">
                             <div class="text-right mr-2 hidden lg:block">
                                 <p class="text-sm font-bold text-gray-900 leading-none dark:text-white">{{ auth()->user()->name }}</p>
                                 <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">User</p>
@@ -384,8 +384,7 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 -translate-y-4"
-         class="md:hidden bg-white border-t border-gray-50 overflow-hidden dark:border-gray-800 dark:bg-[#101114]"
-         style="display: none;">
+         class="md:hidden bg-white border-t border-gray-50 overflow-hidden dark:border-gray-800 dark:bg-gray-900" style="display: none;">
         <div class="px-4 pt-4 pb-6 space-y-2">
             <a
                 href="{{ route('home') }}"

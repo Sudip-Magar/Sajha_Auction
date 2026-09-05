@@ -1,7 +1,7 @@
 <div x-data="{ agree: @entangle('agree_terms').live }"
      class="min-h-[calc(100vh-64px)] bg-linear-to-br from-[#1F6F5F] to-[#2FA084] py-8 px-4 flex items-center justify-center">
     <div
-        class="w-full max-w-5xl bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl overflow-hidden border border-white/20">
+        class="w-full max-w-5xl overflow-hidden rounded-4xl border border-white/20 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-gray-800 dark:bg-gray-900">
 
         {{-- Main 2-column layout --}}
         <div class="flex flex-col lg:flex-row">
@@ -53,20 +53,21 @@
             </div>
 
             {{-- RIGHT COLUMN: The Form --}}
-            <div class="flex-1 p-8 lg:p-10">
+            <div
+                class="flex-1 p-8 lg:p-10 dark:[&_.fieldset-legend]:text-gray-200 dark:[&_.input]:border-gray-700 dark:[&_.input]:bg-gray-900 dark:[&_.input]:text-gray-100 dark:[&_.input]:placeholder:text-gray-500 dark:[&_.select]:border-gray-700 dark:[&_.select]:bg-gray-900 dark:[&_.select]:text-gray-100 dark:[&_.textarea]:border-gray-700 dark:[&_.textarea]:bg-gray-900 dark:[&_.textarea]:text-gray-100 dark:[&_.textarea]:placeholder:text-gray-500">
                 <div class="space-y-5">
                     {{-- Row 1: Identity --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <x-input label="Full Name" wire:model="name" icon="o-user-circle" placeholder="Your full name"
-                                 class="bg-gray-50/50 border-gray-200"/>
+                                 class="border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                         <x-input label="Username" wire:model.live.debounce.500ms="username" icon="o-at-symbol"
-                                 placeholder="username" class="bg-gray-50/50 border-gray-200"/>
+                                 placeholder="username" class="border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                     </div>
 
                     {{-- Row 2: Contact & Demographics --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <x-input label="Phone Number" wire:model="phone" type="number" icon="o-phone"
-                                 placeholder="98XXXXXXXX" class="bg-gray-50/50 border-gray-200 no-spinner"/>
+                                 placeholder="98XXXXXXXX" class="no-spinner border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                         <div>
                             <label for="date_of_birth_np" class="fieldset-legend mb-0.5">Date of Birth (B.S.)</label>
                             <input
@@ -74,7 +75,7 @@
                                 wire:model="date_of_birth_np"
                                 data-nepali-date="date_of_birth"
                                 autocomplete="off"
-                                class="input w-full bg-gray-50/50 border-gray-200"
+                                class="input w-full border-gray-200 bg-gray-50/50 text-gray-900 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
                                 placeholder="YYYY-MM-DD"
                             >
                             <input
@@ -91,20 +92,20 @@
                     {{-- Row 3: Bio & Gender --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <x-select label="Gender" icon="o-user" :options="$genderStates" wire:model="gender"
-                                  placeholder="Select Gender" class="bg-gray-50 border-gray-200"/>
+                                  placeholder="Select Gender" class="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                         <x-textarea label="Short Bio" wire:model="bio" rows="2" placeholder="Tell us about yourself..."
-                                    class="bg-gray-50/50 border-gray-200 resize-none"/>
+                                    class="resize-none border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                     </div>
 
                     {{-- Apply as Seller Toggle --}}
-                    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
+                    <div class="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 bg-[#2FA084]/10 rounded-xl flex items-center justify-center">
                                 <x-icon name="o-shopping-bag" class="w-5 h-5 text-[#2FA084]"/>
                             </div>
                             <div>
-                                <h4 class="text-xs font-bold text-gray-800">Apply as Seller</h4>
-                                <p class="text-[10px] text-gray-500 font-medium">Request seller access to list products for sale or auction</p>
+                                <h4 class="text-xs font-bold text-gray-800 dark:text-gray-100">Apply as Seller</h4>
+                                <p class="text-[10px] font-medium text-gray-500 dark:text-gray-400">Request seller access to list products for sale or auction</p>
                             </div>
                         </div>
                         <x-toggle wire:model="apply_as_seller" class="toggle-primary"/>
@@ -124,9 +125,9 @@
                     }" class="space-y-3">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <x-password label="Password" wire:model.live="password" placeholder="New Password"
-                                        class="bg-gray-50/50 border-gray-200"/>
+                                        class="border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                             <x-password label="Confirm Password" wire:model.live="confirm_password"
-                                        placeholder="Repeat Password" class="bg-gray-50/50 border-gray-200"/>
+                                        placeholder="Repeat Password" class="border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                         </div>
 
                         {{-- Compact Password Feedback --}}
@@ -150,10 +151,10 @@
                     </div>
 
                     {{-- Terms Agreement --}}
-                    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                        <label class="flex items-start gap-3 cursor-pointer">
-                            <input type="checkbox" wire:model.live="agree_terms" class="checkbox checkbox-primary mt-0.5"/>
-                            <span class="text-xs font-semibold text-gray-700">
+                    <div class="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" wire:model.live="agree_terms" class="checkbox checkbox-primary mt-0.5 inline-block"/>
+                            <span class="text-xs font-semibold text-gray-700 dark:text-gray-200 inline-block">
                                 I agree to the
                                 <a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}"
                                    target="_blank" rel="noopener" @click.stop
