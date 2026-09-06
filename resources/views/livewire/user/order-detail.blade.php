@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-gray-50/50 py-10 dark:bg-[#101114]">
+<div class="min-h-screen bg-gray-50/50 py-10 dark:bg-gray-900">
     <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         {{-- Header & Back --}}
         <div class="mb-6 flex items-center justify-between">

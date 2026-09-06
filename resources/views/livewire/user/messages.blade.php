@@ -1,4 +1,4 @@
-<div class="min-h-[calc(100vh-4rem)] bg-gray-50/50 py-6 text-gray-950 dark:bg-[#101114] dark:text-gray-100">
+<div class="min-h-[calc(100vh-4rem)] bg-gray-50/50 py-6 text-gray-950 dark:bg-gray-900 dark:text-gray-100">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>

@@ -1,4 +1,4 @@
 requirement/needed changes for sajha_auction project
 
 1. dark mode not properly working. when click on other menu it automatically revert to light mode .
-2. dark mode color should gray-900.
+2. dark mode color should bg-gray-900.

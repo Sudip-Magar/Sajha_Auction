@@ -7,7 +7,7 @@
     $specLines = collect(preg_split('/\r\n|\r|\n/', (string) $product->specifications))->filter();
 @endphp
 
-<div class="marketplace-ui min-h-screen bg-white text-gray-950 dark:bg-[#101114] dark:text-gray-100">
+<div class="marketplace-ui min-h-screen bg-white text-gray-950 dark:bg-gray-900 dark:text-gray-100">
     <div class="mx-auto max-w-[1280px] px-2 pb-14 pt-3 sm:px-3 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5 lg:px-4 lg:pt-5">
         <main>
             @if($product->isAuction() && $product->auction)

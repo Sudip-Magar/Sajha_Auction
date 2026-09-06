@@ -10,7 +10,7 @@
     $targetUrl = fn ($product) => route('user.products.show', $product->slug);
 @endphp
 
-<div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-[#101114] dark:text-gray-100">
+<div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-gray-900 dark:text-gray-100">
     <section class="mx-auto grid max-w-[1480px] grid-cols-1 gap-4 px-3 pb-16 pt-4 lg:grid-cols-[280px_minmax(0,1fr)_230px] lg:px-4">
         <x-user.category-sidebar :categories="$categories" :active-category="$category" />
 

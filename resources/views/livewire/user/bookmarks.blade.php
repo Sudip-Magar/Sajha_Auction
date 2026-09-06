@@ -9,7 +9,7 @@
     };
 @endphp
 
-<div class="marketplace-ui min-h-screen bg-[#F7F8FA] px-4 py-8 text-gray-950 dark:bg-[#101114] dark:text-gray-100 sm:px-6 lg:px-8">
+<div class="marketplace-ui min-h-screen bg-[#F7F8FA] px-4 py-8 text-gray-950 dark:bg-gray-900 dark:text-gray-100 sm:px-6 lg:px-8">
     <div class="mx-auto max-w-7xl">
         <x-header title="Bookmarked Products" subtitle="Products you saved from the marketplace" separator progress-indicator>
             <x-slot:actions>

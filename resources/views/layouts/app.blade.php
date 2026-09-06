@@ -9,7 +9,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <script>
-        (() => {
+        window.applyStoredTheme = function () {
             const storedTheme = localStorage.getItem('theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const isDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
@@ -19,14 +19,20 @@
             // in sync with the app's dark-mode class, instead of daisyUI falling
             // back to the OS color scheme independently of this toggle.
             document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-        })();
+        };
+
+        window.applyStoredTheme();
+        // wire:navigate swaps <html>'s attributes with the freshly-fetched page's,
+        // wiping the class/data-theme this script set (the server never renders them),
+        // so re-apply the stored theme after every SPA-style navigation.
+        document.addEventListener('livewire:navigated', window.applyStoredTheme);
     </script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @livewireStyles
 </head>
-<body class="bg-white text-gray-950 transition-colors dark:bg-[#101114] dark:text-gray-100">
+<body class="bg-white text-gray-950 transition-colors dark:bg-gray-900 dark:text-gray-100">
 <livewire:components.user.navbar/>
 
 {{ $slot }}

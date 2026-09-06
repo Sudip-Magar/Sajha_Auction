@@ -19,10 +19,10 @@
         </div>
 
         {{-- Right side: Form (Compact) --}}
-        <div class="p-8 lg:p-12 bg-white/95">
+        <div class="p-8 lg:p-12 bg-white/95 dark:bg-[#181A1F]">
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-black text-gray-900 tracking-tight">Welcome Back</h1>
-                <p class="text-gray-500 text-sm mt-1 font-medium">Log in to your account</p>
+                <h1 class="text-3xl font-black text-gray-900 tracking-tight dark:text-gray-100">Welcome Back</h1>
+                <p class="text-gray-500 text-sm mt-1 font-medium dark:text-gray-400">Log in to your account</p>
             </div>
 
             <form wire:submit="login" class="space-y-5">
@@ -32,14 +32,14 @@
                     type="email"
                     icon="o-envelope"
                     placeholder="you@example.com"
-                    class="bg-gray-50/50 border-gray-200"
+                    class="bg-gray-50/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700"
                 />
 
                 <x-password
                     label="Password"
                     wire:model="password"
                     placeholder="Enter your password"
-                    class="bg-gray-50/50 border-gray-200"
+                    class="bg-gray-50/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700"
                 />
 
                 <div class="flex items-center justify-between pt-1">
@@ -56,24 +56,24 @@
 
                 <div class="relative my-6">
                     <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-gray-200"></div>
+                        <div class="w-full border-t border-gray-200 dark:border-gray-800"></div>
                     </div>
                     <div class="relative flex justify-center text-[10px]">
-                        <span class="px-4 bg-white text-gray-400 font-black tracking-widest uppercase">OR CONTINUE WITH</span>
+                        <span class="px-4 bg-white text-gray-400 font-black tracking-widest uppercase dark:bg-[#181A1F] dark:text-gray-500">OR CONTINUE WITH</span>
                     </div>
                 </div>
 
                 <x-button
                     link="{{ route('auth.google.redirect') }}"
                     external
-                    class="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 h-12 rounded-xl"
+                    class="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 h-12 rounded-xl dark:bg-[#181A1F] dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                     <img src="{{ asset('assets/images/google-icon.png') }}" alt="google" class="w-5 h-5 mr-2" />
                     <span class="font-bold">Google Account</span>
                 </x-button>
 
                 <div class="pt-6 text-center">
-                    <p class="text-xs font-medium text-gray-500">
+                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                         Don't have an account?
                         <a href="{{ route('user.register') }}" wire:navigate class="font-bold text-[#1F6F5F] hover:text-[#2FA084] transition-colors ml-1">Create one now</a>
                     </p>

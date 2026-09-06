@@ -11,7 +11,7 @@
     $postRoute = Auth::check() ? route('user.products.create') : route('user.login');
 @endphp
 
-<div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-[#101114] dark:text-gray-100">
+<div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-gray-900 dark:text-gray-100">
     @livewire('components.user.search-filter-component')
 
     <section class="mx-auto grid max-w-370 grid-cols-1 gap-4 px-3 pb-16 pt-4 lg:grid-cols-[280px_minmax(0,1fr)_230px] lg:px-4">
@@ -133,7 +133,7 @@
 
                 <div id="trending-carousel" class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
                     @forelse($trendingProducts as $product)
-                        <a href="{{ $targetUrl($product) }}" wire:navigate class="group min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-[#101114] sm:min-w-47.5 lg:min-w-45">
+                        <a href="{{ $targetUrl($product) }}" wire:navigate class="group min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-gray-900 sm:min-w-47.5 lg:min-w-45">
                             <div class="aspect-4/3 relative bg-gray-100 dark:bg-gray-800">
                                 @if($product->image)
                                     <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover transition group-hover:scale-105">
