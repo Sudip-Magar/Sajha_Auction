@@ -82,7 +82,23 @@
 
                                 <x-input label="End Time" wire:model="auction_end_time" type="time" icon="o-clock" />
 
-                                <x-input label="Starting Bid (Rs.) *" wire:model.live="starting_bid" type="number" step="0.01" icon="o-banknotes" />
+                                <div>
+                                    <x-input label="Starting Bid (Rs.) *" wire:model.live="starting_bid" type="number" step="0.01" icon="o-banknotes" hint="Actual starting price used by the auction" />
+                                    @if($this->estimatedValue)
+                                        <div class="mt-2 p-2.5 bg-violet-50 rounded-xl border border-violet-200 flex items-center justify-between gap-2">
+                                            <div class="text-[11px] text-violet-900 font-medium">
+                                                <span class="font-bold">Estimated Value:</span> Rs. {{ number_format($this->estimatedValue, 2) }}
+                                                <br>
+                                                <span class="font-bold">Suggested Starting Price (80%):</span> Rs. {{ number_format($this->suggestedStartingPrice, 2) }}
+                                            </div>
+                                            <button type="button" wire:click="applySuggestedStartingPrice" class="text-[11px] font-black text-violet-700 hover:text-violet-900 underline shrink-0">
+                                                Apply
+                                            </button>
+                                        </div>
+                                    @else
+                                        <p class="text-[11px] text-gray-400 mt-2">Add a retail price, purchase date and condition above to see an estimated value.</p>
+                                    @endif
+                                </div>
                                 <div>
                                     <x-input label="Reserve Price (Rs.)" wire:model="reserve_price" type="number" step="0.01" icon="o-shield-check" hint="Minimum acceptable price (Algorithm 1)" />
                                     @if($this->recommendedReserve)
@@ -116,11 +132,13 @@
 
                         <x-select label="Category" wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
 
-                        <x-select label="Condition" wire:model="condition" :options="$conditionOptions" icon="o-sparkles" />
+                        <x-select label="Condition" wire:model.live="condition" :options="$conditionOptions" icon="o-sparkles" />
 
                         <x-input label="Usage Duration (for second-hand)" wire:model="usage_duration" placeholder="e.g. 6 Months / 1 Year" icon="o-clock" hint="How long the product was used" />
 
-                        <x-input label="Retail / Original Price (Rs.)" wire:model="retail_price" type="number" step="0.01" icon="o-banknotes" hint="MSRP / Original Buying Price" />
+                        <x-input label="Retail / Original Price (Rs.)" wire:model.live="retail_price" type="number" step="0.01" icon="o-banknotes" hint="MSRP / Original Buying Price" />
+
+                        <x-input label="Purchase Date" wire:model.live="purchase_date" type="date" icon="o-calendar-days" hint="When you originally bought the item (used for estimated value)" />
 
                         @if($listing_type === 'direct_seller')
                             <x-input label="Selling Price (Rs.)" wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />

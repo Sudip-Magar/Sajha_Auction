@@ -11,6 +11,7 @@ use App\Models\ProductImage;
 use App\Models\SubCategory;
 use App\Notifications\NewProductUploadedNotification;
 use App\Services\AuctionEngineService;
+use App\Services\AuctionValuationService;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -42,6 +43,8 @@ class ManageProduct extends Component
     public string $condition = 'like-new';
 
     public ?string $usage_duration = null;
+
+    public ?string $purchase_date = null;
 
     public mixed $retail_price = null;
 
@@ -133,6 +136,7 @@ class ManageProduct extends Component
         $this->listing_type = $this->product->listing_type->value;
         $this->condition = $this->product->condition;
         $this->usage_duration = $this->product->usage_duration;
+        $this->purchase_date = $this->product->purchase_date?->format('Y-m-d');
         $this->retail_price = (float) $this->product->retail_price;
         $this->sale_price = (float) $this->product->sale_price;
         $this->negotiable = $this->product->negotiable?->value ?? ProductNegotiability::FIXED->value;
@@ -222,6 +226,28 @@ class ManageProduct extends Component
         }
     }
 
+    public function getEstimatedValueProperty(): ?float
+    {
+        return AuctionValuationService::calculateEstimatedValue(
+            $this->retail_price !== null && $this->retail_price !== '' ? (float) $this->retail_price : null,
+            $this->purchase_date ? Carbon::parse($this->purchase_date) : null,
+            $this->condition
+        );
+    }
+
+    public function getSuggestedStartingPriceProperty(): ?float
+    {
+        return AuctionValuationService::calculateSuggestedStartingPrice($this->estimatedValue);
+    }
+
+    public function applySuggestedStartingPrice(): void
+    {
+        if ($this->suggestedStartingPrice) {
+            $this->starting_bid = $this->suggestedStartingPrice;
+            $this->success('Applied suggested starting price: Rs. '.number_format($this->suggestedStartingPrice, 2));
+        }
+    }
+
     public function save(): void
     {
         $user = Auth::user();
@@ -245,6 +271,7 @@ class ManageProduct extends Component
             'listing_type' => 'required|in:'.$allowedListingTypes,
             'condition' => 'required|in:new,like-new,lightly-used,well-used,refurbished,used',
             'usage_duration' => 'nullable|string|max:255',
+            'purchase_date' => 'nullable|date|before_or_equal:today',
             'retail_price' => 'nullable|numeric|min:0',
             'sale_price' => 'required_if:listing_type,direct_seller|nullable|numeric|min:0',
             'negotiable' => 'required|in:'.ProductNegotiability::NEGOTIABLE->value.','.ProductNegotiability::FIXED->value,
@@ -301,6 +328,7 @@ class ManageProduct extends Component
                     'specifications' => $this->specifications,
                     'condition' => $this->condition,
                     'usage_duration' => $this->usage_duration,
+                    'purchase_date' => $this->purchase_date,
                     'quantity' => $this->quantity,
                     'retail_price' => $this->retail_price,
                     'sale_price' => $this->listing_type === 'direct_seller' ? $this->sale_price : null,

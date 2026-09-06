@@ -240,6 +240,21 @@
                     </div>
                 </div>
 
+                @if($auction->product->estimated_value)
+                    <div class="mb-4 p-4 bg-violet-50 dark:bg-violet-950/30 rounded-2xl border border-violet-200 dark:border-violet-900/60">
+                        <p class="text-[10px] font-black text-violet-500 dark:text-violet-300 uppercase tracking-widest mb-1">Estimated Value (Reference Only)</p>
+                        <p class="text-lg font-black text-violet-700 dark:text-violet-300">Rs. {{ number_format($auction->product->estimated_value, 2) }}</p>
+                        <p class="text-[10px] text-violet-500 dark:text-violet-400 mt-1">Based on original price, age & condition. This is not a guarantee of resale value.</p>
+                    </div>
+                @endif
+
+                @if($auction->product->retail_price && $auction->current_price > $auction->product->retail_price)
+                    <div class="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-2">
+                        <x-icon name="o-exclamation-triangle" class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <p class="text-xs font-bold text-amber-800 dark:text-amber-200">Current bid is above the original purchase price of Rs. {{ number_format($auction->product->retail_price, 2) }}.</p>
+                    </div>
+                @endif
+
                 @if($auction->isLive() && $canPlaceBid)
                     <form wire:submit="placeBid" class="space-y-4">
 

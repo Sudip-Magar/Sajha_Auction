@@ -1,0 +1,296 @@
+ESTIMATED VALUE / DEPRECIATION FEATURE — CHANGE LOG
+====================================================
+Branch: sudeep/second-device
+Feature: System-calculated estimated value + suggested starting price for
+auction products, based on original purchase price, age, and condition.
+
+This file explains, for every change: WHAT changed, WHERE, WHY, and WHAT IT
+AFFECTS. It is a plain-language companion to the actual code/tests.
+
+
+------------------------------------------------------------------
+0. WHAT WAS ALREADY THERE (reused, not duplicated)
+------------------------------------------------------------------
+Before writing anything, the existing codebase was inspected. These already
+existed and were reused as-is:
+
+- products.retail_price   -> already means "original purchase price"
+                              (form label: "Retail / Original Price (Rs.)",
+                              hint: "MSRP / Original Buying Price").
+- products.condition       -> already a free-text condition field with
+                              values: new, like-new, lightly-used,
+                              well-used, refurbished, used.
+- traditional_auctions.reserve_price -> reserve price already exists, so no
+                              new reserve concept was introduced.
+- app/Services/AuctionEngineService.php -> the project's existing pattern
+                              for pricing/auction algorithms (static
+                              methods, e.g. calculateOptimalReserve,
+                              calculateEquilibriumBid). The new valuation
+                              service follows the same style.
+- ManageProduct's getRecommendedReserveProperty() + "Apply" button pattern
+                              (Myerson reserve suggestion) -> copied for the
+                              new estimated-value suggestion.
+
+Only ONE new field was actually missing: purchase_date. Nothing else was
+added to the database.
+
+
+------------------------------------------------------------------
+1. NEW FILE: database/migrations/2026_09_06_130000_add_purchase_date_to_products_table.php
+------------------------------------------------------------------
+WHAT:    Adds one nullable column: products.purchase_date (date).
+WHERE:   New migration file, runs after all existing product migrations.
+WHY:     This was the only valuation input genuinely missing from the
+         schema. original_price and condition already existed (see #0), so
+         no other columns were added — no estimated_value or
+         suggested_starting_price columns were created in the database
+         (see item #3 for why).
+AFFECTS: products table only. Nullable, so existing rows/products are
+         unaffected until a seller fills it in. Must run
+         `php artisan migrate` to apply this to a real database.
+
+
+------------------------------------------------------------------
+2. NEW FILE: app/Services/AuctionValuationService.php
+------------------------------------------------------------------
+WHAT:    A single, reusable service class containing all the valuation math:
+         - depreciationRateForAge(int $ageInMonths): float
+               0-6mo=10%, 6-12mo=18%, 1-2yr=30%, 2-3yr=45%,
+               3-4yr=60%, 4-5yr=70%, 5yr+=75%
+         - conditionFactor(?string $condition): float
+               maps the EXISTING products.condition string values onto
+               Excellent/Good/Fair/Poor multipliers:
+                 new, like-new          -> 1.05 (Excellent)
+                 lightly-used, refurbished -> 1.00 (Good)
+                 well-used, used        -> 0.90 (Fair)
+                 poor, heavily-used      -> 0.80 (Poor, not yet reachable
+                                            from the current dropdown, kept
+                                            for future use)
+                 anything unrecognized  -> 1.00 (neutral Good default,
+                                            never a guess)
+         - calculateEstimatedValue(originalPrice, purchaseDate, condition)
+               = originalPrice * (1 - depreciationRate) * conditionFactor
+               returns NULL if originalPrice is missing/<=0, or
+               purchaseDate is missing/in the future — never invents a
+               number.
+         - calculateSuggestedStartingPrice(estimatedValue, ratio = 0.80)
+               = estimatedValue * 0.80 (returns NULL if estimatedValue is
+               null/<=0)
+WHERE:   New file, app/Services/AuctionValuationService.php.
+WHY:     Requirement: "do not duplicate the calculation in multiple
+         controllers/components/views" — this is the single source of
+         truth for the math, called from both the Product model (for the
+         bidder page) and the ManageProduct Livewire component (for the
+         seller form), so the two surfaces can never disagree.
+         Depreciation table and condition factors are plain class methods
+         (not hardcoded inline), so later this can be swapped for
+         per-category rules or admin-configurable settings without
+         touching any of the calling code.
+AFFECTS: Nothing existing — this is a brand-new, standalone class with no
+         side effects. Only called by the two files below.
+
+
+------------------------------------------------------------------
+3. EDITED: app/Models/Product.php
+------------------------------------------------------------------
+WHAT CHANGED:
+  - Added 'purchase_date' to $fillable (line ~29).
+  - Added 'purchase_date' => 'date' to $casts (line ~50), so
+    $product->purchase_date is automatically a Carbon date object.
+  - Added two new accessor methods at the bottom of the class:
+      getEstimatedValueAttribute()          -> $product->estimated_value
+      getSuggestedStartingPriceAttribute()  -> $product->suggested_starting_price
+    Both simply call AuctionValuationService with the product's own
+    retail_price / purchase_date / condition.
+
+WHY:
+  - These two values are NOT stored as database columns. They are computed
+    on-demand every time they're accessed. This was a deliberate choice:
+      * They can never go stale (e.g. if a seller edits condition after
+        listing, the estimated value updates automatically).
+      * They can never accidentally overwrite retail_price (the actual
+        original price the seller paid) — the requirement explicitly said
+        "do not overwrite original_price with estimated_value", and since
+        these are computed getters, there is no code path that writes to
+        retail_price at all.
+
+AFFECTS:
+  - Any code that reads $product->estimated_value or
+    $product->suggested_starting_price (currently: the auction detail
+    blade view). Reading these on a product with missing retail_price or
+    purchase_date safely returns null — no errors, no exceptions.
+  - Does NOT affect existing Product behavior, relationships, or any other
+    accessor. Existing code that never touches these two new attributes is
+    completely unaffected.
+
+
+------------------------------------------------------------------
+4. EDITED: app/Livewire/User/ManageProduct.php
+   (this is the seller's "create/edit product & auction listing" form logic)
+------------------------------------------------------------------
+WHAT CHANGED:
+  a) New import: App\Services\AuctionValuationService.
+  b) New public property: `public ?string $purchase_date = null;`
+     (near the other Product Basic Info properties).
+  c) In loadProductData(): when editing an existing product, now also loads
+     `$this->purchase_date = $this->product->purchase_date?->format('Y-m-d');`
+  d) Two new Livewire "computed properties" (same convention as the
+     existing getRecommendedReserveProperty()):
+       getEstimatedValueProperty()         -> accessible in blade as
+                                               $this->estimatedValue
+       getSuggestedStartingPriceProperty() -> accessible in blade as
+                                               $this->suggestedStartingPrice
+     These recalculate live from whatever the seller has currently typed
+     into the form (retail_price, purchase_date, condition) — even before
+     the product is saved.
+  e) New method applySuggestedStartingPrice() — when the seller clicks
+     "Apply" next to the suggestion, it copies the suggested value into
+     $this->starting_bid. The seller can still overwrite it afterward; it
+     is never forced.
+  f) New validation rule: `'purchase_date' => 'nullable|date|before_or_equal:today'`
+     added to the save() rules array — rejects a future purchase date,
+     allows blank or any past/today date.
+  g) `'purchase_date' => $this->purchase_date` added to the $productData
+     array that gets saved to the database in save().
+
+WHY:
+  - Mirrors the existing seller-form pattern used for the Myerson optimal
+    reserve-price suggestion, so the UX and code style stay consistent
+    with what was already there rather than inventing a new pattern.
+  - Validation rule enforces the "purchase date cannot be in the future"
+    business rule at the point of user input, in addition to the service
+    itself refusing to compute a value from a future date as a second,
+    defensive layer.
+
+AFFECTS:
+  - Only the product create/edit flow. Existing fields (name, description,
+    category, retail_price, condition, sale_price, images, auction
+    scheduling, starting_bid, reserve_price, min_bid_increment, etc.) are
+    untouched — purchase_date is purely additive.
+  - Sellers who leave Purchase Date blank see no estimated value box (a
+    plain hint text instead) and everything else behaves exactly as before.
+
+
+------------------------------------------------------------------
+5. EDITED: resources/views/livewire/user/manage-product.blade.php
+   (the actual seller-facing HTML/Blade form)
+------------------------------------------------------------------
+WHAT CHANGED:
+  a) Added a new input field: "Purchase Date" (HTML date picker), placed
+     directly after "Retail / Original Price (Rs.)" in the Basic
+     Information section.
+  b) Changed `wire:model` to `wire:model.live` on the Retail/Original Price
+     and Condition fields, so the estimated value recalculates live as the
+     seller types/selects, without needing to submit the form.
+  c) Wrapped the existing "Starting Bid" input in a <div> and added a
+     violet info panel right underneath it, shown only when an estimated
+     value can be calculated:
+       "Estimated Value: Rs. X"
+       "Suggested Starting Price (80%): Rs. Y"
+       [Apply] button
+     If no estimate is available yet, a small grey hint is shown instead:
+       "Add a retail price, purchase date and condition above to see an
+       estimated value."
+     This sits visually right next to the pre-existing green "Algorithm 3
+     Myerson Recommendation" reserve-price box, so both suggestions are
+     visible together when the seller is deciding on prices.
+
+WHY:
+  - Directly satisfies the requirement to show Original Purchase Price,
+    Purchase Date, Condition, Estimated Value, Suggested Starting Price,
+    and Actual Starting Price "where appropriate in the seller auction
+    creation/edit form" — placed next to the fields they relate to instead
+    of a separate disconnected section.
+  - The suggestion is advisory only (an "Apply" button, not automatic) per
+    the requirement: "Do not force the calculated value as the actual
+    auction starting price."
+
+AFFECTS:
+  - Only the auction-listing section of the form (which already only
+    renders when Listing Type = Auction). Direct-sell listings are
+    unaffected. No existing field was removed, renamed, or had its
+    behavior changed — only added `.live` to two `wire:model` bindings so
+    they now trigger a Livewire round-trip on each change (previously they
+    only updated on form submit); this has no effect on what gets saved.
+
+
+------------------------------------------------------------------
+6. EDITED: resources/views/livewire/user/auction-detail.blade.php
+   (the bidder-facing live auction page)
+------------------------------------------------------------------
+WHAT CHANGED:
+  Two new conditional blocks were added directly under the existing
+  "Current Standing Price / Minimum bid increase" stats grid, and before
+  the bidding form:
+    a) A violet "Estimated Value (Reference Only)" card — shown only if
+       $auction->product->estimated_value is not null. Includes a small
+       disclaimer: "Based on original price, age & condition. This is not
+       a guarantee of resale value."
+    b) An amber warning banner — shown only if the product has a
+       retail_price AND the auction's current_price exceeds it:
+       "Current bid is above the original purchase price of Rs. X."
+
+WHY:
+  - Requirement: show estimated value as a reference on the auction detail
+    page, and show a non-blocking warning (never a rejection) when the
+    current bid exceeds the original purchase price. The wording avoids
+    ever claiming the bidder is "losing money", per the requirement, since
+    the system cannot know a bidder's personal valuation.
+
+AFFECTS:
+  - Purely additive/display-only. Nothing about bid submission, minimum
+    bid calculation, proxy bidding, or auction settlement was touched —
+    bids above the original price or estimated value already worked
+    before this change and continue to work exactly the same way. These
+    two blocks simply render (or don't render) based on data that was
+    already being loaded onto the page.
+
+
+------------------------------------------------------------------
+7. NEW FILE: tests/Feature/AuctionValuationServiceTest.php
+------------------------------------------------------------------
+WHAT:    9 automated tests covering:
+         1. Rs 200,000 item, 1 year old, Good condition       -> 140,000 / 112,000
+         2. Same item, Excellent condition                    -> 147,000 / 117,600
+         3. Rs 200,000 item, 3 years old                       -> 80,000
+         4. Item purchased today (brand-new bracket)           -> 189,000
+         5. Poor-condition item                                -> 112,000
+         6. Missing retail_price / purchase_date -> returns null (never invented)
+         7. Future purchase date -> rejected by validation rule; service
+            also refuses to compute from it
+         8/9. A bid of Rs 210,000 (above both the Rs 200,000 original price
+              and the Rs 140,000 estimated value) is accepted normally
+         10. After all of the above, product.retail_price is still exactly
+             the original 200,000 — never overwritten by estimated_value.
+WHERE:   tests/Feature/AuctionValuationServiceTest.php
+WHY:     Directly covers every scenario requested, using the same Pest
+         testing style already used in tests/Feature/AuctionEngineTest.php.
+AFFECTS: Test suite only. Ran the full existing test suite before and
+         after this feature — the same 4 pre-existing failures occurred
+         both times (unrelated: AdminUserManagementTest,
+         AuctionApplicationTest, DirectSellMarketplaceTest — issues that
+         exist on the unmodified codebase and are not caused by this
+         feature). All 9 new tests pass.
+
+
+------------------------------------------------------------------
+8. WHAT WAS DELIBERATELY NOT CHANGED
+------------------------------------------------------------------
+- app/Services/AuctionEngineService.php (bid processing, winner
+  determination, step increment) — untouched. Bids above the original
+  price or estimated value already worked; no restriction was added.
+- No new "reserve price" concept — reuses the existing
+  traditional_auctions.reserve_price as-is.
+- No new condition enum/table — reuses the existing free-text
+  products.condition field via a mapping inside AuctionValuationService.
+- No estimated_value / suggested_starting_price database columns — kept
+  as computed values only (see item #3 for why).
+
+
+------------------------------------------------------------------
+9. OUTSTANDING / MANUAL STEP REQUIRED
+------------------------------------------------------------------
+Run `php artisan migrate` against the real dev/production database to
+actually add the products.purchase_date column — this was only verified
+against the in-memory SQLite test database, not the project's MySQL
+database (sajha_auction).

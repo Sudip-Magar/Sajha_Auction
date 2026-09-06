@@ -1,0 +1,392 @@
+I am building a Laravel auction system. I want to implement an estimated-value/depreciation feature for auction products.
+
+IMPORTANT:
+
+* First inspect the existing codebase thoroughly.
+* Understand the existing auction/product models, migrations, Livewire components, enums, validation, database structure, and UI before making changes.
+* Do NOT unnecessarily create duplicate tables, fields, models, or logic.
+* Follow the existing project's coding conventions and architecture.
+* Reuse existing fields and components where appropriate.
+* Do not break existing auction functionality.
+
+FEATURE REQUIREMENTS
+
+The purpose of this feature is to provide sellers and bidders with an estimated value of an auction item based on its original purchase price, age, and condition.
+
+Example:
+
+Original purchase price = Rs. 200,000
+Purchase date = 1 year ago
+Condition = Excellent
+
+Base estimated value:
+Rs. 200,000 × (1 - 20% depreciation)
+= Rs. 160,000
+
+Then apply the condition adjustment.
+
+Suggested condition adjustments:
+
+Excellent = +5%
+Good = 0%
+Fair = -10%
+Poor = -20%
+
+For Excellent:
+
+Rs. 160,000 × 1.05
+= Rs. 168,000 estimated value
+
+The system should then suggest a starting auction price around 75–85% of the estimated value.
+
+For example:
+
+Estimated value = Rs. 168,000
+Suggested starting price = approximately Rs. 126,000–143,000
+
+However, the system must NOT force the auction to stay below the original purchase price.
+
+If bidding exceeds the original purchase price, the auction should continue normally.
+
+For example:
+
+Original price = Rs. 200,000
+Current bid = Rs. 210,000
+
+This is allowed.
+
+The system may display a warning/reference message such as:
+"Current bid exceeds the original purchase price."
+
+Do NOT automatically reject bids above the original purchase price.
+
+DEPRECIATION RULES
+
+Use the following initial laptop depreciation rules unless the existing application already has a better configurable depreciation mechanism:
+
+0–6 months     = 10%
+6–12 months    = 15–20%
+1–2 years      = 25–35%
+2–3 years      = 40–50%
+3–4 years      = 55–65%
+4–5 years      = 65–75%
+5+ years       = 75%+
+
+For the initial implementation, use a deterministic value rather than a range.
+
+Recommended values:
+
+0–6 months     = 10%
+6–12 months    = 18%
+1–2 years      = 30%
+2–3 years      = 45%
+3–4 years      = 60%
+4–5 years      = 70%
+5+ years       = 75%
+
+Formula:
+
+base_estimated_value =
+original_price × (1 - depreciation_rate)
+
+Then:
+
+condition_adjusted_value =
+base_estimated_value × condition_factor
+
+Condition factors:
+
+Excellent = 1.05
+Good      = 1.00
+Fair      = 0.90
+Poor      = 0.80
+
+STARTING PRICE
+
+Calculate a suggested starting price from the estimated value.
+
+Use approximately 80% as the default:
+
+suggested_starting_price =
+estimated_value × 0.80
+
+The seller should still be able to manually change the starting price if the existing auction design allows seller-defined prices.
+
+Do not force the calculated value as the actual auction starting price unless the existing business rules require it.
+
+RESERVE PRICE
+
+If the existing auction system supports a reserve price, integrate the estimated value with it.
+
+Do NOT automatically make the estimated value the reserve price.
+
+If reserve price functionality does not exist, do not introduce it unless necessary. Instead, document where it could be added later.
+
+IMPORTANT DISTINCTION
+
+Keep these concepts separate:
+
+1. original_price
+
+   * The price the seller originally paid.
+
+2. estimated_value
+
+   * System-calculated reference value based on age/depreciation/condition.
+
+3. suggested_starting_price
+
+   * System suggestion for where bidding can begin.
+
+4. starting_price
+
+   * Actual price used by the auction.
+
+5. reserve_price
+
+   * Minimum amount accepted by seller, if supported by the existing system.
+
+6. current_bid
+
+   * Current highest bidder's amount.
+
+7. final_price
+
+   * Winning auction price after auction completion.
+
+Do not overwrite original_price with estimated_value.
+
+UI REQUIREMENTS
+
+Where appropriate in the seller auction creation/edit form, show:
+
+Original Purchase Price
+Purchase Date
+Product Condition
+Estimated Value
+Suggested Starting Price
+Actual Starting Price
+
+Example:
+
+Original Purchase Price: Rs. 200,000
+Purchase Date: 2025-08-15
+Condition: Excellent
+
+Estimated Value: Rs. 168,000
+Suggested Starting Price: Rs. 134,400
+
+The estimated value and suggested starting price should preferably be calculated automatically when the required fields are available.
+
+If the project uses Livewire/Alpine.js, follow the existing architecture instead of introducing unnecessary JavaScript.
+
+BIDDER UI
+
+On the auction detail page, show the estimated value as a reference if this fits the existing UI.
+
+For example:
+
+Estimated Value: Rs. 168,000
+Current Bid: Rs. 175,000
+
+If current bid exceeds the original purchase price, display a non-blocking warning:
+
+"Current bid is above the original purchase price."
+
+Do NOT say that the bidder is definitely losing money because the system cannot know the bidder's personal valuation.
+
+IMPORTANT BUSINESS RULE
+
+Original purchase price is NOT the maximum auction price.
+
+Example:
+
+Original price = Rs. 200,000
+Estimated value = Rs. 160,000
+Current bid = Rs. 210,000
+
+Rs. 210,000 is valid.
+
+The system should not prevent the bid merely because it exceeds the original purchase price.
+
+ARCHITECTURE
+
+Before implementation:
+
+1. Inspect the database schema.
+2. Find the existing auction/product tables.
+3. Find the auction creation/edit form.
+4. Find the auction detail/bidding component.
+5. Find existing product condition enums or fields.
+6. Find existing price fields.
+7. Find existing Livewire components.
+8. Find existing Alpine.js logic if applicable.
+9. Determine whether purchase date/original purchase price already exists.
+10. Reuse existing structures wherever possible.
+
+Then propose the minimum required changes.
+
+DATABASE
+
+If required fields do not already exist, create an appropriate migration.
+
+Potential fields include:
+
+original_price
+purchase_date
+condition
+estimated_value
+suggested_starting_price
+
+But ONLY add fields that are actually missing after inspecting the existing schema.
+
+Use appropriate database types for monetary values. Follow the existing project's convention for decimal/money fields.
+
+CONDITION
+
+If a product condition enum already exists, reuse it.
+
+If not, create an appropriate enum according to the project's existing enum conventions.
+
+Suggested values:
+
+EXCELLENT
+GOOD
+FAIR
+POOR
+
+Make the condition labels user-friendly in the UI.
+
+CALCULATION LOGIC
+
+Do not duplicate the calculation in multiple controllers/components/views.
+
+Create a reusable service, action, domain class, or model method according to the architecture already used in the project.
+
+For example, conceptually:
+
+AuctionValuationService
+
+with responsibility for:
+
+* calculating depreciation rate
+* calculating base estimated value
+* applying condition adjustment
+* calculating estimated value
+* calculating suggested starting price
+
+But first inspect the codebase and choose the architecture that best matches the existing project.
+
+ROUNDING
+
+Use the project's existing money/decimal conventions.
+
+Do not use floating-point arithmetic carelessly for monetary calculations.
+
+Prefer decimal-safe calculations where appropriate.
+
+VALIDATION
+
+Validate:
+
+* original purchase price must be positive when provided
+* purchase date cannot be in the future
+* condition must be a valid supported value
+* calculated estimated value should never be negative
+* starting price must follow existing auction validation rules
+
+Do not introduce validation that conflicts with existing business rules.
+
+EDGE CASES
+
+Handle:
+
+* missing original purchase price
+* missing purchase date
+* missing condition
+* newly purchased products
+* purchase date today
+* very old products
+* zero/negative price
+* future purchase date
+* auction price exceeding original price
+* auction price exceeding estimated value
+
+If required valuation inputs are missing, do not invent values. Keep estimated value/suggested price null or follow an existing project convention.
+
+TESTING
+
+After implementation, add/update tests for at least:
+
+1. Rs. 200,000 item purchased 1 year ago with GOOD condition.
+2. Rs. 200,000 item purchased 1 year ago with EXCELLENT condition.
+3. Rs. 200,000 item purchased 3 years ago.
+4. New item purchased recently.
+5. Poor-condition item.
+6. Missing valuation information.
+7. Future purchase date validation.
+8. Auction bid exceeding original purchase price.
+9. Auction bid exceeding estimated value.
+10. Ensure original price is never overwritten by estimated value.
+
+For the 1-year GOOD condition example, using the deterministic 30% depreciation:
+
+Original price = Rs. 200,000
+Depreciation = 30%
+Base estimated value = Rs. 140,000
+Condition factor = 1.00
+Estimated value = Rs. 140,000
+Suggested starting price at 80% = Rs. 112,000
+
+For EXCELLENT:
+
+Base estimated value = Rs. 140,000
+Excellent adjustment = +5%
+Estimated value = Rs. 147,000
+Suggested starting price = Rs. 117,600
+
+IMPORTANT:
+These numbers are only the initial algorithm and should be implemented in a way that can later be made configurable.
+
+FUTURE EXTENSIBILITY
+
+Design the calculation so that later we can support:
+
+* different depreciation rules by product category
+* current market price
+* brand/model demand
+* warranty remaining
+* accessories
+* usage hours
+* repair history
+* condition-specific adjustments
+* manually overridden estimated value
+* configurable depreciation percentages from admin settings
+
+Do NOT implement all of these now unless they already exist. Just avoid designing the current implementation in a way that makes future extension difficult.
+
+IMPLEMENTATION PROCESS
+
+Follow this order:
+
+1. Inspect the project.
+2. Identify existing relevant models/tables/components.
+3. Explain briefly what you found and what files you plan to change.
+4. Implement the minimum required changes.
+5. Run migrations if appropriate.
+6. Run relevant tests.
+7. Fix any errors.
+8. Check for regressions in existing auction functionality.
+9. Provide a concise summary of:
+
+   * files changed
+   * database changes
+   * calculation implemented
+   * UI changes
+   * tests performed
+   * any assumptions made
+
+Do not rewrite unrelated parts of the application.
+Do not create duplicate functionality.
+Do not remove existing auction functionality.
+Do not hard-limit auction prices based on original price or estimated value.
