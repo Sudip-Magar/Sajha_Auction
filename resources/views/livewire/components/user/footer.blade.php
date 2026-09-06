@@ -41,6 +41,7 @@
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">How it Works</a></li>
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Live Auctions</a></li>
                     <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Upcoming Items</a></li>
+                    <li><a href="{{ route('faqs') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">FAQs</a></li>
                 </ul>
             </div>
 

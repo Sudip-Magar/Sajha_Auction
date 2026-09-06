@@ -5,6 +5,7 @@ use App\Livewire\Admin\AuctionApplication;
 use App\Livewire\Admin\AuctionApplicationDetail;
 use App\Livewire\Admin\CategorySetup;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
+use App\Livewire\Admin\Faqs as AdminFaqs;
 use App\Livewire\Admin\Notifications as AdminNotifications;
 use App\Livewire\Admin\ProductDetail as AdminProductDetail;
 use App\Livewire\Admin\SellerRequests;
@@ -16,6 +17,7 @@ use App\Livewire\Auth\User\CompleteProfile;
 use App\Livewire\Auth\User\Login;
 use App\Livewire\Auth\User\Register;
 use App\Livewire\Auth\User\VerifyOtp;
+use App\Livewire\Faqs;
 use App\Livewire\Home;
 use App\Livewire\User\AuctionDetail;
 use App\Livewire\User\Cart;
@@ -39,6 +41,7 @@ Route::get('/', function () {
 });
 
 Route::get('/home', Home::class)->name('home');
+Route::get('/faqs', Faqs::class)->name('faqs');
 Route::redirect('/products', '/home')->name('user.marketplace-products');
 Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.products.show');
 Route::get('/register', Register::class)->name('user.register');
@@ -83,6 +86,7 @@ Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/users/{user}', AdminUserDetail::class)->name('admin.users.show');
     Route::get('/category-setup', CategorySetup::class)->name('admin.category-setup');
     Route::get('/sub-category-setup', SubCategorySetup::class)->name('admin.sub-category-setup');
+    Route::get('/faqs', AdminFaqs::class)->name('admin.faqs');
     Route::get('/seller-requests', SellerRequests::class)->name('admin.seller-requests');
     Route::get('/products', App\Livewire\Admin\Products::class)->name('admin.products');
     Route::get('/products/{product}', AdminProductDetail::class)->name('admin.products.show');

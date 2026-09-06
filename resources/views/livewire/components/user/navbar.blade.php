@@ -2,6 +2,14 @@
         mobileMenuOpen: false,
         userDropdownOpen: false,
         darkMode: document.documentElement.classList.contains('dark'),
+        init() {
+            // Keep the toggle icon in sync with the <html> class even when it
+            // changes outside this component (e.g. re-applied after wire:navigate
+            // strips it, or when this component itself is rebuilt on navigation).
+            new MutationObserver(() => {
+                this.darkMode = document.documentElement.classList.contains('dark');
+            }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        },
         toggleTheme() {
             this.darkMode = ! this.darkMode;
             document.documentElement.classList.toggle('dark', this.darkMode);
@@ -98,13 +106,6 @@
                         ])></span>
                     </a>
                 @endauth
-
-                <a href="{{ route('home') }}#buyer-safety"
-                   class="text-sm font-semibold text-gray-600 hover:text-[#2FA084] transition-colors relative group dark:text-gray-300">
-                    FAQ
-                    <span
-                        class="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#2FA084] transition-all duration-300 group-hover:w-full"></span>
-                </a>
             </div>
 
             <!-- Right Side Actions -->
@@ -424,11 +425,6 @@
                     My Orders
                 </a>
             @endauth
-
-            <a href="{{ route('home') }}#buyer-safety"
-               class="block px-4 py-3 rounded-xl text-base font-bold text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all dark:text-gray-200 dark:hover:bg-gray-800">
-                FAQ
-            </a>
 
             @guest
                 <div class="pt-4 grid grid-cols-2 gap-3">

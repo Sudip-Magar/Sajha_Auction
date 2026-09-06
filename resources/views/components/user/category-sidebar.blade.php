@@ -59,7 +59,7 @@
                             <x-icon name="o-chevron-right" class="ui-icon shrink-0 transition-transform" ::class="open ? 'rotate-90' : ''" />
                         </span>
                     </button>
-                    <div x-show="open" x-transition class="border-t border-gray-100 bg-gray-50/70 dark:border-gray-800 dark:bg-[#101114]" style="{{ $hasActiveChild($category) ? '' : 'display: none;' }}">
+                    <div x-show="open" x-transition class="border-t border-gray-100 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-900" style="{{ $hasActiveChild($category) ? '' : 'display: none;' }}">
                         @foreach($category->children as $childCategory)
                             <a
                                 href="{{ $categoryUrl($childCategory) }}"
