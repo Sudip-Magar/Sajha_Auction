@@ -29,7 +29,7 @@
                             Confirm Order
                         </button>
                     @endif
-                    @if(($order->status === 'confirmed' || $order->status === 'meetup_scheduled'))
+                    @if(($order->status === 'confirmed' || $order->status === 'meetup_scheduled') && Auth::id() === $order->seller_id)
                         <button type="button" wire:click="updateOrderStatus('completed')" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
                             Mark Completed & Handed Over
                         </button>

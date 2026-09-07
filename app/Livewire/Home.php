@@ -17,8 +17,6 @@ class Home extends Component
 {
     use Toast;
 
-    public $categorySearch = '';
-
     public function toggleWishlist(int $productId): void
     {
         $user = Auth::user();
@@ -138,7 +136,6 @@ class Home extends Component
                 'Services',
             ],
             'bookmarkedProductIds' => $wishlistedIds,
-            'wishlistedProductIds' => $wishlistedIds,
             'featuredProducts' => (clone $productsQuery)
                 ->where('is_featured', true)
                 ->latest()
@@ -161,7 +158,7 @@ class Home extends Component
     }
 
     /**
-     * @return array<int, array{eyebrow: string, title: string, copy: string, cta: string, icon: string, gradient: string}>
+     * @return array<int, array{eyebrow: string, title: string, copy: string, cta: string, icon: string, gradient: string, target: string}>
      */
     private function bannerSlides(): array
     {
@@ -173,6 +170,7 @@ class Home extends Component
                 'cta' => 'Explore Marketplace',
                 'icon' => 'o-shield-check',
                 'gradient' => 'linear-gradient(115deg, #1F6F5F 0%, #2FA084 100%)',
+                'target' => '#latest',
             ],
             [
                 'eyebrow' => 'Seller Tools',
@@ -181,6 +179,7 @@ class Home extends Component
                 'cta' => 'Upload Product',
                 'icon' => 'o-megaphone',
                 'gradient' => 'linear-gradient(115deg, #0F9F6E 0%, #20B6A8 100%)',
+                'target' => 'post',
             ],
             [
                 'eyebrow' => 'Trending Deals',
@@ -189,6 +188,7 @@ class Home extends Component
                 'cta' => 'View Trending',
                 'icon' => 'o-arrow-trending-up',
                 'gradient' => 'linear-gradient(115deg, #F59E0B 0%, #F97316 100%)',
+                'target' => '#trending',
             ],
         ];
     }

@@ -44,7 +44,7 @@
 
                 <div class="flex items-center justify-between pt-1">
                     <x-checkbox label="Remember me" wire:model="rememberMe" class="checkbox-primary text-xs font-bold" />
-                    <a href="#" class="text-xs font-bold text-[#1F6F5F] hover:text-[#2FA084] transition-colors">Forgot Password?</a>
+                    <a href="{{ route('password.forgot') }}" wire:navigate class="text-xs font-bold text-[#1F6F5F] hover:text-[#2FA084] transition-colors">Forgot Password?</a>
                 </div>
 
                 <x-button

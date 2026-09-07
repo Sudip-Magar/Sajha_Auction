@@ -88,7 +88,11 @@
                                     <p class="ui-small font-black uppercase tracking-widest text-white/80">{{ $slide['eyebrow'] }}</p>
                                     <h1 class="mt-2 max-w-lg text-[22px] font-black leading-tight sm:text-[30px]">{{ $slide['title'] }}</h1>
                                     <p class="mt-3 max-w-lg text-[12px] font-semibold leading-relaxed text-white/90 sm:text-[14px]">{{ $slide['copy'] }}</p>
-                                    <a href="#latest" class="mt-5 inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 font-black text-gray-950 shadow-sm">
+                                    <a
+                                        href="{{ $slide['target'] === 'post' ? $postRoute : $slide['target'] }}"
+                                        @if($slide['target'] === 'post') wire:navigate @endif
+                                        class="mt-5 inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 font-black text-gray-950 shadow-sm"
+                                    >
                                         {{ $slide['cta'] }}
                                         <x-icon name="o-arrow-right" class="ui-icon" />
                                     </a>
@@ -115,7 +119,7 @@
                 </div>
             </section>
 
-            <section class="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-[#181A1F]">
+            <section id="trending" class="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-[#181A1F]">
                 <div class="mb-3 flex items-center justify-between gap-3">
                     <h2 class="ui-heading flex items-center gap-2 font-black">
                         <x-icon name="o-arrow-trending-up" class="ui-icon-lg text-[#0C8FE8]" />
@@ -133,33 +137,60 @@
 
                 <div id="trending-carousel" class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
                     @forelse($trendingProducts as $product)
-                        <a href="{{ $targetUrl($product) }}" wire:navigate class="group min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-gray-900 sm:min-w-47.5 lg:min-w-45">
-                            <div class="aspect-4/3 relative bg-gray-100 dark:bg-gray-800">
-                                @if($product->image)
-                                    <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover transition group-hover:scale-105">
-                                @else
-                                    <div class="flex h-full items-center justify-center"><x-icon name="o-photo" class="h-9 w-9 text-gray-300" /></div>
-                                @endif
-                                <div class="absolute top-2 left-2">
-                                    @if($product->isAuction())
-                                        <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
-                                            <span x-text="label"></span>
-                                        </span>
+                        <div class="group relative min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-gray-900 sm:min-w-47.5 lg:min-w-45">
+                            <a href="{{ $targetUrl($product) }}" wire:navigate class="block">
+                                <div class="aspect-4/3 relative bg-gray-100 dark:bg-gray-800">
+                                    @if($product->image)
+                                        <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover transition group-hover:scale-105">
                                     @else
-                                        <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
-                                            DIRECT SELL
-                                        </span>
+                                        <div class="flex h-full items-center justify-center"><x-icon name="o-photo" class="h-9 w-9 text-gray-300" /></div>
                                     @endif
+                                    <div class="absolute top-2 left-2">
+                                        @if($product->isAuction())
+                                            <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                                <span x-text="label"></span>
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                                DIRECT SELL
+                                            </span>
+                                        @endif
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="p-2.5">
-                                <h3 class="line-clamp-2 min-h-9 font-black leading-snug text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
-                                <p class="ui-price mt-1 font-black text-[#0C8FE8]">
-                                    {{ $product->isAuction() ? 'Current Bid: ' : '' }}Rs {{ number_format((float) $priceFor($product)) }}
-                                </p>
-                                <span class="mt-2 inline-flex rounded-md bg-gray-100 px-2 py-1 ui-small font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $conditionLabel($product->condition) }}</span>
-                            </div>
-                        </a>
+                                <div class="p-2.5 pr-9">
+                                    <h3 class="line-clamp-2 min-h-9 font-black leading-snug text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
+                                    <p class="ui-price mt-1 font-black text-[#0C8FE8]">
+                                        {{ $product->isAuction() ? 'Current Bid: ' : '' }}Rs {{ number_format((float) $priceFor($product)) }}
+                                    </p>
+                                    <span class="mt-2 inline-flex rounded-md bg-gray-100 px-2 py-1 ui-small font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $conditionLabel($product->condition) }}</span>
+                                </div>
+                            </a>
+                            <button
+                                type="button"
+                                wire:click="toggleBookmark({{ $product->id }})"
+                                wire:loading.attr="disabled"
+                                wire:target="toggleBookmark({{ $product->id }})"
+                                class="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white/90 shadow-sm hover:bg-white disabled:opacity-60 dark:bg-gray-900/90"
+                                aria-label="Toggle bookmark for {{ $product->name }}"
+                            >
+                                <x-icon
+                                    name="{{ in_array($product->id, $bookmarkedProductIds, true) ? 's-bookmark' : 'o-bookmark' }}"
+                                    @class(['w-4 h-4', 'text-[#0C8FE8]' => in_array($product->id, $bookmarkedProductIds, true), 'text-gray-600 dark:text-gray-300' => ! in_array($product->id, $bookmarkedProductIds, true)])
+                                />
+                            </button>
+                            @if($product->isDirectSell() && (! Auth::check() || (int) $product->seller_id !== (int) Auth::id()))
+                                <button
+                                    type="button"
+                                    wire:click="addToCart({{ $product->id }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="addToCart({{ $product->id }})"
+                                    class="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white/90 shadow-sm hover:bg-white disabled:opacity-60 dark:bg-gray-900/90"
+                                    aria-label="Add {{ $product->name }} to cart"
+                                >
+                                    <x-icon name="o-shopping-cart" class="w-4 h-4 text-gray-700 dark:text-gray-200" />
+                                </button>
+                            @endif
+                        </div>
                     @empty
                         <div class="w-full rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500 dark:border-gray-700">Trending products will appear here.</div>
                     @endforelse
@@ -169,7 +200,7 @@
             <section class="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-[#181A1F]">
                 <div class="flex flex-wrap gap-2">
                     @foreach($popularSearches as $search)
-                        <a href="#" class="rounded-md bg-gray-100 px-3 py-2 font-bold text-gray-700 hover:bg-sky-50 hover:text-[#0C8FE8] dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-sky-950/40">{{ $search }}</a>
+                        <a href="{{ route('user.search.product', ['search' => $search]) }}" wire:navigate class="rounded-md bg-gray-100 px-3 py-2 font-bold text-gray-700 hover:bg-sky-50 hover:text-[#0C8FE8] dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-sky-950/40">{{ $search }}</a>
                     @endforeach
                 </div>
             </section>
@@ -185,28 +216,55 @@
                     </div>
                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                         @foreach($featuredProducts->take(4) as $product)
-                            <a href="{{ $targetUrl($product) }}" wire:navigate class="grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-md border border-gray-100 p-2 transition hover:border-[#0C8FE8] dark:border-gray-800">
-                                <div class="aspect-square relative overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
-                                    @if($product->image)
-                                        <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover">
-                                    @else
-                                        <div class="flex h-full items-center justify-center"><x-icon name="o-photo" class="h-9 w-9 text-gray-300" /></div>
-                                    @endif
-                                </div>
-                                <div class="min-w-0">
-                                    <div class="flex items-center gap-1.5 mb-1">
-                                        @if($product->isAuction())
-                                            <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white"><span x-text="label"></span></span>
+                            <div class="relative rounded-md border border-gray-100 p-2 transition hover:border-[#0C8FE8] dark:border-gray-800">
+                                <a href="{{ $targetUrl($product) }}" wire:navigate class="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
+                                    <div class="aspect-square relative overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                                        @if($product->image)
+                                            <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover">
                                         @else
-                                            <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white">DIRECT SELL</span>
+                                            <div class="flex h-full items-center justify-center"><x-icon name="o-photo" class="h-9 w-9 text-gray-300" /></div>
                                         @endif
                                     </div>
-                                    <h3 class="line-clamp-2 font-black text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
-                                    <p class="mt-1 line-clamp-2 font-semibold text-gray-500 text-xs">{{ $product->description }}</p>
-                                    <p class="ui-price mt-2 font-black text-[#0C8FE8]">Rs {{ number_format((float) $priceFor($product)) }}</p>
-                                    <p class="mt-1 truncate font-semibold text-gray-500 text-xs">{{ $product->location ?: $product->category?->name ?: 'Sajha Auction' }}</p>
-                                </div>
-                            </a>
+                                    <div class="min-w-0 pr-7">
+                                        <div class="flex items-center gap-1.5 mb-1">
+                                            @if($product->isAuction())
+                                                <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white"><span x-text="label"></span></span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white">DIRECT SELL</span>
+                                            @endif
+                                        </div>
+                                        <h3 class="line-clamp-2 font-black text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
+                                        <p class="mt-1 line-clamp-2 font-semibold text-gray-500 text-xs">{{ $product->description }}</p>
+                                        <p class="ui-price mt-2 font-black text-[#0C8FE8]">Rs {{ number_format((float) $priceFor($product)) }}</p>
+                                        <p class="mt-1 truncate font-semibold text-gray-500 text-xs">{{ $product->location ?: $product->category?->name ?: 'Sajha Auction' }}</p>
+                                    </div>
+                                </a>
+                                <button
+                                    type="button"
+                                    wire:click="toggleBookmark({{ $product->id }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="toggleBookmark({{ $product->id }})"
+                                    class="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white/90 shadow-sm hover:bg-white disabled:opacity-60 dark:bg-gray-900/90"
+                                    aria-label="Toggle bookmark for {{ $product->name }}"
+                                >
+                                    <x-icon
+                                        name="{{ in_array($product->id, $bookmarkedProductIds, true) ? 's-bookmark' : 'o-bookmark' }}"
+                                        @class(['w-4 h-4', 'text-[#0C8FE8]' => in_array($product->id, $bookmarkedProductIds, true), 'text-gray-600 dark:text-gray-300' => ! in_array($product->id, $bookmarkedProductIds, true)])
+                                    />
+                                </button>
+                                @if($product->isDirectSell() && (! Auth::check() || (int) $product->seller_id !== (int) Auth::id()))
+                                    <button
+                                        type="button"
+                                        wire:click="addToCart({{ $product->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="addToCart({{ $product->id }})"
+                                        class="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white/90 shadow-sm hover:bg-white disabled:opacity-60 dark:bg-gray-900/90"
+                                        aria-label="Add {{ $product->name }} to cart"
+                                    >
+                                        <x-icon name="o-shopping-cart" class="w-4 h-4 text-gray-700 dark:text-gray-200" />
+                                    </button>
+                                @endif
+                            </div>
                         @endforeach
                     </div>
                 </section>
@@ -272,26 +330,56 @@
                                     <p class="mt-1 truncate font-semibold text-gray-500 text-xs">{{ $product->user?->name ?? 'Seller' }}</p>
                                 </div>
                             </a>
-                            <button type="button" class="absolute right-3 top-4 rounded-md p-1 hover:bg-gray-100 dark:hover:bg-gray-800">
-                                <x-icon name="o-ellipsis-vertical" class="ui-icon-lg text-gray-700 dark:text-gray-300" />
-                            </button>
-                            <button
-                                type="button"
-                                wire:click="toggleBookmark({{ $product->id }})"
-                                wire:loading.attr="disabled"
-                                wire:target="toggleBookmark({{ $product->id }})"
-                                class="absolute bottom-4 right-3 rounded-md p-1 hover:bg-gray-100 disabled:opacity-60 dark:hover:bg-gray-800"
-                                aria-label="Toggle bookmark for {{ $product->name }}"
-                            >
-                                <x-icon
-                                    name="{{ in_array($product->id, $bookmarkedProductIds, true) ? 's-bookmark' : 'o-bookmark' }}"
-                                    @class([
-                                        'ui-icon-lg cursor-pointer',
-                                        'text-[#0C8FE8]' => in_array($product->id, $bookmarkedProductIds, true),
-                                        'text-gray-800 dark:text-gray-100' => ! in_array($product->id, $bookmarkedProductIds, true),
-                                    ])
-                                />
-                            </button>
+                            <div x-data="{ open: false, copied: false }" class="absolute right-3 top-4">
+                                <button type="button" @click="open = ! open" class="rounded-md p-1 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="More options for {{ $product->name }}">
+                                    <x-icon name="o-ellipsis-vertical" class="ui-icon-lg text-gray-700 dark:text-gray-300" />
+                                </button>
+                                <div x-show="open" @click.outside="open = false; copied = false" x-cloak class="absolute right-0 z-30 mt-1 w-40 overflow-hidden rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-[#181A1F]" style="display: none;">
+                                    <a href="{{ $targetUrl($product) }}" wire:navigate class="flex items-center gap-2 px-3 py-2 font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                                        <x-icon name="o-eye" class="ui-icon" />
+                                        View details
+                                    </a>
+                                    <button
+                                        type="button"
+                                        @click="navigator.clipboard.writeText('{{ $targetUrl($product) }}'); copied = true; setTimeout(() => { open = false; copied = false }, 900)"
+                                        class="flex w-full items-center gap-2 px-3 py-2 text-left font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    >
+                                        <x-icon name="o-link" class="ui-icon" />
+                                        <span x-text="copied ? 'Copied!' : 'Copy link'"></span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="absolute bottom-4 right-3 flex items-center gap-1">
+                                @if($product->isDirectSell() && (! Auth::check() || (int) $product->seller_id !== (int) Auth::id()))
+                                    <button
+                                        type="button"
+                                        wire:click="addToCart({{ $product->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="addToCart({{ $product->id }})"
+                                        class="rounded-md p-1 hover:bg-gray-100 disabled:opacity-60 dark:hover:bg-gray-800"
+                                        aria-label="Add {{ $product->name }} to cart"
+                                    >
+                                        <x-icon name="o-shopping-cart" class="ui-icon-lg cursor-pointer text-gray-800 dark:text-gray-100" />
+                                    </button>
+                                @endif
+                                <button
+                                    type="button"
+                                    wire:click="toggleBookmark({{ $product->id }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="toggleBookmark({{ $product->id }})"
+                                    class="rounded-md p-1 hover:bg-gray-100 disabled:opacity-60 dark:hover:bg-gray-800"
+                                    aria-label="Toggle bookmark for {{ $product->name }}"
+                                >
+                                    <x-icon
+                                        name="{{ in_array($product->id, $bookmarkedProductIds, true) ? 's-bookmark' : 'o-bookmark' }}"
+                                        @class([
+                                            'ui-icon-lg cursor-pointer',
+                                            'text-[#0C8FE8]' => in_array($product->id, $bookmarkedProductIds, true),
+                                            'text-gray-800 dark:text-gray-100' => ! in_array($product->id, $bookmarkedProductIds, true),
+                                        ])
+                                    />
+                                </button>
+                            </div>
                         </article>
                     @empty
                         <div class="p-10 text-center">
@@ -327,13 +415,13 @@
             <div class="rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-[#181A1F]">
                 <h2 class="ui-heading font-black">Buyer safety</h2>
                 <div class="mt-3 flex flex-wrap gap-x-4 gap-y-3 font-semibold text-gray-600 dark:text-gray-300">
-                    <a href="#" class="underline">Safety Tips</a>
-                    <a href="#" class="underline">Posting Rules</a>
-                    <a href="#" class="underline">FAQ</a>
-                    <a href="#" class="underline">Terms of Use</a>
-                    <a href="#" class="underline">Privacy Policy</a>
-                    <a href="#" class="underline">Contact Us</a>
-                    <a href="#" class="underline">Report bugs</a>
+                    <a href="{{ route('info.page', 'safety-tips') }}" wire:navigate class="underline">Safety Tips</a>
+                    <a href="{{ route('info.page', 'posting-rules') }}" wire:navigate class="underline">Posting Rules</a>
+                    <a href="{{ route('faqs') }}" wire:navigate class="underline">FAQ</a>
+                    <a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}" target="_blank" rel="noopener" class="underline">Terms of Use</a>
+                    <a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}" target="_blank" rel="noopener" class="underline">Privacy Policy</a>
+                    <a href="mailto:{{ config('mail.from.address') }}" class="underline">Contact Us</a>
+                    <a href="mailto:{{ config('mail.from.address') }}?subject=Bug%20Report" class="underline">Report bugs</a>
                 </div>
             </div>
         </aside>

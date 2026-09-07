@@ -8,18 +8,18 @@
     </x-header>
 
     @if(!$isSeller)
-        <div class="bg-linear-to-br from-emerald-50 via-white to-teal-50 border border-emerald-100 rounded-3xl p-8 sm:p-12 text-center shadow-xl max-w-3xl mx-auto my-8">
+        <div class="bg-linear-to-br from-emerald-50 via-white to-teal-50 border border-emerald-100 rounded-3xl p-8 sm:p-12 text-center shadow-xl max-w-3xl mx-auto my-8 dark:border-emerald-900/50 dark:from-emerald-950/40 dark:via-gray-900 dark:to-teal-950/30">
             <div class="w-20 h-20 bg-linear-to-br from-[#1F6F5F] to-[#2FA084] rounded-3xl flex items-center justify-center mx-auto mb-6 text-white shadow-xl shadow-[#2FA084]/30">
                 <x-icon name="o-shopping-bag" class="w-10 h-10" />
             </div>
 
-            <h2 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight mb-3">Become a Seller on Sajha Auction</h2>
-            <p class="text-gray-600 text-sm sm:text-base max-w-xl mx-auto mb-8 leading-relaxed">
+            <h2 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight mb-3 dark:text-gray-100">Become a Seller on Sajha Auction</h2>
+            <p class="text-gray-600 text-sm sm:text-base max-w-xl mx-auto mb-8 leading-relaxed dark:text-gray-300">
                 You are currently registered as a Buyer account. To upload products, host live auctions, or list items for direct sale, you need to apply for a Seller account.
             </p>
 
             @if($sellerApplicationPending)
-                <div class="inline-flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 font-bold text-sm">
+                <div class="inline-flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 font-bold text-sm dark:text-amber-300">
                     <x-icon name="o-clock" class="w-5 h-5 text-amber-600 animate-pulse" />
                     <span>Seller Application Pending Admin Approval</span>
                 </div>
@@ -35,7 +35,7 @@
             @endif
         </div>
     @else
-        <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+        <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
             @php
                 $headers = [
                     ['key' => 'id', 'label' => 'ID', 'class' => 'w-16'],
@@ -51,7 +51,7 @@
             <x-table :headers="$headers" :rows="$products" @class(['table-auto w-full'])>
                 @scope('cell_name', $product)
                     <div class="flex items-center gap-4 py-1">
-                        <div class="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center shrink-0">
+                        <div class="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center shrink-0 dark:border-gray-800 dark:bg-gray-800">
                             @if($product->image)
                                 <img src="{{ Storage::url($product->image) }}" class="w-full h-full object-cover" />
                             @else
@@ -59,7 +59,7 @@
                             @endif
                         </div>
                         <div>
-                            <div class="font-black text-gray-900">{{ $product->name }}</div>
+                            <div class="font-black text-gray-900 dark:text-gray-100">{{ $product->name }}</div>
                             <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{{ $product->category->name ?? 'Uncategorized' }}</div>
                         </div>
                     </div>
@@ -76,7 +76,7 @@
                 @endscope
 
                 @scope('cell_price_display', $product)
-                    <span class="font-bold text-gray-700">
+                    <span class="font-bold text-gray-700 dark:text-gray-200">
                         @if($product->listing_type->value === 'direct_seller')
                             Rs. {{ number_format($product->sale_price) }}
                         @else

@@ -14,12 +14,16 @@ use App\Livewire\Admin\UserDetail as AdminUserDetail;
 use App\Livewire\Admin\Users as AdminUsers;
 use App\Livewire\Auth\Admin\Login as AdminLogin;
 use App\Livewire\Auth\User\CompleteProfile;
+use App\Livewire\Auth\User\ForgotPassword;
 use App\Livewire\Auth\User\Login;
 use App\Livewire\Auth\User\Register;
+use App\Livewire\Auth\User\ResetPassword;
 use App\Livewire\Auth\User\VerifyOtp;
 use App\Livewire\Faqs;
 use App\Livewire\Home;
+use App\Livewire\InfoPage;
 use App\Livewire\User\AuctionDetail;
+use App\Livewire\User\AuctionMarketplace;
 use App\Livewire\User\Cart;
 use App\Livewire\User\Checkout;
 use App\Livewire\User\Dashboard;
@@ -46,8 +50,14 @@ Route::redirect('/products', '/home')->name('user.marketplace-products');
 Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.products.show');
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
+Route::get('/forgot-password', ForgotPassword::class)->name('password.forgot');
+Route::get('/reset-password', ResetPassword::class)->name('password.reset');
 // Route::get('/login', Login::class)->name('login');
 Route::get('search-product', SearchProduct::class)->name('user.search.product');
+Route::get('/auction', AuctionMarketplace::class)->name('user.auction');
+Route::get('/info/{slug}', InfoPage::class)
+    ->name('info.page')
+    ->where('slug', 'safety-tips|posting-rules|how-it-works|help-center|buying-guide|selling-guide');
 
 Route::prefix('admin')->group(function () {
     Route::get('/login', AdminLogin::class)->name('admin.login');
@@ -75,7 +85,6 @@ Route::middleware('user')->group(function () {
     Route::get('/my-products/create', ManageProduct::class)->name('user.products.create');
     Route::get('/my-products/{product}/edit', ManageProduct::class)->name('user.products.edit');
     Route::get('/join-auction', JoinAuction::class)->name('user.join-auction');
-    Route::redirect('/auction', '/home')->name('user.auction');
     Route::get('/auction/{auction}', AuctionDetail::class)->name('user.auction.detail');
     Route::get('/messages/{conversation?}', Messages::class)->name('user.messages');
 });

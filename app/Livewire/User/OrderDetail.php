@@ -31,10 +31,42 @@ class OrderDetail extends Component
         ]);
     }
 
+    /**
+     * Which party is allowed to move the order into each status. Completing
+     * an order decrements stock and marks the product sold, so that step is
+     * restricted to the seller — the same party who alone can confirm it —
+     * rather than left open to either side as it was before.
+     *
+     * @var array<string, string>
+     */
+    private const TRANSITION_OWNER = [
+        'confirmed' => 'seller',
+        'completed' => 'seller',
+        'cancelled' => 'either',
+    ];
+
     public function updateOrderStatus(string $status): void
     {
         $user = Auth::user();
         if (! $user) {
+            return;
+        }
+
+        if (! array_key_exists($status, self::TRANSITION_OWNER)) {
+            $this->error('Invalid order status.');
+
+            return;
+        }
+
+        $isSeller = (int) $this->order->seller_id === (int) $user->id;
+        $isBuyer = (int) $this->order->buyer_id === (int) $user->id;
+        $owner = self::TRANSITION_OWNER[$status];
+
+        $allowed = $owner === 'either' ? ($isBuyer || $isSeller) : ($owner === 'seller' ? $isSeller : $isBuyer);
+
+        if (! $allowed) {
+            $this->error('You are not allowed to make this change to the order.');
+
             return;
         }
 

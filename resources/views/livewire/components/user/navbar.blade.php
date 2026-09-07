@@ -316,7 +316,7 @@
                                 @endif
 
                                 @if($isAuctioner)
-                                    <a href="#"
+                                    <a href="{{ route('user.products') }}" wire:navigate
                                        class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
                                         <x-icon name="o-gift" class="w-4 h-4"/>
                                         <span>My Auctions</span>
