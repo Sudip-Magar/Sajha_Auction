@@ -4,7 +4,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         @forelse($auctions as $auction)
-            <div x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->end_time }}')" class="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
+            <div x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->effective_end_time }}')" class="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
 
                 {{-- Image & Badge --}}
                 <div class="relative aspect-[4/3] overflow-hidden bg-gray-50 dark:bg-gray-800">

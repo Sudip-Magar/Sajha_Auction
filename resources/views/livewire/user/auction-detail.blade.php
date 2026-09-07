@@ -152,7 +152,11 @@
         <div class="lg:col-span-5 space-y-6">
 
             {{-- Countdown Card --}}
-            <div x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->end_time }}')" class="bg-gradient-to-r from-[#1F6F5F] to-[#0F9F6E] rounded-3xl p-6 text-white shadow-xl">
+            <div
+                wire:key="auction-timer-{{ $auction->id }}-{{ $auction->effective_end_time?->timestamp }}"
+                x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->effective_end_time }}')"
+                class="bg-gradient-to-r from-[#1F6F5F] to-[#0F9F6E] rounded-3xl p-6 text-white shadow-xl"
+            >
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] font-black uppercase tracking-widest text-white/70" x-text="isUpcoming ? 'Auction Starts In' : 'Auction Time Remaining'"></span>
                     <div class="flex items-center gap-1.5 bg-white/15 px-2.5 py-1 rounded-full border border-white/20">
@@ -163,7 +167,12 @@
                 <p class="text-3xl sm:text-4xl font-black tracking-tighter" x-text="displayText"></p>
                 <div class="mt-3 flex items-center justify-between text-xs text-white/80 font-bold border-t border-white/15 pt-3">
                     <span>Start: {{ $auction->start_time ? $auction->start_time->format('M d, Y h:i A') : 'N/A' }}</span>
-                    <span>End: {{ $auction->end_time ? $auction->end_time->format('M d, Y h:i A') : 'N/A' }}</span>
+                    <span>
+                        End: {{ $auction->end_time ? $auction->end_time->format('M d, Y h:i A') : 'N/A' }}
+                        @if($auction->extended_end_time)
+                            <span class="text-amber-300" title="Extended due to a late bid">(extended to {{ $auction->extended_end_time->format('h:i:s A') }})</span>
+                        @endif
+                    </span>
                 </div>
             </div>
 

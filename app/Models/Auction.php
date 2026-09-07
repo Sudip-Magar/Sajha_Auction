@@ -55,13 +55,24 @@ class Auction extends Model
             ->orderByDesc('id');
     }
 
+    /**
+     * The deadline actually in force: the anti-sniping extension if one has
+     * been triggered, otherwise the originally scheduled end time. Every
+     * "is this auction still open" check must go through this, not
+     * `end_time` directly, or a last-second extension has no real effect.
+     */
+    public function getEffectiveEndTimeAttribute(): ?\Illuminate\Support\Carbon
+    {
+        return $this->extended_end_time ?? $this->end_time;
+    }
+
     public function isLive(): bool
     {
         $now = now();
 
         return $this->status === 'active'
             && $this->start_time <= $now
-            && $this->end_time >= $now;
+            && $this->effective_end_time >= $now;
     }
 
     public function isUpcoming(): bool
@@ -72,7 +83,7 @@ class Auction extends Model
     public function isEnded(): bool
     {
         return in_array($this->status, ['ended', 'completed', 'ended_unsold'], true)
-            || ($this->end_time && $this->end_time < now());
+            || ($this->effective_end_time && $this->effective_end_time < now());
     }
 
     /**

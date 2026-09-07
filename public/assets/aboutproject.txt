@@ -15,19 +15,19 @@ What's actually lacking, in priority order
 1. No real payment gateway (biggest gap). Checkout lets buyers pick Khalti/eSewa/wallet, but nothing calls any gateway API — it just saves the string and sets the order to "pending." Only cash-on-meetup/delivery is functionally real. Right now the UI is making a promise it doesn't keep.
 → Fix: either integrate a real Khalti/eSewa SDK (their APIs are well-documented, this is a bounded task), or remove those options from the UI until they're built — showing fake payment methods is worse than showing fewer real ones.
 
-2. No password reset. "Forgot Password?" is a dead href="#" — no route, component, or notification behind it at all.
-→ Fix: standard Laravel password-reset flow (a Livewire component + Password::sendResetLink() + a reset-form page). Small, well-trodden task.
+..2. No password reset. "Forgot Password?" is a dead href="#" — no route, component, or notification behind it at all.
+→ Fix: standard Laravel password-reset flow (a Livewire component + Password::sendResetLink() + a reset-form page). Small, well-trodden task. (completed)
 
-3. Order status has no authorization gate. A buyer can currently mark their own order "completed" — there's no check that only the seller can confirm/complete an order.
-→ Fix: add a role check in OrderDetail::updateOrderStatus() restricting which party can trigger which transition, plus validate $status against an allow-list.
+..3. Order status has no authorization gate. A buyer can currently mark their own order "completed" — there's no check that only the seller can confirm/complete an order.
+→ Fix: add a role check in OrderDetail::updateOrderStatus() restricting which party can trigger which transition, plus validate $status against an allow-list. (completed)
 
-4. No outbid notification. Every other expected notification exists (approval, new message, auction won) except this one — the previous highest bidder isn't told when someone outbids them.
-→ Fix: add an OutbidNotification and fire it in AuctionEngineService::processBid when the leader changes.
+..4. No outbid notification. Every other expected notification exists (approval, new message, auction won) except this one — the previous highest bidder isn't told when someone outbids them.
+→ Fix: add an OutbidNotification and fire it in AuctionEngineService::processBid when the leader changes. (completed)
 
 5. Auto-extend / anti-sniping is fake. Sellers configure timer_reset_seconds in the listing form, and the DB even has an extended_end_time column — but processBid() never reads or writes either. A bid in the last second does nothing; the auction still ends on schedule despite implying otherwise.
 → Fix: in processBid(), if a bid lands within timer_reset_seconds of end_time, push end_time/extended_end_time out and broadcast the new time.
 
-6. Two more "built but never routed" components (same pattern I already fixed for the homepage's live-auctions page): Bookmarks and MarketplaceProducts. Decide whether to wire them in or delete them — right now they're dead code.
+..6. Two more "built but never routed" components (same pattern I already fixed for the homepage's live-auctions page): Bookmarks and MarketplaceProducts. Decide whether to wire them in or delete them — right now they're dead code. (completed)
 
 My recommendation
 

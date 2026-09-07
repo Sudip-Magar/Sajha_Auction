@@ -147,7 +147,7 @@
                                     @endif
                                     <div class="absolute top-2 left-2">
                                         @if($product->isAuction())
-                                            <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                            <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
                                                 <span x-text="label"></span>
                                             </span>
                                         @else
@@ -228,7 +228,7 @@
                                     <div class="min-w-0 pr-7">
                                         <div class="flex items-center gap-1.5 mb-1">
                                             @if($product->isAuction())
-                                                <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white"><span x-text="label"></span></span>
+                                                <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white"><span x-text="label"></span></span>
                                             @else
                                                 <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white">DIRECT SELL</span>
                                             @endif
@@ -302,7 +302,7 @@
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-2">
                                                 @if($product->isAuction())
-                                                    <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->end_time?->toIso8601String() }}')" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
+                                                    <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
                                                         <span x-show="isLive" class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                                                         <span x-text="label"></span>
                                                     </span>

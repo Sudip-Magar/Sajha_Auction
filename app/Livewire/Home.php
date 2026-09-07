@@ -45,14 +45,12 @@ class Home extends Component
 
         if ($wishlist) {
             $wishlist->delete();
-            $user->bookmarks()->where('product_id', $productId)->delete();
             $this->success('Product removed from wishlist.');
         } else {
             Wishlist::create([
                 'user_id' => $user->id,
                 'product_id' => $productId,
             ]);
-            $user->bookmarks()->firstOrCreate(['product_id' => $productId]);
             $this->success('Product added to wishlist!');
         }
 

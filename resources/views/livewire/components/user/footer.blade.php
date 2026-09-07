@@ -37,6 +37,7 @@
                 <h4 class="text-lg font-bold mb-6 text-white">Quick Links</h4>
                 <ul class="space-y-4">
                     <li><a href="{{ route('home') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Home</a></li>
+                    <li><a href="{{ route('user.marketplace-products') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Direct-Sell Products</a></li>
                     <li><a href="{{ route('user.auction') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Browse Auctions</a></li>
                     <li><a href="{{ route('info.page', 'how-it-works') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">How it Works</a></li>
                     <li><a href="{{ route('user.auction') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Live Auctions</a></li>

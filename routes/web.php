@@ -29,6 +29,7 @@ use App\Livewire\User\Checkout;
 use App\Livewire\User\Dashboard;
 use App\Livewire\User\JoinAuction;
 use App\Livewire\User\ManageProduct;
+use App\Livewire\User\MarketplaceProducts;
 use App\Livewire\User\Messages;
 use App\Livewire\User\Notifications as UserNotifications;
 use App\Livewire\User\OrderDetail;
@@ -46,7 +47,7 @@ Route::get('/', function () {
 
 Route::get('/home', Home::class)->name('home');
 Route::get('/faqs', Faqs::class)->name('faqs');
-Route::redirect('/products', '/home')->name('user.marketplace-products');
+Route::get('/products', MarketplaceProducts::class)->name('user.marketplace-products');
 Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.products.show');
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
