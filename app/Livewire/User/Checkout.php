@@ -6,6 +6,7 @@ use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\Product;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
@@ -147,7 +148,7 @@ class Checkout extends Component
                         'payment_status' => 'pending',
                         'handover_type' => $this->handover_type,
                         'meetup_location' => $this->handover_type === 'meetup' ? $this->meetup_location : null,
-                        'meetup_time' => $this->meetup_time ? now()->parse($this->meetup_time) : null,
+                        'meetup_time' => $this->meetup_time ? Carbon::parse($this->meetup_time) : null,
                         'shipping_address' => $this->handover_type === 'delivery' ? $this->shipping_address : null,
                         'buyer_phone' => $this->buyer_phone,
                         'notes' => $this->notes,

@@ -13,8 +13,12 @@ class Order extends Model
         'order_number',
         'buyer_id',
         'seller_id',
+        'auction_id',
         'status',
         'total_amount',
+        'deposit_amount',
+        'deposit_status',
+        'deposit_transaction_uuid',
         'payment_method',
         'payment_status',
         'handover_type',
@@ -23,10 +27,13 @@ class Order extends Model
         'shipping_address',
         'buyer_phone',
         'notes',
+        'cancellation_reason_category',
+        'cancellation_note',
     ];
 
     protected $casts = [
         'total_amount' => 'float',
+        'deposit_amount' => 'float',
         'meetup_time' => 'datetime',
     ];
 
@@ -50,9 +57,19 @@ class Order extends Model
         return $this->belongsTo(User::class, 'seller_id');
     }
 
+    public function auction(): BelongsTo
+    {
+        return $this->belongsTo(Auction::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function needsDeposit(): bool
+    {
+        return $this->deposit_status === 'pending';
     }
 
     public function getStatusBadgeAttribute(): string

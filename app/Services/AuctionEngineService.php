@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Notifications\AuctionWonNotification;
 use App\Notifications\OutbidNotification;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -199,7 +200,7 @@ class AuctionEngineService
      * detect the previous leader when dispatching outbid notifications.
      *
      * @param  Collection<int, Bid>  $bids
-     * @return array<int, array{bidder_id: int, max: float, bid: Bid, submitted_at: \Illuminate\Support\Carbon}>
+     * @return array<int, array{bidder_id: int, max: float, bid: Bid, submitted_at: Carbon}>
      */
     private static function rankBidderMaxes(Collection $bids): array
     {
@@ -312,17 +313,23 @@ class AuctionEngineService
         $auction->loadMissing(['product', 'winner']);
 
         if ($auction->product && $winningBid->bidder) {
+            $depositPercentage = (float) config('services.esewa.deposit_percentage', 10);
+            $depositAmount = round($maxBidAmount * $depositPercentage / 100, 2);
+
             $order = Order::create([
                 'buyer_id' => $winningBid->bidder_id,
                 'seller_id' => $auction->product->seller_id,
+                'auction_id' => $auction->id,
                 'status' => 'pending',
                 'total_amount' => $maxBidAmount,
+                'deposit_amount' => $depositAmount,
+                'deposit_status' => 'pending',
                 'payment_method' => 'cash_on_meetup',
                 'payment_status' => 'pending',
                 'handover_type' => 'meetup',
                 'meetup_location' => $auction->product->meetup_location ?: $auction->product->location,
                 'buyer_phone' => $winningBid->bidder->phone,
-                'notes' => "Created automatically after winning auction #{$auction->id}.",
+                'notes' => "Created automatically after winning auction #{$auction->id}. A {$depositPercentage}% deposit (Rs. ".number_format($depositAmount, 2).') secures the win via eSewa; the remaining balance is paid in cash at the meetup.',
             ]);
 
             $order->items()->create([

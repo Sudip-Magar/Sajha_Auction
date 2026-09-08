@@ -98,6 +98,13 @@
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Products</span>
             </a>
 
+            <a href="{{ route('admin.orders') }}" wire:navigate
+               x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
+               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.orders*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+                <x-icon name="o-clipboard-document-list" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.orders*') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
+                <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Orders</span>
+            </a>
+
             <a href="{{ route('admin.seller-requests') }}" wire:navigate
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
                class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.seller-requests') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">

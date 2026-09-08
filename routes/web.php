@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\EsewaPaymentController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Livewire\Admin\AuctionApplication;
 use App\Livewire\Admin\AuctionApplicationDetail;
@@ -67,6 +68,11 @@ Route::prefix('admin')->group(function () {
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
 
+// eSewa redirects the buyer's browser back here; matched by transaction_uuid
+// rather than the session, so these stay outside the 'user' auth group.
+Route::get('/payment/esewa/success', [EsewaPaymentController::class, 'success'])->name('payment.esewa.success');
+Route::get('/payment/esewa/failure', [EsewaPaymentController::class, 'failure'])->name('payment.esewa.failure');
+
 Route::middleware('auth.otp')->group(function () {
     Route::get('/verify-otp', VerifyOtp::class)->name('verify.otp');
     Route::get('/complete-profile', CompleteProfile::class)->name('complete.profile');
@@ -80,6 +86,7 @@ Route::middleware('user')->group(function () {
     Route::get('/checkout/{product?}', Checkout::class)->name('user.checkout');
     Route::get('/my-orders', Orders::class)->name('user.orders');
     Route::get('/my-orders/{order}', OrderDetail::class)->name('user.orders.show');
+    Route::get('/my-orders/{order}/pay-deposit', [EsewaPaymentController::class, 'initiate'])->name('payment.esewa.initiate');
     Route::get('/notifications', UserNotifications::class)->name('user.notifications');
     Route::get('/settings', Settings::class)->name('user.settings');
     Route::get('/my-products', Products::class)->name('user.products');
@@ -100,6 +107,7 @@ Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/seller-requests', SellerRequests::class)->name('admin.seller-requests');
     Route::get('/products', App\Livewire\Admin\Products::class)->name('admin.products');
     Route::get('/products/{product}', AdminProductDetail::class)->name('admin.products.show');
+    Route::get('/orders', App\Livewire\Admin\Orders::class)->name('admin.orders');
     Route::get('/notifications', AdminNotifications::class)->name('admin.notifications');
     Route::get('/settings', App\Livewire\Admin\Settings::class)->name('admin.settings');
     Route::get('/auction-application', AuctionApplication::class)->name('admin.auction-application');
