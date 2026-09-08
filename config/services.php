@@ -39,6 +39,16 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),        // Your Google Client ID
         'client_secret' => env('GOOGLE_CLIENT_SECRET'), // Your Google Client Secret
         'redirect' => env('GOOGLE_REDIRECT_URI', env('GOOGLE_REDIRECT_URL')),      // Your Google Redirect URL
-    ]
+    ],
+
+    // eSewa ePay v2 - defaults are eSewa's public sandbox test credentials.
+    // Swap for real merchant values (and the production URLs) to go live.
+    'esewa' => [
+        'product_code' => env('ESEWA_PRODUCT_CODE', 'EPAYTEST'),
+        'secret_key' => env('ESEWA_SECRET_KEY', '8gBm/:&EnhH.1/q'),
+        'form_url' => env('ESEWA_FORM_URL', 'https://rc-epay.esewa.com.np/api/epay/main/v2/form'),
+        'status_url' => env('ESEWA_STATUS_URL', 'https://rc.esewa.com.np/api/epay/transaction/status/'),
+        'deposit_percentage' => (float) env('ESEWA_DEPOSIT_PERCENTAGE', 10),
+    ],
 
 ];

@@ -3,6 +3,7 @@
 namespace App\Livewire\User;
 
 use App\Models\Order;
+use App\Services\OrderCancellationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -15,6 +16,12 @@ class OrderDetail extends Component
     use Toast;
 
     public Order $order;
+
+    public bool $showCancelForm = false;
+
+    public string $cancelReasonCategory = 'defect_mismatch';
+
+    public string $cancelNote = '';
 
     public function mount(Order $order): void
     {
@@ -29,12 +36,85 @@ class OrderDetail extends Component
             'items.product.images',
             'items.product.timelines',
         ]);
+
+        if (session()->has('esewa_success')) {
+            $this->success(session('esewa_success'));
+        } elseif (session()->has('esewa_error')) {
+            $this->error(session('esewa_error'));
+        } elseif (session()->has('esewa_info')) {
+            $this->info(session('esewa_info'));
+        }
+    }
+
+    /**
+     * Which party is allowed to move the order into each status. Completing
+     * an order decrements stock and marks the product sold, so that step is
+     * restricted to the seller — the same party who alone can confirm it —
+     * rather than left open to either side as it was before.
+     *
+     * @var array<string, string>
+     */
+    private const TRANSITION_OWNER = [
+        'confirmed' => 'seller',
+        'completed' => 'seller',
+    ];
+
+    public function toggleCancelForm(): void
+    {
+        $this->showCancelForm = ! $this->showCancelForm;
+    }
+
+    public function confirmCancel(): void
+    {
+        $user = Auth::user();
+        if (! $user) {
+            return;
+        }
+
+        $isSeller = (int) $this->order->seller_id === (int) $user->id;
+        $isBuyer = (int) $this->order->buyer_id === (int) $user->id;
+
+        if (! $isSeller && ! $isBuyer) {
+            $this->error('You are not allowed to make this change to the order.');
+
+            return;
+        }
+
+        OrderCancellationService::cancel(
+            $this->order,
+            $user,
+            $isBuyer ? $this->cancelReasonCategory : null,
+            trim($this->cancelNote) ?: null
+        );
+
+        $this->order->refresh();
+        $this->showCancelForm = false;
+        $this->cancelNote = '';
+        $this->success('Order cancelled.');
     }
 
     public function updateOrderStatus(string $status): void
     {
         $user = Auth::user();
         if (! $user) {
+            return;
+        }
+
+        if (! array_key_exists($status, self::TRANSITION_OWNER)) {
+            $this->error('Invalid order status.');
+
+            return;
+        }
+
+        $isSeller = (int) $this->order->seller_id === (int) $user->id;
+        $isBuyer = (int) $this->order->buyer_id === (int) $user->id;
+        $owner = self::TRANSITION_OWNER[$status];
+
+        $allowed = $owner === 'seller' ? $isSeller : $isBuyer;
+
+        if (! $allowed) {
+            $this->error('You are not allowed to make this change to the order.');
+
             return;
         }
 
@@ -65,15 +145,6 @@ class OrderDetail extends Component
                     'meetup_scheduled',
                     "Order Confirmed by Seller (#{$this->order->order_number})",
                     'Seller confirmed order. Agreed meetup location: '.($this->order->meetup_location ?: 'Seller Location').'.',
-                    $user
-                );
-            }
-        } elseif ($status === 'cancelled') {
-            foreach ($this->order->items as $item) {
-                $item->product?->logTimeline(
-                    'cancelled',
-                    "Order Cancelled (#{$this->order->order_number})",
-                    'Order was cancelled.',
                     $user
                 );
             }

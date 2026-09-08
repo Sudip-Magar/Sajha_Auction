@@ -31,7 +31,7 @@
 
                     <label class="flex h-11 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 dark:border-gray-800 dark:bg-[#202228]">
                         <x-icon name="o-squares-2x2" class="ui-icon text-gray-500" />
-                        <select wire:model.live="category" class="min-w-0 flex-1 bg-transparent font-semibold outline-none">
+                        <select wire:model.live="category" class="min-w-0 flex-1 bg-transparent font-semibold text-gray-950 outline-none dark:text-gray-100">
                             <option value="">All categories</option>
                             @foreach($categories as $categoryOption)
                                 <option value="{{ $categoryOption->id }}">{{ $categoryOption->name }}</option>
@@ -44,7 +44,7 @@
 
                     <label class="flex h-11 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 dark:border-gray-800 dark:bg-[#202228]">
                         <x-icon name="o-sparkles" class="ui-icon text-gray-500" />
-                        <select wire:model.live="condition" class="min-w-0 flex-1 bg-transparent font-semibold outline-none">
+                        <select wire:model.live="condition" class="min-w-0 flex-1 bg-transparent font-semibold text-gray-950 outline-none dark:text-gray-100">
                             <option value="">Any condition</option>
                             @foreach($conditions as $conditionValue => $conditionName)
                                 <option value="{{ $conditionValue }}">{{ $conditionName }}</option>

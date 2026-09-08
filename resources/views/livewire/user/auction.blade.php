@@ -1,12 +1,13 @@
-php <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+<div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-gray-900 dark:text-gray-100">
+<div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
     <x-header title="Live Auctions" subtitle="Bid on premium items in real-time" separator progress-indicator />
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         @forelse($auctions as $auction)
-            <div x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->end_time }}')" class="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full">
+            <div x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->effective_end_time }}')" class="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
 
                 {{-- Image & Badge --}}
-                <div class="relative aspect-[4/3] overflow-hidden bg-gray-50">
+                <div class="relative aspect-[4/3] overflow-hidden bg-gray-50 dark:bg-gray-800">
                     @if($auction->product->image)
                         <img src="{{ Storage::url($auction->product->image) }}" alt="{{ $auction->product->name }}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                     @else
@@ -38,12 +39,12 @@ php <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
                 <div class="p-5 flex flex-col flex-1">
                     <div class="flex-1">
                         <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{{ $auction->product->category->name ?? 'Uncategorized' }}</p>
-                        <h3 class="font-black text-gray-900 line-clamp-1 mb-2">{{ $auction->product->name }}</h3>
+                        <h3 class="font-black text-gray-900 line-clamp-1 mb-2 dark:text-gray-100">{{ $auction->product->name }}</h3>
 
-                        <div class="flex items-end justify-between gap-4 py-3 border-y border-gray-50">
+                        <div class="flex items-end justify-between gap-4 py-3 border-y border-gray-50 dark:border-gray-800">
                             <div>
                                 <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Current Bid</p>
-                                <p class="text-lg font-black text-gray-900">Rs. {{ number_format($auction->current_price) }}</p>
+                                <p class="text-lg font-black text-gray-900 dark:text-gray-100">Rs. {{ number_format($auction->current_price) }}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest" x-text="isUpcoming ? 'Starts In' : (isLive ? 'Ends In' : 'Auction Ended')"></p>
@@ -59,9 +60,9 @@ php <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
                 </div>
             </div>
         @empty
-            <div class="col-span-full py-20 text-center bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-                <x-icon name="o-inbox-stack" class="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p class="text-gray-500 font-bold">No active auctions found at the moment.</p>
+            <div class="col-span-full py-20 text-center bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 dark:bg-gray-800/40 dark:border-gray-800">
+                <x-icon name="o-inbox-stack" class="w-12 h-12 text-gray-300 mx-auto mb-4 dark:text-gray-700" />
+                <p class="text-gray-500 font-bold dark:text-gray-400">No active auctions found at the moment.</p>
             </div>
         @endforelse
     </div>
@@ -116,4 +117,5 @@ php <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
             }
         }
     </script>
+</div>
 </div>

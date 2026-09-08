@@ -67,6 +67,28 @@ body {
     display: none !important;
 }
 
+:root {
+    color-scheme: light;
+}
+
+.dark {
+    color-scheme: dark;
+}
+
+/*
+ * `color-scheme` alone is only a hint — some Chromium builds still paint the
+ * native <option> popup with light chrome. Style options directly so the
+ * dropdown list itself is always readable in dark mode.
+ */
+.dark select {
+    color-scheme: dark;
+}
+
+.dark select option {
+    background-color: #181A1F;
+    color: #E5E7EB;
+}
+
 .no-spinner::-webkit-outer-spin-button,
 .no-spinner::-webkit-inner-spin-button {
     -webkit-appearance: none;

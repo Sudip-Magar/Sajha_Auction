@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ProductAuctionType;
 use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
+use App\Services\AuctionValuationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -25,6 +26,7 @@ class Product extends Model
         'specifications',
         'condition',
         'usage_duration',
+        'purchase_date',
         'quantity',
         'retail_price',
         'sale_price',
@@ -45,6 +47,7 @@ class Product extends Model
     protected $casts = [
         'listing_type' => ProductSaleType::class,
         'negotiable' => ProductNegotiability::class,
+        'purchase_date' => 'date',
         'is_approved' => 'boolean',
         'is_featured' => 'boolean',
         'is_trending' => 'boolean',
@@ -209,5 +212,24 @@ class Product extends Model
     public function getStockQuantityAttribute(): int
     {
         return (int) ($this->quantity ?? 0);
+    }
+
+    /**
+     * System-estimated reference value based on original price, age and
+     * condition. Null when required valuation inputs aren't available —
+     * never overwrites or substitutes retail_price (the original price).
+     */
+    public function getEstimatedValueAttribute(): ?float
+    {
+        return AuctionValuationService::calculateEstimatedValue(
+            $this->retail_price !== null ? (float) $this->retail_price : null,
+            $this->purchase_date,
+            $this->condition
+        );
+    }
+
+    public function getSuggestedStartingPriceAttribute(): ?float
+    {
+        return AuctionValuationService::calculateSuggestedStartingPrice($this->estimated_value);
     }
 }

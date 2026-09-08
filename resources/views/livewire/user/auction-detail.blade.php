@@ -152,7 +152,11 @@
         <div class="lg:col-span-5 space-y-6">
 
             {{-- Countdown Card --}}
-            <div x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->end_time }}')" class="bg-gradient-to-r from-[#1F6F5F] to-[#0F9F6E] rounded-3xl p-6 text-white shadow-xl">
+            <div
+                wire:key="auction-timer-{{ $auction->id }}-{{ $auction->effective_end_time?->timestamp }}"
+                x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->effective_end_time }}')"
+                class="bg-gradient-to-r from-[#1F6F5F] to-[#0F9F6E] rounded-3xl p-6 text-white shadow-xl"
+            >
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] font-black uppercase tracking-widest text-white/70" x-text="isUpcoming ? 'Auction Starts In' : 'Auction Time Remaining'"></span>
                     <div class="flex items-center gap-1.5 bg-white/15 px-2.5 py-1 rounded-full border border-white/20">
@@ -163,7 +167,12 @@
                 <p class="text-3xl sm:text-4xl font-black tracking-tighter" x-text="displayText"></p>
                 <div class="mt-3 flex items-center justify-between text-xs text-white/80 font-bold border-t border-white/15 pt-3">
                     <span>Start: {{ $auction->start_time ? $auction->start_time->format('M d, Y h:i A') : 'N/A' }}</span>
-                    <span>End: {{ $auction->end_time ? $auction->end_time->format('M d, Y h:i A') : 'N/A' }}</span>
+                    <span>
+                        End: {{ $auction->end_time ? $auction->end_time->format('M d, Y h:i A') : 'N/A' }}
+                        @if($auction->extended_end_time)
+                            <span class="text-amber-300" title="Extended due to a late bid">(extended to {{ $auction->extended_end_time->format('h:i:s A') }})</span>
+                        @endif
+                    </span>
                 </div>
             </div>
 
@@ -239,6 +248,21 @@
                         <p class="text-xl font-black text-gray-900 dark:text-gray-100">+ Rs. {{ number_format($stepIncrement, 2) }}</p>
                     </div>
                 </div>
+
+                @if($auction->product->estimated_value)
+                    <div class="mb-4 p-4 bg-violet-50 dark:bg-violet-950/30 rounded-2xl border border-violet-200 dark:border-violet-900/60">
+                        <p class="text-[10px] font-black text-violet-500 dark:text-violet-300 uppercase tracking-widest mb-1">Estimated Value (Reference Only)</p>
+                        <p class="text-lg font-black text-violet-700 dark:text-violet-300">Rs. {{ number_format($auction->product->estimated_value, 2) }}</p>
+                        <p class="text-[10px] text-violet-500 dark:text-violet-400 mt-1">Based on original price, age & condition. This is not a guarantee of resale value.</p>
+                    </div>
+                @endif
+
+                @if($auction->product->retail_price && $auction->current_price > $auction->product->retail_price)
+                    <div class="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-2">
+                        <x-icon name="o-exclamation-triangle" class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <p class="text-xs font-bold text-amber-800 dark:text-amber-200">Current bid is above the original purchase price of Rs. {{ number_format($auction->product->retail_price, 2) }}.</p>
+                    </div>
+                @endif
 
                 @if($auction->isLive() && $canPlaceBid)
                     <form wire:submit="placeBid" class="space-y-4">

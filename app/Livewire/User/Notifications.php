@@ -64,6 +64,13 @@ class Notifications extends Component
             'App\Notifications\AccountStatusChangedNotification' => route('home'),
             'App\Notifications\AuctionApplicationApprovedNotification',
             'App\Notifications\AuctionApplicationRejectedNotification' => route('user.join-auction'),
+            'App\Notifications\AuctionWonNotification',
+            'App\Notifications\OutbidNotification' => isset($notification->data['auction_id'])
+                ? route('user.auction.detail', $notification->data['auction_id'])
+                : route('home'),
+            'App\Notifications\DepositPaidNotification' => isset($notification->data['order_id'])
+                ? route('user.orders.show', $notification->data['order_id'])
+                : route('user.orders'),
             default => Auth::user()?->is_seller ? route('dashboard') : route('home'),
         };
     }

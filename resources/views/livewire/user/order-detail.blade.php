@@ -29,18 +29,53 @@
                             Confirm Order
                         </button>
                     @endif
-                    @if(($order->status === 'confirmed' || $order->status === 'meetup_scheduled'))
+                    @if(($order->status === 'confirmed' || $order->status === 'meetup_scheduled') && Auth::id() === $order->seller_id)
                         <button type="button" wire:click="updateOrderStatus('completed')" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
                             Mark Completed & Handed Over
                         </button>
                     @endif
                     @if($order->status !== 'completed' && $order->status !== 'cancelled')
-                        <button type="button" wire:click="updateOrderStatus('cancelled')" class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
-                            Cancel Order
+                        <button type="button" wire:click="toggleCancelForm" class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
+                            {{ $showCancelForm ? 'Never Mind' : 'Cancel Order' }}
                         </button>
                     @endif
                 </div>
             </div>
+
+            {{-- Cancellation Reason Form --}}
+            @if($showCancelForm)
+                <div class="mt-6 rounded-2xl border border-rose-200 bg-rose-50/60 p-5 dark:border-rose-900 dark:bg-rose-950/20">
+                    <h3 class="font-bold text-sm text-rose-900 dark:text-rose-300 mb-3">Why are you cancelling this order?</h3>
+
+                    @if(Auth::id() === $order->buyer_id)
+                        <div class="space-y-2 mb-4">
+                            @foreach (\App\Services\OrderCancellationService::BUYER_REASONS as $value => $label)
+                                <label class="flex items-center gap-2 text-xs font-semibold text-gray-800 dark:text-gray-200">
+                                    <input type="radio" wire:model="cancelReasonCategory" value="{{ $value }}" class="text-rose-600 focus:ring-rose-500">
+                                    {{ $label }}
+                                </label>
+                            @endforeach
+                        </div>
+                        @if($order->deposit_status === 'paid')
+                            <p class="text-xs text-amber-800 dark:text-amber-400 mb-3">
+                                Note: your paid deposit is refunded if the item had a genuine defect/mismatch, but forfeited if you simply changed your mind.
+                            </p>
+                        @endif
+                    @endif
+
+                    <textarea wire:model="cancelNote" rows="2" placeholder="Optional details (e.g. what was wrong with the item)"
+                              class="w-full rounded-xl border border-gray-200 p-3 text-xs dark:border-gray-700 dark:bg-gray-900 dark:text-white"></textarea>
+
+                    <div class="mt-3 flex justify-end gap-2">
+                        <button type="button" wire:click="toggleCancelForm" class="rounded-xl px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
+                            Never Mind
+                        </button>
+                        <button type="button" wire:click="confirmCancel" class="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">
+                            Confirm Cancellation
+                        </button>
+                    </div>
+                </div>
+            @endif
 
             {{-- People & Handover Info Grid --}}
             <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -87,6 +122,62 @@
                     </p>
                 </div>
             </div>
+
+            {{-- Auction Win Deposit --}}
+            @if($order->deposit_status !== 'not_required')
+                @php
+                    $depositCardClass = match($order->deposit_status) {
+                        'paid' => 'bg-emerald-50/60 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900',
+                        'refund_owed' => 'bg-blue-50/60 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900',
+                        'forfeited' => 'bg-rose-50/60 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900',
+                        default => 'bg-amber-50/60 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900',
+                    };
+                    $depositBadge = match($order->deposit_status) {
+                        'paid' => ['PAID via eSewa', 'text-emerald-700 dark:text-emerald-400'],
+                        'refund_owed' => ['REFUND OWED TO BUYER', 'text-blue-700 dark:text-blue-400'],
+                        'forfeited' => ['FORFEITED', 'text-rose-700 dark:text-rose-400'],
+                        default => ['PENDING', 'text-amber-700 dark:text-amber-400'],
+                    };
+                @endphp
+                <div class="mt-6 rounded-2xl border p-4 {{ $depositCardClass }}">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold text-xs uppercase tracking-wider {{ $depositBadge[1] }}">
+                                Auction Win Deposit
+                            </h3>
+                            <p class="text-sm font-bold text-gray-900 dark:text-white mt-1">
+                                Rs. {{ number_format($order->deposit_amount, 2) }}
+                                <span class="ml-1 {{ $depositBadge[1] }} text-xs font-extrabold">{{ $depositBadge[0] }}</span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Secures your auction win. The remaining Rs. {{ number_format($order->total_amount - $order->deposit_amount, 2) }} is paid in cash at the meetup after you inspect the item.
+                            </p>
+                            @if($order->deposit_status === 'refund_owed')
+                                <p class="text-xs text-blue-800 dark:text-blue-300 mt-1 font-semibold">
+                                    This deposit needs to be refunded to the buyer outside the app (eSewa refunds aren't automated here).
+                                </p>
+                            @endif
+                        </div>
+                        @if($order->needsDeposit() && Auth::id() === $order->buyer_id)
+                            <a href="{{ route('payment.esewa.initiate', $order) }}" class="shrink-0 rounded-xl bg-[#60BB46] px-5 py-2.5 text-xs font-extrabold text-white hover:opacity-90 text-center">
+                                Pay Deposit via eSewa
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
+            {{-- Cancellation Reason (shown once cancelled) --}}
+            @if($order->status === 'cancelled' && ($order->cancellation_reason_category || $order->cancellation_note))
+                <div class="mt-6 rounded-2xl bg-gray-50 p-4 border border-gray-200 text-xs text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300">
+                    @if($order->cancellation_reason_category)
+                        <p><strong>Cancellation Reason:</strong> {{ \App\Services\OrderCancellationService::BUYER_REASONS[$order->cancellation_reason_category] ?? $order->cancellation_reason_category }}</p>
+                    @endif
+                    @if($order->cancellation_note)
+                        <p class="mt-1"><strong>Note:</strong> {{ $order->cancellation_note }}</p>
+                    @endif
+                </div>
+            @endif
 
             {{-- Notes --}}
             @if($order->notes)

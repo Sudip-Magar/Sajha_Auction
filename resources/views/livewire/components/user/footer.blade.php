@@ -37,10 +37,11 @@
                 <h4 class="text-lg font-bold mb-6 text-white">Quick Links</h4>
                 <ul class="space-y-4">
                     <li><a href="{{ route('home') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Home</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Browse Auctions</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">How it Works</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Live Auctions</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Upcoming Items</a></li>
+                    <li><a href="{{ route('user.marketplace-products') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Direct-Sell Products</a></li>
+                    <li><a href="{{ route('user.auction') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Browse Auctions</a></li>
+                    <li><a href="{{ route('info.page', 'how-it-works') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">How it Works</a></li>
+                    <li><a href="{{ route('user.auction') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Live Auctions</a></li>
+                    <li><a href="{{ route('user.auction') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Upcoming Items</a></li>
                     <li><a href="{{ route('faqs') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">FAQs</a></li>
                 </ul>
             </div>
@@ -49,9 +50,9 @@
             <div>
                 <h4 class="text-lg font-bold mb-6 text-white">Support & Help</h4>
                 <ul class="space-y-4">
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Help Center</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Buying Guide</a></li>
-                    <li><a href="#" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Selling Guide</a></li>
+                    <li><a href="{{ route('info.page', 'help-center') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Help Center</a></li>
+                    <li><a href="{{ route('info.page', 'buying-guide') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Buying Guide</a></li>
+                    <li><a href="{{ route('info.page', 'selling-guide') }}" wire:navigate class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Selling Guide</a></li>
                     <li><a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}" target="_blank" rel="noopener" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Terms of Service</a></li>
                     <li><a href="{{ asset('assets/documents/terms-and-conditions.pdf') }}" target="_blank" rel="noopener" class="text-gray-400 hover:text-[#2FA084] transition-colors text-sm font-medium">Privacy Policy</a></li>
                 </ul>
@@ -61,13 +62,15 @@
             <div class="space-y-6">
                 <h4 class="text-lg font-bold text-white">Join our Newsletter</h4>
                 <p class="text-gray-400 text-sm">Stay updated with latest auctions and exclusive offers.</p>
-                <form class="relative group">
-                    <input type="email" placeholder="your@email.com" 
+                <form wire:submit="subscribe" class="relative group">
+                    <input type="email" wire:model="newsletterEmail" placeholder="your@email.com"
                         class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#2FA084] transition-all" />
-                    <button type="submit" class="absolute right-2 top-1.5 bottom-1.5 px-4 bg-[#2FA084] hover:bg-[#1F6F5F] text-white rounded-lg text-xs font-bold transition-all">
-                        Join
+                    <button type="submit" wire:loading.attr="disabled" wire:target="subscribe" class="absolute right-2 top-1.5 bottom-1.5 px-4 bg-[#2FA084] hover:bg-[#1F6F5F] text-white rounded-lg text-xs font-bold transition-all disabled:opacity-60">
+                        <span wire:loading.remove wire:target="subscribe">Join</span>
+                        <span wire:loading wire:target="subscribe">...</span>
                     </button>
                 </form>
+                @error('newsletterEmail') <p class="text-rose-400 text-xs font-semibold">{{ $message }}</p> @enderror
                 <div class="flex items-center text-xs text-gray-500 font-medium">
                     <x-icon name="o-shield-check" class="w-4 h-4 mr-2 text-[#2FA084]" />
                     Your data is safe with us.

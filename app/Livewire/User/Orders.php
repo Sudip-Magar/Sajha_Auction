@@ -16,10 +16,25 @@ class Orders extends Component
 
     public string $tab = 'purchases';
 
+    public function mount(): void
+    {
+        if (session()->has('esewa_success')) {
+            $this->success(session('esewa_success'));
+        } elseif (session()->has('esewa_error')) {
+            $this->error(session('esewa_error'));
+        }
+    }
+
     public function updateOrderStatus(int $orderId, string $status): void
     {
         $user = Auth::user();
         if (! $user) {
+            return;
+        }
+
+        if (! in_array($status, ['confirmed', 'completed'], true)) {
+            $this->error('Invalid order status. Cancelling requires a reason - use the order detail page.');
+
             return;
         }
 
@@ -57,15 +72,6 @@ class Orders extends Component
                     'meetup_scheduled',
                     "Order Confirmed by Seller (#{$order->order_number})",
                     'Seller confirmed order. Agreed meetup location: '.($order->meetup_location ?: 'Seller Location').'.',
-                    $user
-                );
-            }
-        } elseif ($status === 'cancelled') {
-            foreach ($order->items as $item) {
-                $item->product?->logTimeline(
-                    'cancelled',
-                    "Order Cancelled (#{$order->order_number})",
-                    'Order was cancelled.',
                     $user
                 );
             }

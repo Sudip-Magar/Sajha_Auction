@@ -158,6 +158,19 @@
                                 <p class="mt-1 font-black text-sm text-emerald-950 dark:text-emerald-200">
                                     Total: Rs {{ number_format($order->total_amount) }}
                                 </p>
+                                @if($order->deposit_status !== 'not_required')
+                                    @php
+                                        $depositBadge = match($order->deposit_status) {
+                                            'paid' => ['Deposit Paid', 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300'],
+                                            'refund_owed' => ['Refund Owed', 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300'],
+                                            'forfeited' => ['Deposit Forfeited', 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300'],
+                                            default => ['Deposit Pending', 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'],
+                                        };
+                                    @endphp
+                                    <span class="mt-2 inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold {{ $depositBadge[1] }}">
+                                        {{ $depositBadge[0] }}
+                                    </span>
+                                @endif
                             </div>
                         </div>
 
@@ -178,11 +191,10 @@
                                             Confirm Order
                                         </button>
                                     @endif
-                                    <button type="button"
-                                            wire:click="updateOrderStatus({{ $order->id }}, 'cancelled')"
-                                            class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
+                                    <a href="{{ route('user.orders.show', $order->id) }}" wire:navigate
+                                       class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
                                         Cancel Order
-                                    </button>
+                                    </a>
                                 @elseif($order->status === 'confirmed' || $order->status === 'meetup_scheduled')
                                     <button type="button"
                                             wire:click="updateOrderStatus({{ $order->id }}, 'completed')"

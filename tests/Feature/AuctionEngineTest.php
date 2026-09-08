@@ -9,6 +9,7 @@ use App\Models\SubCategory;
 use App\Models\TraditionalAuction;
 use App\Models\User;
 use App\Notifications\AuctionWonNotification;
+use App\Notifications\OutbidNotification;
 use App\Services\AuctionEngineService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -288,6 +289,275 @@ test('algorithm 2: rejects a proxy submission whose visible bid is below the min
         User::factory()->create(['is_auction_allowed' => false]),
         1100,
     ))->toThrow('Your account is not approved for live auction bidding.');
+});
+
+test('outbid notification: the previous leader is notified when someone else takes the lead', function () {
+    Notification::fake();
+
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Outbid Test Item',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => now()->subHour(),
+        'end_time' => now()->addHour(),
+        'current_price' => 1000,
+        'status' => 'active',
+    ]);
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 1000,
+        'reserve_price' => 1000,
+        'min_bid_increment' => 100,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    $bidderA = User::factory()->create(['is_auction_allowed' => true]);
+    $bidderB = User::factory()->create(['is_auction_allowed' => true]);
+
+    // Bidder A's first bid on a fresh auction — nobody to outbid yet.
+    AuctionEngineService::processBid($auction, $bidderA, 1100);
+    Notification::assertNotSentTo($bidderA, OutbidNotification::class);
+
+    // Bidder B takes the lead — bidder A should now be notified.
+    AuctionEngineService::processBid($auction, $bidderB, 1300);
+    Notification::assertSentTo($bidderA, OutbidNotification::class);
+    Notification::assertNotSentTo($bidderB, OutbidNotification::class);
+});
+
+test('outbid notification: raising your own leading proxy bid does not notify yourself', function () {
+    Notification::fake();
+
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Self Bid Outbid Test',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => now()->subHour(),
+        'end_time' => now()->addHour(),
+        'current_price' => 1000,
+        'status' => 'active',
+    ]);
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 1000,
+        'reserve_price' => 1000,
+        'min_bid_increment' => 100,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    $bidderA = User::factory()->create(['is_auction_allowed' => true]);
+
+    AuctionEngineService::processBid($auction, $bidderA, 1100, 5000);
+    AuctionEngineService::processBid($auction, $bidderA, 1200, 6000);
+
+    Notification::assertNotSentTo($bidderA, OutbidNotification::class);
+});
+
+test('anti-sniping: a bid inside the closing window extends the deadline by timer_reset_seconds', function () {
+    $frozenNow = \Illuminate\Support\Carbon::create(2026, 1, 1, 12, 0, 0);
+    \Illuminate\Support\Carbon::setTestNow($frozenNow);
+
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Anti-Sniping Test Item',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => $frozenNow->copy()->subHour(),
+        'end_time' => $frozenNow->copy()->addSeconds(10), // inside the 15s reset window
+        'current_price' => 1000,
+        'status' => 'active',
+    ]);
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 1000,
+        'reserve_price' => 1000,
+        'min_bid_increment' => 100,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    $bidder = User::factory()->create(['is_auction_allowed' => true]);
+    AuctionEngineService::processBid($auction, $bidder, 1100);
+    $auction->refresh();
+
+    expect($auction->extended_end_time)->not->toBeNull();
+    expect($auction->extended_end_time->timestamp)->toBe($frozenNow->copy()->addSeconds(15)->timestamp);
+    expect($auction->effective_end_time->timestamp)->toBe($auction->extended_end_time->timestamp);
+
+    \Illuminate\Support\Carbon::setTestNow();
+});
+
+test('anti-sniping: a bid outside the closing window does not extend the deadline', function () {
+    $frozenNow = \Illuminate\Support\Carbon::create(2026, 1, 1, 12, 0, 0);
+    \Illuminate\Support\Carbon::setTestNow($frozenNow);
+
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Early Bid Test Item',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => $frozenNow->copy()->subHour(),
+        'end_time' => $frozenNow->copy()->addMinutes(30), // well outside the 15s reset window
+        'current_price' => 1000,
+        'status' => 'active',
+    ]);
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 1000,
+        'reserve_price' => 1000,
+        'min_bid_increment' => 100,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    $bidder = User::factory()->create(['is_auction_allowed' => true]);
+    AuctionEngineService::processBid($auction, $bidder, 1100);
+    $auction->refresh();
+
+    expect($auction->extended_end_time)->toBeNull();
+
+    \Illuminate\Support\Carbon::setTestNow();
+});
+
+test('anti-sniping: a second late bid extends further, never shrinking an existing extension', function () {
+    $frozenNow = \Illuminate\Support\Carbon::create(2026, 1, 1, 12, 0, 0);
+    \Illuminate\Support\Carbon::setTestNow($frozenNow);
+
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Double Extension Test Item',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => $frozenNow->copy()->subHour(),
+        'end_time' => $frozenNow->copy()->addSeconds(10),
+        'current_price' => 1000,
+        'status' => 'active',
+    ]);
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 1000,
+        'reserve_price' => 1000,
+        'min_bid_increment' => 100,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    $bidderA = User::factory()->create(['is_auction_allowed' => true]);
+    $bidderB = User::factory()->create(['is_auction_allowed' => true]);
+
+    AuctionEngineService::processBid($auction, $bidderA, 1100);
+    $auction->refresh();
+    $firstExtension = $auction->extended_end_time->timestamp;
+    expect($firstExtension)->toBe($frozenNow->copy()->addSeconds(15)->timestamp);
+
+    // 5 seconds later, still inside the (extended) closing window.
+    \Illuminate\Support\Carbon::setTestNow($frozenNow->copy()->addSeconds(5));
+    AuctionEngineService::processBid($auction, $bidderB, 1200);
+    $auction->refresh();
+
+    expect($auction->extended_end_time->timestamp)->toBeGreaterThan($firstExtension);
+    expect($auction->extended_end_time->timestamp)->toBe($frozenNow->copy()->addSeconds(5 + 15)->timestamp);
+
+    \Illuminate\Support\Carbon::setTestNow();
+});
+
+test('anti-sniping: an extended auction is not finalized until the extension itself has passed', function () {
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $subCategory = createTestSubCategory();
+    $product = Product::create([
+        'seller_id' => $seller->id,
+        'sub_category_id' => $subCategory->id,
+        'name' => 'Finalize Guard Test Item',
+        'description' => 'Test',
+        'condition' => 'new',
+        'quantity' => 1,
+        'listing_type' => 'auction',
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $auction = Auction::create([
+        'product_id' => $product->id,
+        'auction_type' => 'traditional',
+        'start_time' => now()->subHour(),
+        'end_time' => now()->subMinute(), // originally scheduled end has already passed
+        'extended_end_time' => now()->addMinute(), // but a late bid pushed it further out
+        'current_price' => 1000,
+        'status' => 'active',
+    ]);
+    TraditionalAuction::create([
+        'auction_id' => $auction->id,
+        'starting_bid' => 1000,
+        'reserve_price' => 1000,
+        'min_bid_increment' => 100,
+        'timer_start_seconds' => 60,
+        'timer_reset_seconds' => 15,
+    ]);
+
+    expect($auction->isLive())->toBeTrue();
+    expect(AuctionEngineService::checkAndFinalizeIfExpired($auction))->toBeFalse();
+    expect($auction->fresh()->status)->toBe('active');
+
+    $auction->update(['extended_end_time' => now()->subSecond()]);
+    expect(AuctionEngineService::checkAndFinalizeIfExpired($auction->fresh()))->toBeTrue();
+    expect($auction->fresh()->status)->not->toBe('active');
 });
 
 test('algorithm 3: calculates optimal reserve and equilibrium bidding strategy', function () {

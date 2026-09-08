@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\EsewaPaymentController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Livewire\Admin\AuctionApplication;
 use App\Livewire\Admin\AuctionApplicationDetail;
@@ -14,17 +15,22 @@ use App\Livewire\Admin\UserDetail as AdminUserDetail;
 use App\Livewire\Admin\Users as AdminUsers;
 use App\Livewire\Auth\Admin\Login as AdminLogin;
 use App\Livewire\Auth\User\CompleteProfile;
+use App\Livewire\Auth\User\ForgotPassword;
 use App\Livewire\Auth\User\Login;
 use App\Livewire\Auth\User\Register;
+use App\Livewire\Auth\User\ResetPassword;
 use App\Livewire\Auth\User\VerifyOtp;
 use App\Livewire\Faqs;
 use App\Livewire\Home;
+use App\Livewire\InfoPage;
 use App\Livewire\User\AuctionDetail;
+use App\Livewire\User\AuctionMarketplace;
 use App\Livewire\User\Cart;
 use App\Livewire\User\Checkout;
 use App\Livewire\User\Dashboard;
 use App\Livewire\User\JoinAuction;
 use App\Livewire\User\ManageProduct;
+use App\Livewire\User\MarketplaceProducts;
 use App\Livewire\User\Messages;
 use App\Livewire\User\Notifications as UserNotifications;
 use App\Livewire\User\OrderDetail;
@@ -42,12 +48,18 @@ Route::get('/', function () {
 
 Route::get('/home', Home::class)->name('home');
 Route::get('/faqs', Faqs::class)->name('faqs');
-Route::redirect('/products', '/home')->name('user.marketplace-products');
+Route::get('/products', MarketplaceProducts::class)->name('user.marketplace-products');
 Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.products.show');
 Route::get('/register', Register::class)->name('user.register');
 Route::get('/login', Login::class)->name('user.login');
+Route::get('/forgot-password', ForgotPassword::class)->name('password.forgot');
+Route::get('/reset-password', ResetPassword::class)->name('password.reset');
 // Route::get('/login', Login::class)->name('login');
 Route::get('search-product', SearchProduct::class)->name('user.search.product');
+Route::get('/auction', AuctionMarketplace::class)->name('user.auction');
+Route::get('/info/{slug}', InfoPage::class)
+    ->name('info.page')
+    ->where('slug', 'safety-tips|posting-rules|how-it-works|help-center|buying-guide|selling-guide');
 
 Route::prefix('admin')->group(function () {
     Route::get('/login', AdminLogin::class)->name('admin.login');
@@ -55,6 +67,11 @@ Route::prefix('admin')->group(function () {
 
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+
+// eSewa redirects the buyer's browser back here; matched by transaction_uuid
+// rather than the session, so these stay outside the 'user' auth group.
+Route::get('/payment/esewa/success', [EsewaPaymentController::class, 'success'])->name('payment.esewa.success');
+Route::get('/payment/esewa/failure', [EsewaPaymentController::class, 'failure'])->name('payment.esewa.failure');
 
 Route::middleware('auth.otp')->group(function () {
     Route::get('/verify-otp', VerifyOtp::class)->name('verify.otp');
@@ -69,13 +86,13 @@ Route::middleware('user')->group(function () {
     Route::get('/checkout/{product?}', Checkout::class)->name('user.checkout');
     Route::get('/my-orders', Orders::class)->name('user.orders');
     Route::get('/my-orders/{order}', OrderDetail::class)->name('user.orders.show');
+    Route::get('/my-orders/{order}/pay-deposit', [EsewaPaymentController::class, 'initiate'])->name('payment.esewa.initiate');
     Route::get('/notifications', UserNotifications::class)->name('user.notifications');
     Route::get('/settings', Settings::class)->name('user.settings');
     Route::get('/my-products', Products::class)->name('user.products');
     Route::get('/my-products/create', ManageProduct::class)->name('user.products.create');
     Route::get('/my-products/{product}/edit', ManageProduct::class)->name('user.products.edit');
     Route::get('/join-auction', JoinAuction::class)->name('user.join-auction');
-    Route::redirect('/auction', '/home')->name('user.auction');
     Route::get('/auction/{auction}', AuctionDetail::class)->name('user.auction.detail');
     Route::get('/messages/{conversation?}', Messages::class)->name('user.messages');
 });
@@ -90,6 +107,7 @@ Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/seller-requests', SellerRequests::class)->name('admin.seller-requests');
     Route::get('/products', App\Livewire\Admin\Products::class)->name('admin.products');
     Route::get('/products/{product}', AdminProductDetail::class)->name('admin.products.show');
+    Route::get('/orders', App\Livewire\Admin\Orders::class)->name('admin.orders');
     Route::get('/notifications', AdminNotifications::class)->name('admin.notifications');
     Route::get('/settings', App\Livewire\Admin\Settings::class)->name('admin.settings');
     Route::get('/auction-application', AuctionApplication::class)->name('admin.auction-application');

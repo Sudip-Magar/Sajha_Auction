@@ -9,6 +9,9 @@ use App\Models\Bid;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\AuctionWonNotification;
+use App\Notifications\OutbidNotification;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -70,6 +73,12 @@ class AuctionEngineService
             $effectiveMaxProxy = max($maxProxyAmount ?? $bidAmount, $bidAmount);
             $isProxy = $effectiveMaxProxy > $bidAmount;
 
+            // Snapshot who was leading before this bid is recorded, so we can
+            // tell them they've been outbid once the new leader is resolved.
+            $previousLeaderId = static::rankBidderMaxes(
+                Bid::where('auction_id', $lockedAuction->id)->orderBy('created_at')->orderBy('id')->get()
+            )[0]['bidder_id'] ?? null;
+
             // Save new bid entry
             $bid = Bid::create([
                 'auction_id' => $lockedAuction->id,
@@ -88,33 +97,7 @@ class AuctionEngineService
                 ->orderBy('id')
                 ->get();
 
-            // Group by bidder to get each bidder's highest maximum
-            $bidderMaxes = [];
-            foreach ($allBids as $b) {
-                $bId = $b->bidder_id;
-                $maxVal = (float) ($b->max_proxy_amount ?? $b->bid_amount);
-                if (! isset($bidderMaxes[$bId]) || $maxVal > $bidderMaxes[$bId]['max']) {
-                    $bidderMaxes[$bId] = [
-                        'bidder_id' => $bId,
-                        'max' => $maxVal,
-                        'bid' => $b,
-                        'submitted_at' => $b->created_at,
-                    ];
-                }
-            }
-
-            // Sort by maximum, then use the earliest maximum registration to
-            // resolve equal proxy limits deterministically.
-            usort($bidderMaxes, function (array $first, array $second): int {
-                $maximumComparison = $second['max'] <=> $first['max'];
-
-                if ($maximumComparison !== 0) {
-                    return $maximumComparison;
-                }
-
-                return $first['submitted_at']->getTimestamp() <=> $second['submitted_at']->getTimestamp()
-                    ?: $first['bid']->id <=> $second['bid']->id;
-            });
+            $bidderMaxes = static::rankBidderMaxes($allBids);
 
             $newStandingPrice = max($currentPrice, $bidAmount);
             $automaticBid = null;
@@ -156,19 +139,99 @@ class AuctionEngineService
                 }
             }
 
+            // Anti-sniping: a bid landing inside the closing `timer_reset_seconds`
+            // window of the effective deadline pushes that deadline out by the
+            // same window again, so the countdown never lets someone win purely
+            // by bidding in the last second with no chance for others to respond.
+            $effectiveEndTime = $lockedAuction->extended_end_time ?? $lockedAuction->end_time;
+            $resetSeconds = (int) ($lockedAuction->traditionalAuction?->timer_reset_seconds ?? 0);
+            $newExtendedEndTime = $lockedAuction->extended_end_time;
+
+            if ($resetSeconds > 0 && $effectiveEndTime) {
+                $secondsRemaining = $effectiveEndTime->getTimestamp() - now()->getTimestamp();
+
+                if ($secondsRemaining <= $resetSeconds) {
+                    $candidateEndTime = now()->addSeconds($resetSeconds);
+
+                    if ($candidateEndTime->gt($effectiveEndTime)) {
+                        $newExtendedEndTime = $candidateEndTime;
+                    }
+                }
+            }
+
             $lockedAuction->update([
                 'current_price' => $newStandingPrice,
                 'total_bids' => $lockedAuction->bids()->count(),
+                'extended_end_time' => $newExtendedEndTime,
             ]);
+
+            $newLeaderId = $bidderMaxes[0]['bidder_id'] ?? null;
 
             // Broadcast only after the transaction commits, so Reverb listeners
             // always reload the new standing price and bid history.
-            DB::afterCommit(function () use ($lockedAuction, $bid, $automaticBid): void {
+            DB::afterCommit(function () use ($lockedAuction, $bid, $automaticBid, $previousLeaderId, $newLeaderId, $newStandingPrice): void {
                 event(new AuctionBidPlaced($lockedAuction->fresh(['traditionalAuction']), $automaticBid ?? $bid));
+
+                if ($previousLeaderId !== null && $newLeaderId !== null && $previousLeaderId !== $newLeaderId) {
+                    $previousLeader = User::find($previousLeaderId);
+
+                    if ($previousLeader) {
+                        try {
+                            $previousLeader->notify(new OutbidNotification($lockedAuction, $newStandingPrice));
+                        } catch (\Throwable $exception) {
+                            Log::warning('Outbid notification could not be delivered.', [
+                                'auction_id' => $lockedAuction->id,
+                                'previous_leader_id' => $previousLeaderId,
+                                'exception' => $exception->getMessage(),
+                            ]);
+                        }
+                    }
+                }
             });
 
             return $bid;
         });
+    }
+
+    /**
+     * Ranks each bidder's highest submitted max (proxy ceiling, or plain bid
+     * amount for a non-proxy bid) across the given bids, most competitive
+     * first — used both to resolve the standing price (Algorithm 2) and to
+     * detect the previous leader when dispatching outbid notifications.
+     *
+     * @param  Collection<int, Bid>  $bids
+     * @return array<int, array{bidder_id: int, max: float, bid: Bid, submitted_at: Carbon}>
+     */
+    private static function rankBidderMaxes(Collection $bids): array
+    {
+        $bidderMaxes = [];
+        foreach ($bids as $b) {
+            $bidderId = $b->bidder_id;
+            $maxVal = (float) ($b->max_proxy_amount ?? $b->bid_amount);
+            if (! isset($bidderMaxes[$bidderId]) || $maxVal > $bidderMaxes[$bidderId]['max']) {
+                $bidderMaxes[$bidderId] = [
+                    'bidder_id' => $bidderId,
+                    'max' => $maxVal,
+                    'bid' => $b,
+                    'submitted_at' => $b->created_at,
+                ];
+            }
+        }
+
+        // Sort by maximum, then use the earliest maximum registration to
+        // resolve equal proxy limits deterministically.
+        usort($bidderMaxes, function (array $first, array $second): int {
+            $maximumComparison = $second['max'] <=> $first['max'];
+
+            if ($maximumComparison !== 0) {
+                return $maximumComparison;
+            }
+
+            return $first['submitted_at']->getTimestamp() <=> $second['submitted_at']->getTimestamp()
+                ?: $first['bid']->id <=> $second['bid']->id;
+        });
+
+        return $bidderMaxes;
     }
 
     /**
@@ -250,17 +313,23 @@ class AuctionEngineService
         $auction->loadMissing(['product', 'winner']);
 
         if ($auction->product && $winningBid->bidder) {
+            $depositPercentage = (float) config('services.esewa.deposit_percentage', 10);
+            $depositAmount = round($maxBidAmount * $depositPercentage / 100, 2);
+
             $order = Order::create([
                 'buyer_id' => $winningBid->bidder_id,
                 'seller_id' => $auction->product->seller_id,
+                'auction_id' => $auction->id,
                 'status' => 'pending',
                 'total_amount' => $maxBidAmount,
+                'deposit_amount' => $depositAmount,
+                'deposit_status' => 'pending',
                 'payment_method' => 'cash_on_meetup',
                 'payment_status' => 'pending',
                 'handover_type' => 'meetup',
                 'meetup_location' => $auction->product->meetup_location ?: $auction->product->location,
                 'buyer_phone' => $winningBid->bidder->phone,
-                'notes' => "Created automatically after winning auction #{$auction->id}.",
+                'notes' => "Created automatically after winning auction #{$auction->id}. A {$depositPercentage}% deposit (Rs. ".number_format($depositAmount, 2).') secures the win via eSewa; the remaining balance is paid in cash at the meetup.',
             ]);
 
             $order->items()->create([
@@ -297,7 +366,7 @@ class AuctionEngineService
      */
     public static function checkAndFinalizeIfExpired(Auction $auction): bool
     {
-        if ($auction->status === 'active' && $auction->end_time && $auction->end_time <= now()) {
+        if ($auction->status === 'active' && $auction->effective_end_time && $auction->effective_end_time <= now()) {
             static::determineWinner($auction);
 
             return true;
