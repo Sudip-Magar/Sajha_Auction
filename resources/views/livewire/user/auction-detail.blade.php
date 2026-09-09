@@ -134,14 +134,17 @@
                         <x-icon name="o-document-text" class="w-5 h-5 text-[#0C8FE8]" />
                         Description & Details
                     </h2>
-                    <p class="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line text-sm sm:text-base">{{ $auction->product->description }}</p>
+                    <div class="text-gray-600 dark:text-gray-300 leading-relaxed text-sm sm:text-base tiptap-content tiptap-content-view">
+                        {!! \App\Services\HtmlSanitizerService::toSafeHtml($auction->product->description) !!}
+                    </div>
                 </div>
 
-                @if($auction->product->specifications)
+                @php($auctionSpecsHtml = \App\Services\HtmlSanitizerService::toSafeHtml($auction->product->specifications))
+                @if($auctionSpecsHtml !== '')
                     <div class="pt-6 border-t border-gray-100 dark:border-gray-800">
                         <h3 class="text-lg font-black text-gray-900 dark:text-gray-100 mb-3">Specifications</h3>
-                        <div class="bg-gray-50 dark:bg-gray-900/60 rounded-2xl p-4 sm:p-5 text-gray-700 dark:text-gray-300 whitespace-pre-line text-sm leading-relaxed border border-gray-100 dark:border-gray-800">
-                            {{ $auction->product->specifications }}
+                        <div class="bg-gray-50 dark:bg-gray-900/60 rounded-2xl p-4 sm:p-5 text-gray-700 dark:text-gray-300 text-sm leading-relaxed border border-gray-100 dark:border-gray-800 tiptap-content tiptap-content-view">
+                            {!! $auctionSpecsHtml !!}
                         </div>
                     </div>
                 @endif

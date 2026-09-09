@@ -104,7 +104,7 @@
                                     </div>
 
                                     <h2 class="mt-2 line-clamp-2 text-lg font-black text-gray-950 dark:text-gray-100">{{ $product->name }}</h2>
-                                    <p class="mt-1.5 line-clamp-2 font-semibold text-gray-500">{{ $product->description }}</p>
+                                    <p class="mt-1.5 line-clamp-2 font-semibold text-gray-500">{{ str($product->description)->stripTags() }}</p>
 
                                     <div class="mt-3 flex flex-wrap items-center gap-3">
                                         <span class="ui-price font-black text-[#0C8FE8]">

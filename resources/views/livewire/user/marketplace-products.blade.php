@@ -27,7 +27,7 @@
                                 <h2 class="mt-1 line-clamp-2 text-base font-black text-gray-900 dark:text-gray-100">{{ $product->name }}</h2>
                             </div>
 
-                            <p class="line-clamp-2 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ $product->description }}</p>
+                            <p class="line-clamp-2 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ str($product->description)->stripTags() }}</p>
 
                             <div class="flex items-end justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
                                 <div>

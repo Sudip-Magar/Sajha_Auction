@@ -138,7 +138,21 @@
 
                         <x-input label="Retail / Original Price (Rs.)" wire:model.live="retail_price" type="number" step="0.01" icon="o-banknotes" hint="MSRP / Original Buying Price" />
 
-                        <x-input label="Purchase Date" wire:model.live="purchase_date" type="date" icon="o-calendar-days" hint="When you originally bought the item (used for estimated value)" />
+                        <div>
+                            <label class="label font-bold text-sm">Purchase Date (B.S.)</label>
+                            <input
+                                type="text"
+                                id="purchase_date_np"
+                                wire:model="purchase_date_np"
+                                data-nepali-date="purchase-date"
+                                class="input input-bordered w-full"
+                                placeholder="YYYY-MM-DD"
+                                autocomplete="off"
+                            />
+                            <input type="hidden" wire:model="purchase_date" data-english-date="purchase-date">
+                            <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">When you originally bought the item (used for estimated value)</p>
+                            @error('purchase_date') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
 
                         @if($listing_type === 'direct_seller')
                             <x-input label="Selling Price (Rs.)" wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
@@ -156,8 +170,29 @@
                     </div>
 
                     <div class="mt-6 space-y-4">
-                        <x-textarea label="Description" wire:model="description" rows="4" placeholder="Describe the product condition, reasons for selling, inclusions/accessories, flaws if any..." />
-                        <x-textarea label="Specifications" wire:model="specifications" rows="3" placeholder="Brand: Apple&#10;RAM: 8GB&#10;Battery Health: 89%" />
+                        <div>
+                            <label class="label font-bold text-sm">Description</label>
+                            <div wire:ignore>
+                                <div data-tiptap-editor="description" data-tiptap-placeholder="Describe the product condition, reasons for selling, inclusions/accessories, flaws if any..." class="tiptap-editor">
+                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
+                                    <div data-tiptap-content class="tiptap-content"></div>
+                                </div>
+                                <input type="hidden" wire:model="description" data-tiptap-input="description">
+                            </div>
+                            @error('description') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="label font-bold text-sm">Specifications</label>
+                            <div wire:ignore>
+                                <div data-tiptap-editor="specifications" data-tiptap-placeholder="Brand: Apple, RAM: 8GB, Battery Health: 89%..." class="tiptap-editor">
+                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
+                                    <div data-tiptap-content class="tiptap-content tiptap-content-sm"></div>
+                                </div>
+                                <input type="hidden" wire:model="specifications" data-tiptap-input="specifications">
+                            </div>
+                            @error('specifications') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
                     </div>
                 </div>
 
@@ -199,6 +234,7 @@
                             <input type="file" wire:model="newImages" class="hidden" multiple accept="image/*" />
                         </label>
                         @error('newImages') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        @error('newImages.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
 
                         <div class="grid grid-cols-2 gap-3 mt-4">
                             {{-- Existing Images --}}
@@ -224,6 +260,50 @@
                     </div>
                 </div>
 
+                {{-- Proof of Product Upload --}}
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
+                    <h2 class="text-xl font-black text-gray-900 mb-2 flex items-center gap-2 dark:text-gray-100">
+                        <x-icon name="o-shield-check" class="w-6 h-6 text-primary" />
+                        Proof of Product
+                    </h2>
+                    <p class="text-xs text-gray-400 mb-4 dark:text-gray-500">Optional. Upload warranty / guarantee card or other proof of authenticity. Not shown publicly, for admin verification only.</p>
+
+                    <div class="space-y-4">
+                        <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800/60">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <x-icon name="o-cloud-arrow-up" class="w-8 h-8 text-gray-400 mb-2" />
+                                <p class="text-sm text-gray-500 font-semibold dark:text-gray-400">Click to upload proof (optional)</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500">e.g. Warranty / Guarantee Card</p>
+                            </div>
+                            <input type="file" wire:model="newProofImages" class="hidden" multiple accept="image/*" />
+                        </label>
+                        @error('newProofImages') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        @error('newProofImages.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            {{-- Existing Proof Images --}}
+                            @foreach($existingProofImages as $image)
+                                <div class="relative group aspect-square rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+                                    <img src="{{ Storage::url($image['path']) }}" class="w-full h-full object-cover" />
+                                    <button type="button" wire:click="removeExistingProofImage({{ $image['id'] }})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <x-icon name="o-x-mark" class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            @endforeach
+
+                            {{-- New Proof Images --}}
+                            @foreach($newProofImages as $index => $image)
+                                <div class="relative group aspect-square rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+                                    <img src="{{ $image->temporaryUrl() }}" class="w-full h-full object-cover" />
+                                    <button type="button" wire:click="removeNewProofImage({{ $index }})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <x-icon name="o-x-mark" class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+
                 {{-- Action Card --}}
                 <div class="bg-[#1F6F5F] rounded-3xl p-6 shadow-xl text-white">
                     <h3 class="font-black text-lg mb-2">Ready to list on Sajha?</h3>
@@ -239,11 +319,14 @@
         </div>
     </x-form>
 
-    {{-- Initialize Nepali Datepickers --}}
+    {{-- Initialize Nepali Datepickers & Rich Text Editors --}}
     <script>
         document.addEventListener('livewire:navigated', () => {
             if (window.initializeNepaliDatePickers) {
                 window.initializeNepaliDatePickers();
+            }
+            if (window.initTiptapEditors) {
+                window.initTiptapEditors();
             }
         });
     </script>

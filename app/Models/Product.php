@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ProductAuctionType;
+use App\Enums\ProductImageType;
 use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
 use App\Services\AuctionValuationService;
@@ -80,7 +81,16 @@ class Product extends Model
 
     public function images(): HasMany
     {
-        return $this->hasMany(ProductImage::class)->orderBy('sort_order');
+        return $this->hasMany(ProductImage::class)
+            ->where('image_type', ProductImageType::GENERAL)
+            ->orderBy('sort_order');
+    }
+
+    public function proofImages(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)
+            ->where('image_type', ProductImageType::PROOF)
+            ->orderBy('sort_order');
     }
 
     public function auction(): HasOne

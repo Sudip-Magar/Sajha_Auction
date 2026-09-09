@@ -1,10 +1,13 @@
 @php
+    use App\Services\HtmlSanitizerService;
+
     $mainImage = $product->image ? Storage::url($product->image) : null;
     $price = $product->isDirectSell()
         ? $product->sale_price
         : ($product->auction?->current_price ?: $product->starting_bid);
     $condition = str($product->condition)->replace('-', ' ')->title();
-    $specLines = collect(preg_split('/\r\n|\r|\n/', (string) $product->specifications))->filter();
+    $descriptionHtml = HtmlSanitizerService::toSafeHtml($product->description);
+    $specificationsHtml = HtmlSanitizerService::toSafeHtml($product->specifications);
 @endphp
 
 <div class="marketplace-ui min-h-screen bg-white text-gray-950 dark:bg-gray-900 dark:text-gray-100">
@@ -123,25 +126,41 @@
                             </div>
                         </div>
 
-                        <div class="mt-3 text-sm font-medium leading-relaxed text-gray-700 dark:text-gray-300">
-                            {!! nl2br(e($product->description)) !!}
+                        <div class="mt-3 text-sm font-medium leading-relaxed text-gray-700 dark:text-gray-300 tiptap-content tiptap-content-view">
+                            {!! $descriptionHtml !!}
                         </div>
                     </section>
 
                     {{-- Specifications --}}
-                    @if($specLines->isNotEmpty())
+                    @if($specificationsHtml !== '')
                         <section class="mt-6">
                             <h2 class="text-lg font-black mb-2">Specifications</h2>
-                            <div class="overflow-hidden rounded-2xl bg-gray-100 dark:bg-[#181A1F] text-xs">
-                                @foreach($specLines as $line)
-                                    <div class="grid grid-cols-[140px_1fr] border-b border-white/80 last:border-b-0 dark:border-gray-800">
-                                        <div class="p-3 font-bold text-gray-800 dark:text-gray-200">{{ str($line)->before(':')->limit(24) }}</div>
-                                        <div class="p-3 text-gray-600 dark:text-gray-400">{{ str($line)->contains(':') ? str($line)->after(':') : $line }}</div>
-                                    </div>
-                                @endforeach
+                            <div class="rounded-2xl bg-gray-100 dark:bg-[#181A1F] p-4 text-xs text-gray-700 dark:text-gray-300 tiptap-content tiptap-content-view">
+                                {!! $specificationsHtml !!}
                             </div>
                         </section>
                     @endif
+
+                    {{-- Proof of Authenticity --}}
+                    <section class="mt-6">
+                        <h2 class="text-lg font-black mb-2 flex items-center gap-2 text-gray-900 dark:text-white">
+                            <x-icon name="o-shield-check" class="w-5 h-5 text-[#1F6F5F]" />
+                            Proof of Authenticity
+                        </h2>
+                        @if($product->proofImages->isNotEmpty())
+                            <div class="flex flex-wrap gap-3">
+                                @foreach($product->proofImages as $image)
+                                    <a href="{{ Storage::url($image->path) }}" target="_blank" rel="noopener" class="block h-20 w-20 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <img src="{{ Storage::url($image->path) }}" alt="Proof of authenticity" class="h-full w-full object-cover">
+                                    </a>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="rounded-xl bg-gray-50 p-3 text-xs font-medium text-gray-400 dark:bg-[#181A1F] dark:text-gray-500 border border-gray-100 dark:border-gray-800">
+                                The seller has not provided any warranty / guarantee proof for this item yet.
+                            </div>
+                        @endif
+                    </section>
 
                     {{-- Product Lifecycle & Timeline --}}
                     @if($product->timelines->isNotEmpty())

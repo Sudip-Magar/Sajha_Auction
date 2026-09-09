@@ -234,7 +234,7 @@
                                             @endif
                                         </div>
                                         <h3 class="line-clamp-2 font-black text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
-                                        <p class="mt-1 line-clamp-2 font-semibold text-gray-500 text-xs">{{ $product->description }}</p>
+                                        <p class="mt-1 line-clamp-2 font-semibold text-gray-500 text-xs">{{ str($product->description)->stripTags() }}</p>
                                         <p class="ui-price mt-2 font-black text-[#0C8FE8]">Rs {{ number_format((float) $priceFor($product)) }}</p>
                                         <p class="mt-1 truncate font-semibold text-gray-500 text-xs">{{ $product->location ?: $product->category?->name ?: 'Sajha Auction' }}</p>
                                     </div>
@@ -317,7 +317,7 @@
                                         </div>
                                         <span class="hidden shrink-0 font-semibold text-gray-500 md:inline text-xs">{{ $product->created_at->diffForHumans() }}</span>
                                     </div>
-                                    <p class="mt-1.5 line-clamp-2 font-semibold text-gray-500 text-xs sm:text-sm">{{ $product->description }}</p>
+                                    <p class="mt-1.5 line-clamp-2 font-semibold text-gray-500 text-xs sm:text-sm">{{ str($product->description)->stripTags() }}</p>
                                     <div class="mt-3 flex flex-wrap items-center gap-2">
                                         <span class="ui-price font-black text-[#0C8FE8]">
                                             {{ $product->isAuction() ? 'Current Bid: ' : '' }}Rs {{ number_format((float) $priceFor($product)) }}

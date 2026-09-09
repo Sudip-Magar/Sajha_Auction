@@ -79,8 +79,8 @@ class Products extends Component
         }
 
         // Clean up images from storage
-        $product->loadMissing('images');
-        foreach ($product->images as $image) {
+        $product->loadMissing(['images', 'proofImages']);
+        foreach ($product->images->merge($product->proofImages) as $image) {
             Storage::disk('public')->delete($image->path);
         }
 
