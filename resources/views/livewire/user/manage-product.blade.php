@@ -1,5 +1,12 @@
 <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-    <x-header :title="$product ? 'Update Product' : 'Upload Product'" subtitle="Provide details about your product, condition, meetup place and listing setup" separator progress-indicator>
+    <x-header
+        :title="($product ? 'Update ' : '').$listingTypeLabel"
+        :subtitle="$listing_type === 'auction'
+            ? 'Set your auction schedule, starting bid and reserve price'
+            : 'Provide details about your product, price and meetup handover'"
+        separator
+        progress-indicator
+    >
         <x-slot:actions>
             <x-button label="Back to Products" icon="o-arrow-left" class="btn-ghost" link="{{ route('user.products') }}" />
         </x-slot:actions>
@@ -11,39 +18,14 @@
             {{-- Left Side: Main Details --}}
             <div class="lg:col-span-2 space-y-6">
 
-                {{-- Listing Type & Auction Configuration (At Top) --}}
-                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
-                    <h2 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2 dark:text-gray-100">
-                        <x-icon name="o-shopping-cart" class="w-6 h-6 text-primary" />
-                        Listing Details & Sale Type
-                    </h2>
+                @if($listing_type === 'auction')
+                    {{-- Auction Schedule & Pricing --}}
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
+                        <h2 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2 dark:text-gray-100">
+                            <x-icon name="o-ticket" class="w-6 h-6 text-primary" />
+                            Auction Schedule & Pricing
+                        </h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                        @if($isAuctionAllowed)
-                            <x-select label="Listing Type" required wire:model.live="listing_type" :options="[
-                                ['id' => 'direct_seller', 'name' => 'Direct Sell (Second-Hand Marketplace)'],
-                                ['id' => 'auction', 'name' => 'Auction']
-                            ]" icon="o-rocket-launch" />
-                        @else
-                            <div>
-                                <x-select label="Listing Type" required wire:model.live="listing_type" :options="[
-                                    ['id' => 'direct_seller', 'name' => 'Direct Sell (Second-Hand Marketplace)']
-                                ]" icon="o-rocket-launch" />
-                                <p class="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 flex items-center gap-2 font-medium dark:text-amber-300 dark:bg-amber-950/30 dark:border-amber-900/60">
-                                    <x-icon name="o-information-circle" class="w-4 h-4 text-amber-600 shrink-0" />
-                                    <span>Auction listing requires auction approval. Submit your request under <a href="{{ route('user.join-auction') }}" wire:navigate class="underline font-bold">Join Auction</a> to enable live auctions.</span>
-                                </p>
-                            </div>
-                        @endif
-
-                        @if($listing_type === 'auction' && $isAuctionAllowed)
-                            <x-select label="Auction Type" required wire:model.live="auction_type" :options="[
-                                ['id' => 'traditional', 'name' => 'Traditional Auction']
-                            ]" icon="o-ticket" />
-                        @endif
-                    </div>
-
-                    @if($listing_type === 'auction' && $isAuctionAllowed)
                         <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100 space-y-6 dark:bg-gray-800/60 dark:border-gray-800">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {{-- Auction Start --}}
@@ -96,7 +78,7 @@
                                             </button>
                                         </div>
                                     @else
-                                        <p class="text-[11px] text-gray-400 mt-2 dark:text-gray-500">Add a retail price, purchase date and condition above to see an estimated value.</p>
+                                        <p class="text-[11px] text-gray-400 mt-2 dark:text-gray-500">Add a retail price, purchase date and condition below to see an estimated value.</p>
                                     @endif
                                 </div>
                                 <div>
@@ -115,8 +97,8 @@
                                 <x-input label="Min Bid Increment (Rs.)" required wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Algorithm 2 dynamic step minimum increment" />
                             </div>
                         </div>
-                    @endif
-                </div>
+                    </div>
+                @endif
 
                 {{-- Product Information --}}
                 <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
@@ -156,9 +138,9 @@
 
                         @if($listing_type === 'direct_seller')
                             <x-input label="Selling Price (Rs.)" required wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
-                        @endif
 
-                        <x-select label="Price Type" required wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
+                            <x-select label="Price Type" required wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
+                        @endif
 
                         <x-input label="Quantity" required wire:model="quantity" type="number" icon="o-archive-box" />
 
@@ -307,11 +289,24 @@
 
                 {{-- Action Card --}}
                 <div class="bg-[#1F6F5F] rounded-3xl p-6 shadow-xl text-white">
-                    <h3 class="font-black text-lg mb-2">Ready to list on Sajha?</h3>
-                    <p class="text-white/80 text-sm mb-6">Ensure your meetup location and selling price are accurate. Once approved, your product will be published to buyers across Nepal.</p>
+                    <h3 class="font-black text-lg mb-2">
+                        {{ $listing_type === 'auction' ? 'Ready to launch your auction?' : 'Ready to list on Sajha?' }}
+                    </h3>
+                    <p class="text-white/80 text-sm mb-6">
+                        @if($listing_type === 'auction')
+                            Double-check your schedule, starting bid and reserve price. Once approved, bidders across Nepal can join live.
+                        @else
+                            Ensure your meetup location and selling price are accurate. Once approved, your product will be published to buyers across Nepal.
+                        @endif
+                    </p>
 
                     <div class="space-y-3">
-                        <x-button :label="$product ? 'Update Listing' : 'Submit for Marketplace Review'" type="submit" class="btn-primary w-full bg-white text-[#1F6F5F] border-none hover:bg-gray-100" spinner="save" />
+                        <x-button
+                            :label="$product ? 'Update Listing' : ($listing_type === 'auction' ? 'Submit Auction for Review' : 'Submit for Marketplace Review')"
+                            type="submit"
+                            class="btn-primary w-full bg-white text-[#1F6F5F] border-none hover:bg-gray-100"
+                            spinner="save"
+                        />
                         <x-button label="Cancel" class="btn-ghost w-full text-white hover:bg-white/10" link="{{ route('user.products') }}" />
                     </div>
                 </div>

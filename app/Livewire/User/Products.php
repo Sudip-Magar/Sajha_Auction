@@ -92,6 +92,7 @@ class Products extends Component
     {
         $user = Auth::user();
         $isSeller = (bool) $user?->is_seller;
+        $isAuctionAllowed = (bool) $user?->is_auction_allowed;
         $sellerApplicationPending = (bool) $user?->seller_application_pending;
 
         $userProducts = $isSeller
@@ -103,6 +104,7 @@ class Products extends Component
 
         return view('livewire.user.products', [
             'isSeller' => $isSeller,
+            'isAuctionAllowed' => $isAuctionAllowed,
             'sellerApplicationPending' => $sellerApplicationPending,
             'products' => $userProducts,
         ]);

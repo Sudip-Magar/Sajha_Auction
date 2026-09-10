@@ -2,7 +2,12 @@
     <x-header title="My Products" subtitle="Manage your auction and sales items" separator progress-indicator>
         @if($isSeller)
             <x-slot:actions>
-                <x-button label="Upload Product" icon="o-plus" class="btn-primary shadow-lg shadow-primary/20" link="{{ route('user.products.create') }}" />
+                <x-button label="Sell a Second-Hand Item" icon="o-tag" class="btn-primary shadow-lg shadow-primary/20" link="{{ route('user.products.create', ['type' => 'direct-sell']) }}" />
+                @if($isAuctionAllowed)
+                    <x-button label="Start an Auction" icon="o-ticket" class="btn-outline border-2" link="{{ route('user.products.create', ['type' => 'auction']) }}" />
+                @else
+                    <x-button label="Start an Auction" icon="o-ticket" class="btn-outline border-2" link="{{ route('user.join-auction') }}" tooltip-left="Requires auction approval — click to apply" />
+                @endif
             </x-slot:actions>
         @endif
     </x-header>

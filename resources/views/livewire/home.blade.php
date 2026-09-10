@@ -8,7 +8,7 @@
         return $product->sale_price;
     };
     $targetUrl = fn ($product) => route('user.products.show', $product->slug);
-    $postRoute = Auth::check() ? route('user.products.create') : route('user.login');
+    $postRoute = Auth::check() ? route('user.products') : route('user.login');
 @endphp
 
 <div class="marketplace-ui min-h-screen bg-[#F7F8FA] text-gray-950 dark:bg-gray-900 dark:text-gray-100">
