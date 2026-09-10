@@ -20,13 +20,13 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                         @if($isAuctionAllowed)
-                            <x-select label="Listing Type *" wire:model.live="listing_type" :options="[
+                            <x-select label="Listing Type" required wire:model.live="listing_type" :options="[
                                 ['id' => 'direct_seller', 'name' => 'Direct Sell (Second-Hand Marketplace)'],
                                 ['id' => 'auction', 'name' => 'Auction']
                             ]" icon="o-rocket-launch" />
                         @else
                             <div>
-                                <x-select label="Listing Type *" wire:model.live="listing_type" :options="[
+                                <x-select label="Listing Type" required wire:model.live="listing_type" :options="[
                                     ['id' => 'direct_seller', 'name' => 'Direct Sell (Second-Hand Marketplace)']
                                 ]" icon="o-rocket-launch" />
                                 <p class="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 flex items-center gap-2 font-medium dark:text-amber-300 dark:bg-amber-950/30 dark:border-amber-900/60">
@@ -37,7 +37,7 @@
                         @endif
 
                         @if($listing_type === 'auction' && $isAuctionAllowed)
-                            <x-select label="Auction Type *" wire:model.live="auction_type" :options="[
+                            <x-select label="Auction Type" required wire:model.live="auction_type" :options="[
                                 ['id' => 'traditional', 'name' => 'Traditional Auction']
                             ]" icon="o-ticket" />
                         @endif
@@ -48,7 +48,7 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {{-- Auction Start --}}
                                 <div>
-                                    <label class="label font-bold text-sm">Auction Start Date (B.S.)</label>
+                                    <label class="label font-bold text-sm">Auction Start Date (B.S.) <span class="text-error">*</span></label>
                                     <input
                                         type="text"
                                         id="auction_start_np"
@@ -62,11 +62,11 @@
                                     @error('auction_start_date_en') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
 
-                                <x-input label="Start Time" wire:model="auction_start_time" type="time" icon="o-clock" />
+                                <x-input label="Start Time" required wire:model="auction_start_time" type="time" icon="o-clock" />
 
                                 {{-- Traditional Specifics --}}
                                 <div>
-                                    <label class="label font-bold text-sm">Auction End Date (B.S.)</label>
+                                    <label class="label font-bold text-sm">Auction End Date (B.S.) <span class="text-error">*</span></label>
                                     <input
                                         type="text"
                                         id="auction_end_np"
@@ -80,10 +80,10 @@
                                     @error('auction_end_date_en') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
 
-                                <x-input label="End Time" wire:model="auction_end_time" type="time" icon="o-clock" />
+                                <x-input label="End Time" required wire:model="auction_end_time" type="time" icon="o-clock" />
 
                                 <div>
-                                    <x-input label="Starting Bid (Rs.) *" wire:model.live="starting_bid" type="number" step="0.01" icon="o-banknotes" hint="Actual starting price used by the auction" />
+                                    <x-input label="Starting Bid (Rs.)" required wire:model.live="starting_bid" type="number" step="0.01" icon="o-banknotes" hint="Actual starting price used by the auction" />
                                     @if($this->estimatedValue)
                                         <div class="mt-2 p-2.5 bg-violet-50 rounded-xl border border-violet-200 flex items-center justify-between gap-2 dark:bg-violet-950/30 dark:border-violet-900/60">
                                             <div class="text-[11px] text-violet-900 font-medium dark:text-violet-200">
@@ -112,7 +112,7 @@
                                         </div>
                                     @endif
                                 </div>
-                                <x-input label="Min Bid Increment (Rs.) *" wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Algorithm 2 dynamic step minimum increment" />
+                                <x-input label="Min Bid Increment (Rs.)" required wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Algorithm 2 dynamic step minimum increment" />
                             </div>
                         </div>
                     @endif
@@ -127,12 +127,12 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="md:col-span-2">
-                            <x-input label="Product Name" wire:model="name" placeholder="e.g. iPhone 13 Pro 128GB - Lightly Used" icon="o-tag" />
+                            <x-input label="Product Name" required wire:model="name" placeholder="e.g. iPhone 13 Pro 128GB - Lightly Used" icon="o-tag" />
                         </div>
 
-                        <x-select label="Category" wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
+                        <x-select label="Category" required wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
 
-                        <x-select label="Condition" wire:model.live="condition" :options="$conditionOptions" icon="o-sparkles" />
+                        <x-select label="Condition" required wire:model.live="condition" :options="$conditionOptions" icon="o-sparkles" />
 
                         <x-input label="Usage Duration (for second-hand)" wire:model="usage_duration" placeholder="e.g. 6 Months / 1 Year" icon="o-clock" hint="How long the product was used" />
 
@@ -155,12 +155,12 @@
                         </div>
 
                         @if($listing_type === 'direct_seller')
-                            <x-input label="Selling Price (Rs.)" wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
+                            <x-input label="Selling Price (Rs.)" required wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
                         @endif
 
-                        <x-select label="Price Type" wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
+                        <x-select label="Price Type" required wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
 
-                        <x-input label="Quantity" wire:model="quantity" type="number" icon="o-archive-box" />
+                        <x-input label="Quantity" required wire:model="quantity" type="number" icon="o-archive-box" />
 
                         <x-input label="City / Region Location" wire:model="location" placeholder="e.g. Kathmandu, Nepal" icon="o-map-pin" />
 
@@ -171,7 +171,7 @@
 
                     <div class="mt-6 space-y-4">
                         <div>
-                            <label class="label font-bold text-sm">Description</label>
+                            <label class="label font-bold text-sm">Description <span class="text-error">*</span></label>
                             <div wire:ignore>
                                 <div data-tiptap-editor="description" data-tiptap-placeholder="Describe the product condition, reasons for selling, inclusions/accessories, flaws if any..." class="tiptap-editor">
                                     <div data-tiptap-toolbar class="tiptap-toolbar"></div>
@@ -206,7 +206,7 @@
                         <p class="text-sm text-emerald-800 mb-6 dark:text-emerald-300">Specify the exact location where you can meet buyers for product inspection & sale handover.</p>
 
                         <div class="space-y-4">
-                            <x-input label="Meetup Place / Location for Sale *" wire:model="meetup_location" placeholder="e.g. Koteshwor Chowk / New Road Complex, Kathmandu" icon="o-map-pin" hint="Location where buyer will inspect & receive the item" />
+                            <x-input label="Meetup Place / Location for Sale" required wire:model="meetup_location" placeholder="e.g. Koteshwor Chowk / New Road Complex, Kathmandu" icon="o-map-pin" hint="Location where buyer will inspect & receive the item" />
 
                             <x-textarea label="Meetup Availability & Instructions" wire:model="meetup_instructions" rows="2" placeholder="e.g. Available on weekdays after 5 PM, weekends anytime near New Road Mall." />
                         </div>
@@ -221,8 +221,9 @@
                 <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
                     <h2 class="text-xl font-black text-gray-900 mb-6 flex items-center gap-2 dark:text-gray-100">
                         <x-icon name="o-camera" class="w-6 h-6 text-primary" />
-                        Product Photos
+                        Product Photos <span class="text-error">*</span>
                     </h2>
+                    <p class="text-xs text-gray-400 -mt-4 mb-4 dark:text-gray-500">At least one photo is required.</p>
 
                     <div class="space-y-4">
                         <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800/60">

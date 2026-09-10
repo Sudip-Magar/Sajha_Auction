@@ -484,6 +484,7 @@ class ManageProduct extends Component
         } catch (Throwable $e) {
             Log::error('ManageProduct Error: '.$e->getMessage());
             $this->error('An error occurred while saving the product.');
+            dd($e->getMessage());
         }
     }
 
