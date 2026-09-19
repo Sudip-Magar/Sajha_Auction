@@ -8,6 +8,7 @@
 
 import './echo';
 import './nepali.datepicker.v5.0.6.min.js';
+import './tiptap-editor.js';
 
 const datepickerOptions = {
     dateFormat: 'YYYY-MM-DD',
@@ -18,8 +19,9 @@ const datepickerOptions = {
 window.DateSync = {
 
     bsToAd(bsDate) {
-        const ad = window.NepaliFunctions.BS2AD(bsDate);
-        return `${ad.year}-${String(ad.month).padStart(2, '0')}-${String(ad.day).padStart(2, '0')}`;
+        // Unlike AD2BS (which returns a {year, month, day} object), BS2AD
+        // returns an already-formatted "YYYY-MM-DD" string.
+        return window.NepaliFunctions.BS2AD(bsDate);
     },
 
     adToBs(adDate) {
@@ -45,6 +47,11 @@ window.DateSync = {
 
         if (english.value && !nepali.value) {
             nepali.value = this.adToBs(english.value);
+            // Livewire's wire:model only learns about a value change from a
+            // DOM event — a plain `.value =` assignment is invisible to it,
+            // so the auto-filled date would look right on screen but never
+            // reach the component (submitted as empty, failing "required").
+            nepali.dispatchEvent(new Event('input', {bubbles: true}));
         }
 
         english.addEventListener('change', () => {
@@ -55,6 +62,28 @@ window.DateSync = {
             english.dispatchEvent(new Event('input', {bubbles: true}));
             nepali.dispatchEvent(new Event('input', {bubbles: true}));
 
+        });
+
+        // A date typed directly into the Nepali field (not picked from the
+        // calendar popup) never fires the picker's onSelect callback, so
+        // sync it here too once the field loses focus.
+        nepali.addEventListener('blur', () => {
+            if (!nepali.value) return;
+
+            let adDate;
+            try {
+                adDate = this.bsToAd(nepali.value);
+            } catch (e) {
+                return;
+            }
+
+            if (!adDate || adDate.includes('NaN') || adDate === english.value) {
+                return;
+            }
+
+            english.value = adDate;
+            nepali.dispatchEvent(new Event('input', {bubbles: true}));
+            english.dispatchEvent(new Event('input', {bubbles: true}));
         });
 
         nepali.dataset.synced = true;

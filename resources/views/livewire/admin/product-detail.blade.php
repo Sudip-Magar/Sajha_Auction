@@ -109,6 +109,24 @@
                             @endforeach
                         </div>
                     @endif
+
+                    @if($product->proofImages->isNotEmpty())
+                        <div class="pt-2 border-t border-gray-100">
+                            <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Proof / Warranty Documents</p>
+                            <div class="flex flex-wrap gap-3">
+                                @foreach($product->proofImages as $image)
+                                    <a
+                                        href="{{ Storage::url($image->path) }}"
+                                        target="_blank"
+                                        rel="noopener"
+                                        class="w-11 h-11 rounded-xl border border-gray-200 bg-[#f5f2ea] overflow-hidden block"
+                                    >
+                                        <img src="{{ Storage::url($image->path) }}" alt="Proof document" class="w-full h-full object-cover" />
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -132,16 +150,17 @@
 
                     <div class="border-t border-gray-200 pt-4">
                         <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Description</p>
-                        <div class="mt-3 rounded-xl bg-[#f5f2ea] p-4">
-                            <p class="text-sm leading-7 text-gray-700 whitespace-pre-line">{{ $product->description }}</p>
+                        <div class="mt-3 rounded-xl bg-[#f5f2ea] p-4 text-sm leading-7 text-gray-700 tiptap-content tiptap-content-view">
+                            {!! \App\Services\HtmlSanitizerService::toSafeHtml($product->description) !!}
                         </div>
                     </div>
 
-                    @if($product->specifications)
+                    @php($adminSpecsHtml = \App\Services\HtmlSanitizerService::toSafeHtml($product->specifications))
+                    @if($adminSpecsHtml !== '')
                         <div class="border-t border-gray-200 pt-4">
                             <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Specifications</p>
-                            <div class="mt-3 rounded-xl bg-[#f5f2ea] p-4">
-                                <p class="text-sm leading-7 text-gray-700 whitespace-pre-line">{{ $product->specifications }}</p>
+                            <div class="mt-3 rounded-xl bg-[#f5f2ea] p-4 text-sm leading-7 text-gray-700 tiptap-content tiptap-content-view">
+                                {!! $adminSpecsHtml !!}
                             </div>
                         </div>
                     @endif

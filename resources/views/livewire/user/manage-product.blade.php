@@ -1,5 +1,12 @@
 <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-    <x-header :title="$product ? 'Update Product' : 'Upload Product'" subtitle="Provide details about your product, condition, meetup place and listing setup" separator progress-indicator>
+    <x-header
+        :title="($product ? 'Update ' : '').$listingTypeLabel"
+        :subtitle="$listing_type === 'auction'
+            ? 'Set your auction schedule, starting bid and reserve price'
+            : 'Provide details about your product, price and meetup handover'"
+        separator
+        progress-indicator
+    >
         <x-slot:actions>
             <x-button label="Back to Products" icon="o-arrow-left" class="btn-ghost" link="{{ route('user.products') }}" />
         </x-slot:actions>
@@ -11,44 +18,19 @@
             {{-- Left Side: Main Details --}}
             <div class="lg:col-span-2 space-y-6">
 
-                {{-- Listing Type & Auction Configuration (At Top) --}}
-                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
-                    <h2 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2 dark:text-gray-100">
-                        <x-icon name="o-shopping-cart" class="w-6 h-6 text-primary" />
-                        Listing Details & Sale Type
-                    </h2>
+                @if($listing_type === 'auction')
+                    {{-- Auction Schedule & Pricing --}}
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
+                        <h2 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2 dark:text-gray-100">
+                            <x-icon name="o-ticket" class="w-6 h-6 text-primary" />
+                            Auction Schedule & Pricing
+                        </h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                        @if($isAuctionAllowed)
-                            <x-select label="Listing Type *" wire:model.live="listing_type" :options="[
-                                ['id' => 'direct_seller', 'name' => 'Direct Sell (Second-Hand Marketplace)'],
-                                ['id' => 'auction', 'name' => 'Auction']
-                            ]" icon="o-rocket-launch" />
-                        @else
-                            <div>
-                                <x-select label="Listing Type *" wire:model.live="listing_type" :options="[
-                                    ['id' => 'direct_seller', 'name' => 'Direct Sell (Second-Hand Marketplace)']
-                                ]" icon="o-rocket-launch" />
-                                <p class="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 flex items-center gap-2 font-medium dark:text-amber-300 dark:bg-amber-950/30 dark:border-amber-900/60">
-                                    <x-icon name="o-information-circle" class="w-4 h-4 text-amber-600 shrink-0" />
-                                    <span>Auction listing requires auction approval. Submit your request under <a href="{{ route('user.join-auction') }}" wire:navigate class="underline font-bold">Join Auction</a> to enable live auctions.</span>
-                                </p>
-                            </div>
-                        @endif
-
-                        @if($listing_type === 'auction' && $isAuctionAllowed)
-                            <x-select label="Auction Type *" wire:model.live="auction_type" :options="[
-                                ['id' => 'traditional', 'name' => 'Traditional Auction']
-                            ]" icon="o-ticket" />
-                        @endif
-                    </div>
-
-                    @if($listing_type === 'auction' && $isAuctionAllowed)
                         <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100 space-y-6 dark:bg-gray-800/60 dark:border-gray-800">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {{-- Auction Start --}}
                                 <div>
-                                    <label class="label font-bold text-sm">Auction Start Date (B.S.)</label>
+                                    <label class="label font-bold text-sm">Auction Start Date (B.S.) <span class="text-error">*</span></label>
                                     <input
                                         type="text"
                                         id="auction_start_np"
@@ -62,11 +44,11 @@
                                     @error('auction_start_date_en') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
 
-                                <x-input label="Start Time" wire:model="auction_start_time" type="time" icon="o-clock" />
+                                <x-input label="Start Time" required wire:model="auction_start_time" type="time" icon="o-clock" />
 
                                 {{-- Traditional Specifics --}}
                                 <div>
-                                    <label class="label font-bold text-sm">Auction End Date (B.S.)</label>
+                                    <label class="label font-bold text-sm">Auction End Date (B.S.) <span class="text-error">*</span></label>
                                     <input
                                         type="text"
                                         id="auction_end_np"
@@ -80,10 +62,10 @@
                                     @error('auction_end_date_en') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
 
-                                <x-input label="End Time" wire:model="auction_end_time" type="time" icon="o-clock" />
+                                <x-input label="End Time" required wire:model="auction_end_time" type="time" icon="o-clock" />
 
                                 <div>
-                                    <x-input label="Starting Bid (Rs.) *" wire:model.live="starting_bid" type="number" step="0.01" icon="o-banknotes" hint="Actual starting price used by the auction" />
+                                    <x-input label="Starting Bid (Rs.)" required wire:model.live="starting_bid" type="number" step="0.01" icon="o-banknotes" hint="Actual starting price used by the auction" />
                                     @if($this->estimatedValue)
                                         <div class="mt-2 p-2.5 bg-violet-50 rounded-xl border border-violet-200 flex items-center justify-between gap-2 dark:bg-violet-950/30 dark:border-violet-900/60">
                                             <div class="text-[11px] text-violet-900 font-medium dark:text-violet-200">
@@ -96,7 +78,7 @@
                                             </button>
                                         </div>
                                     @else
-                                        <p class="text-[11px] text-gray-400 mt-2 dark:text-gray-500">Add a retail price, purchase date and condition above to see an estimated value.</p>
+                                        <p class="text-[11px] text-gray-400 mt-2 dark:text-gray-500">Add a retail price, purchase date and condition below to see an estimated value.</p>
                                     @endif
                                 </div>
                                 <div>
@@ -112,11 +94,11 @@
                                         </div>
                                     @endif
                                 </div>
-                                <x-input label="Min Bid Increment (Rs.) *" wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Algorithm 2 dynamic step minimum increment" />
+                                <x-input label="Min Bid Increment (Rs.)" required wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Algorithm 2 dynamic step minimum increment" />
                             </div>
                         </div>
-                    @endif
-                </div>
+                    </div>
+                @endif
 
                 {{-- Product Information --}}
                 <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
@@ -127,26 +109,40 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="md:col-span-2">
-                            <x-input label="Product Name" wire:model="name" placeholder="e.g. iPhone 13 Pro 128GB - Lightly Used" icon="o-tag" />
+                            <x-input label="Product Name" required wire:model="name" placeholder="e.g. iPhone 13 Pro 128GB - Lightly Used" icon="o-tag" />
                         </div>
 
-                        <x-select label="Category" wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
+                        <x-select label="Category" required wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
 
-                        <x-select label="Condition" wire:model.live="condition" :options="$conditionOptions" icon="o-sparkles" />
+                        <x-select label="Condition" required wire:model.live="condition" :options="$conditionOptions" icon="o-sparkles" />
 
                         <x-input label="Usage Duration (for second-hand)" wire:model="usage_duration" placeholder="e.g. 6 Months / 1 Year" icon="o-clock" hint="How long the product was used" />
 
                         <x-input label="Retail / Original Price (Rs.)" wire:model.live="retail_price" type="number" step="0.01" icon="o-banknotes" hint="MSRP / Original Buying Price" />
 
-                        <x-input label="Purchase Date" wire:model.live="purchase_date" type="date" icon="o-calendar-days" hint="When you originally bought the item (used for estimated value)" />
+                        <div>
+                            <label class="label font-bold text-sm">Purchase Date (B.S.)</label>
+                            <input
+                                type="text"
+                                id="purchase_date_np"
+                                wire:model="purchase_date_np"
+                                data-nepali-date="purchase-date"
+                                class="input input-bordered w-full"
+                                placeholder="YYYY-MM-DD"
+                                autocomplete="off"
+                            />
+                            <input type="hidden" wire:model="purchase_date" data-english-date="purchase-date">
+                            <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">When you originally bought the item (used for estimated value)</p>
+                            @error('purchase_date') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
 
                         @if($listing_type === 'direct_seller')
-                            <x-input label="Selling Price (Rs.)" wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
+                            <x-input label="Selling Price (Rs.)" required wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
+
+                            <x-select label="Price Type" required wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
                         @endif
 
-                        <x-select label="Price Type" wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
-
-                        <x-input label="Quantity" wire:model="quantity" type="number" icon="o-archive-box" />
+                        <x-input label="Quantity" required wire:model="quantity" type="number" icon="o-archive-box" />
 
                         <x-input label="City / Region Location" wire:model="location" placeholder="e.g. Kathmandu, Nepal" icon="o-map-pin" />
 
@@ -156,8 +152,29 @@
                     </div>
 
                     <div class="mt-6 space-y-4">
-                        <x-textarea label="Description" wire:model="description" rows="4" placeholder="Describe the product condition, reasons for selling, inclusions/accessories, flaws if any..." />
-                        <x-textarea label="Specifications" wire:model="specifications" rows="3" placeholder="Brand: Apple&#10;RAM: 8GB&#10;Battery Health: 89%" />
+                        <div>
+                            <label class="label font-bold text-sm">Description <span class="text-error">*</span></label>
+                            <div wire:ignore>
+                                <div data-tiptap-editor="description" data-tiptap-placeholder="Describe the product condition, reasons for selling, inclusions/accessories, flaws if any..." class="tiptap-editor">
+                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
+                                    <div data-tiptap-content class="tiptap-content"></div>
+                                </div>
+                                <input type="hidden" wire:model="description" data-tiptap-input="description">
+                            </div>
+                            @error('description') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="label font-bold text-sm">Specifications</label>
+                            <div wire:ignore>
+                                <div data-tiptap-editor="specifications" data-tiptap-placeholder="Brand: Apple, RAM: 8GB, Battery Health: 89%..." class="tiptap-editor">
+                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
+                                    <div data-tiptap-content class="tiptap-content tiptap-content-sm"></div>
+                                </div>
+                                <input type="hidden" wire:model="specifications" data-tiptap-input="specifications">
+                            </div>
+                            @error('specifications') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
                     </div>
                 </div>
 
@@ -171,7 +188,7 @@
                         <p class="text-sm text-emerald-800 mb-6 dark:text-emerald-300">Specify the exact location where you can meet buyers for product inspection & sale handover.</p>
 
                         <div class="space-y-4">
-                            <x-input label="Meetup Place / Location for Sale *" wire:model="meetup_location" placeholder="e.g. Koteshwor Chowk / New Road Complex, Kathmandu" icon="o-map-pin" hint="Location where buyer will inspect & receive the item" />
+                            <x-input label="Meetup Place / Location for Sale" required wire:model="meetup_location" placeholder="e.g. Koteshwor Chowk / New Road Complex, Kathmandu" icon="o-map-pin" hint="Location where buyer will inspect & receive the item" />
 
                             <x-textarea label="Meetup Availability & Instructions" wire:model="meetup_instructions" rows="2" placeholder="e.g. Available on weekdays after 5 PM, weekends anytime near New Road Mall." />
                         </div>
@@ -186,8 +203,9 @@
                 <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
                     <h2 class="text-xl font-black text-gray-900 mb-6 flex items-center gap-2 dark:text-gray-100">
                         <x-icon name="o-camera" class="w-6 h-6 text-primary" />
-                        Product Photos
+                        Product Photos <span class="text-error">*</span>
                     </h2>
+                    <p class="text-xs text-gray-400 -mt-4 mb-4 dark:text-gray-500">At least one photo is required.</p>
 
                     <div class="space-y-4">
                         <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800/60">
@@ -199,6 +217,7 @@
                             <input type="file" wire:model="newImages" class="hidden" multiple accept="image/*" />
                         </label>
                         @error('newImages') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        @error('newImages.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
 
                         <div class="grid grid-cols-2 gap-3 mt-4">
                             {{-- Existing Images --}}
@@ -224,13 +243,70 @@
                     </div>
                 </div>
 
+                {{-- Proof of Product Upload --}}
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
+                    <h2 class="text-xl font-black text-gray-900 mb-2 flex items-center gap-2 dark:text-gray-100">
+                        <x-icon name="o-shield-check" class="w-6 h-6 text-primary" />
+                        Proof of Product
+                    </h2>
+                    <p class="text-xs text-gray-400 mb-4 dark:text-gray-500">Optional. Upload warranty / guarantee card or other proof of authenticity. Not shown publicly, for admin verification only.</p>
+
+                    <div class="space-y-4">
+                        <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800/60">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <x-icon name="o-cloud-arrow-up" class="w-8 h-8 text-gray-400 mb-2" />
+                                <p class="text-sm text-gray-500 font-semibold dark:text-gray-400">Click to upload proof (optional)</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500">e.g. Warranty / Guarantee Card</p>
+                            </div>
+                            <input type="file" wire:model="newProofImages" class="hidden" multiple accept="image/*" />
+                        </label>
+                        @error('newProofImages') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        @error('newProofImages.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            {{-- Existing Proof Images --}}
+                            @foreach($existingProofImages as $image)
+                                <div class="relative group aspect-square rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+                                    <img src="{{ Storage::url($image['path']) }}" class="w-full h-full object-cover" />
+                                    <button type="button" wire:click="removeExistingProofImage({{ $image['id'] }})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <x-icon name="o-x-mark" class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            @endforeach
+
+                            {{-- New Proof Images --}}
+                            @foreach($newProofImages as $index => $image)
+                                <div class="relative group aspect-square rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+                                    <img src="{{ $image->temporaryUrl() }}" class="w-full h-full object-cover" />
+                                    <button type="button" wire:click="removeNewProofImage({{ $index }})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <x-icon name="o-x-mark" class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+
                 {{-- Action Card --}}
                 <div class="bg-[#1F6F5F] rounded-3xl p-6 shadow-xl text-white">
-                    <h3 class="font-black text-lg mb-2">Ready to list on Sajha?</h3>
-                    <p class="text-white/80 text-sm mb-6">Ensure your meetup location and selling price are accurate. Once approved, your product will be published to buyers across Nepal.</p>
+                    <h3 class="font-black text-lg mb-2">
+                        {{ $listing_type === 'auction' ? 'Ready to launch your auction?' : 'Ready to list on Sajha?' }}
+                    </h3>
+                    <p class="text-white/80 text-sm mb-6">
+                        @if($listing_type === 'auction')
+                            Double-check your schedule, starting bid and reserve price. Once approved, bidders across Nepal can join live.
+                        @else
+                            Ensure your meetup location and selling price are accurate. Once approved, your product will be published to buyers across Nepal.
+                        @endif
+                    </p>
 
                     <div class="space-y-3">
-                        <x-button :label="$product ? 'Update Listing' : 'Submit for Marketplace Review'" type="submit" class="btn-primary w-full bg-white text-[#1F6F5F] border-none hover:bg-gray-100" spinner="save" />
+                        <x-button
+                            :label="$product ? 'Update Listing' : ($listing_type === 'auction' ? 'Submit Auction for Review' : 'Submit for Marketplace Review')"
+                            type="submit"
+                            class="btn-primary w-full bg-white text-[#1F6F5F] border-none hover:bg-gray-100"
+                            spinner="save"
+                        />
                         <x-button label="Cancel" class="btn-ghost w-full text-white hover:bg-white/10" link="{{ route('user.products') }}" />
                     </div>
                 </div>
@@ -239,11 +315,14 @@
         </div>
     </x-form>
 
-    {{-- Initialize Nepali Datepickers --}}
+    {{-- Initialize Nepali Datepickers & Rich Text Editors --}}
     <script>
         document.addEventListener('livewire:navigated', () => {
             if (window.initializeNepaliDatePickers) {
                 window.initializeNepaliDatePickers();
+            }
+            if (window.initTiptapEditors) {
+                window.initTiptapEditors();
             }
         });
     </script>

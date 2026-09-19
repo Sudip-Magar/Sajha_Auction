@@ -3,6 +3,7 @@
 namespace App\Livewire\User;
 
 use App\Enums\ProductAuctionType;
+use App\Enums\ProductImageType;
 use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
 use App\Models\Admin;
@@ -12,8 +13,9 @@ use App\Models\SubCategory;
 use App\Notifications\NewProductUploadedNotification;
 use App\Services\AuctionEngineService;
 use App\Services\AuctionValuationService;
-use Carbon\Carbon;
+use App\Services\HtmlSanitizerService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -31,6 +33,13 @@ class ManageProduct extends Component
 
     public ?Product $product = null;
 
+    /**
+     * Fixed for the lifetime of this form: chosen via the route ('direct-sell' / 'auction')
+     * when creating, or derived from the existing product when editing. There is no
+     * in-form switcher, so listing_type can't drift from what the fields below assume.
+     */
+    public string $listingTypeLabel = 'Second-Hand Sale';
+
     // Product Basic Info
     public string $name = '';
 
@@ -45,6 +54,8 @@ class ManageProduct extends Component
     public ?string $usage_duration = null;
 
     public ?string $purchase_date = null;
+
+    public string $purchase_date_np = '';
 
     public mixed $retail_price = null;
 
@@ -97,7 +108,14 @@ class ManageProduct extends Component
 
     public array $imagesToDelete = [];
 
-    public function mount(?Product $product = null): void
+    // Proof Images (e.g. warranty / guarantee card)
+    public array $newProofImages = [];
+
+    public array $existingProofImages = [];
+
+    public array $proofImagesToDelete = [];
+
+    public function mount(?Product $product = null, string $type = 'direct-sell'): void
     {
         $user = Auth::user();
         if (! $user || ! $user->is_seller) {
@@ -107,9 +125,11 @@ class ManageProduct extends Component
             return;
         }
 
-        if (! $user->is_auction_allowed) {
-            $this->listing_type = 'direct_seller';
-        }
+        $now = Carbon::now();
+        $this->auction_start_date_en = $now->copy()->addDay()->format('Y-m-d');
+        $this->auction_start_time = $now->format('H:i');
+        $this->auction_end_date_en = $now->copy()->addDay()->format('Y-m-d');
+        $this->auction_end_time = $now->copy()->addHours(5)->format('H:i');
 
         if ($product && $product->exists) {
             if ((int) $product->seller_id !== (int) Auth::id()) {
@@ -125,6 +145,23 @@ class ManageProduct extends Component
 
             $this->product = $product;
             $this->loadProductData();
+
+            return;
+        }
+
+        if ($type === 'auction') {
+            if (! $user->is_auction_allowed) {
+                $this->warning('Your account is not approved for hosting auctions yet. Submit a request under Join Auction.');
+                $this->redirect(route('user.join-auction'), navigate: true);
+
+                return;
+            }
+
+            $this->listing_type = 'auction';
+            $this->listingTypeLabel = 'Auction Listing';
+        } else {
+            $this->listing_type = 'direct_seller';
+            $this->listingTypeLabel = 'Second-Hand Sale';
         }
     }
 
@@ -134,6 +171,7 @@ class ManageProduct extends Component
         $this->description = $this->product->description;
         $this->sub_category_id = $this->product->sub_category_id;
         $this->listing_type = $this->product->listing_type->value;
+        $this->listingTypeLabel = $this->listing_type === ProductSaleType::AUCTION->value ? 'Auction Listing' : 'Second-Hand Sale';
         $this->condition = $this->product->condition;
         $this->usage_duration = $this->product->usage_duration;
         $this->purchase_date = $this->product->purchase_date?->format('Y-m-d');
@@ -179,6 +217,13 @@ class ManageProduct extends Component
                 'path' => $image->path,
             ])
             ->all();
+
+        $this->existingProofImages = $this->product->proofImages
+            ->map(fn (ProductImage $image): array => [
+                'id' => $image->id,
+                'path' => $image->path,
+            ])
+            ->all();
     }
 
     public function removeExistingImage(int $imageId): void
@@ -198,12 +243,21 @@ class ManageProduct extends Component
         $this->newImages = array_values($this->newImages);
     }
 
-    public function updatedListingType($value): void
+    public function removeExistingProofImage(int $imageId): void
     {
-        if (! Auth::user()?->is_auction_allowed && $value === 'auction') {
-            $this->listing_type = 'direct_seller';
-            $this->warning('Your account is not approved for hosting auctions.');
-        }
+        $this->proofImagesToDelete[] = $imageId;
+        $this->proofImagesToDelete = array_values(array_unique($this->proofImagesToDelete));
+
+        $this->existingProofImages = array_values(array_filter(
+            $this->existingProofImages,
+            fn (array $image): bool => $image['id'] !== $imageId
+        ));
+    }
+
+    public function removeNewProofImage(int $index): void
+    {
+        unset($this->newProofImages[$index]);
+        $this->newProofImages = array_values($this->newProofImages);
     }
 
     public function getRecommendedReserveProperty(): ?float
@@ -262,6 +316,11 @@ class ManageProduct extends Component
             $this->listing_type = 'direct_seller';
         }
 
+        if ($this->listing_type === 'auction') {
+            // Price Type isn't shown on the auction form; the sale price only ever applies to direct-sell.
+            $this->negotiable = ProductNegotiability::FIXED->value;
+        }
+
         $allowedListingTypes = $user->is_auction_allowed ? 'direct_seller,auction' : 'direct_seller';
 
         $rules = [
@@ -282,6 +341,7 @@ class ManageProduct extends Component
             'delivery_available' => 'boolean',
             'specifications' => 'nullable|string',
             'newImages.*' => 'image|max:2048',
+            'newProofImages.*' => 'nullable|image|max:2048',
         ];
 
         if ($this->listing_type === 'auction') {
@@ -324,8 +384,10 @@ class ManageProduct extends Component
                     'seller_id' => Auth::id(),
                     'sub_category_id' => $this->sub_category_id,
                     'name' => $this->name,
-                    'description' => $this->description,
-                    'specifications' => $this->specifications,
+                    'description' => HtmlSanitizerService::sanitize($this->description),
+                    'specifications' => $this->specifications !== null && $this->specifications !== ''
+                        ? HtmlSanitizerService::sanitize($this->specifications)
+                        : null,
                     'condition' => $this->condition,
                     'usage_duration' => $this->usage_duration,
                     'purchase_date' => $this->purchase_date,
@@ -361,7 +423,26 @@ class ManageProduct extends Component
                     $path = $imageFile->store('products', 'public');
                     $product->images()->create([
                         'path' => $path,
+                        'image_type' => ProductImageType::GENERAL,
                         'sort_order' => count($this->existingImages) + $index,
+                    ]);
+                }
+
+                // Handle Proof Images
+                foreach ($this->proofImagesToDelete as $imageId) {
+                    $image = ProductImage::find($imageId);
+                    if ($image) {
+                        Storage::disk('public')->delete($image->path);
+                        $image->delete();
+                    }
+                }
+
+                foreach ($this->newProofImages as $index => $imageFile) {
+                    $path = $imageFile->store('products/proofs', 'public');
+                    $product->proofImages()->create([
+                        'path' => $path,
+                        'image_type' => ProductImageType::PROOF,
+                        'sort_order' => count($this->existingProofImages) + $index,
                     ]);
                 }
 
@@ -421,6 +502,7 @@ class ManageProduct extends Component
         } catch (Throwable $e) {
             Log::error('ManageProduct Error: '.$e->getMessage());
             $this->error('An error occurred while saving the product.');
+            dd($e->getMessage());
         }
     }
 
@@ -435,7 +517,6 @@ class ManageProduct extends Component
     public function render(): View
     {
         return view('livewire.user.manage-product', [
-            'isAuctionAllowed' => (bool) Auth::user()?->is_auction_allowed,
             'subCategories' => SubCategory::query()
                 ->with('category')
                 ->where('status', 'active')
