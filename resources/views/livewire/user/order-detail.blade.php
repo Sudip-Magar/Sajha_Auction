@@ -110,6 +110,9 @@
                         @if($order->meetup_time)
                             <p class="text-xs text-emerald-800 dark:text-emerald-300">
                                 <span class="font-semibold">Time:</span> {{ $order->meetup_time->format('M d, Y @ h:i A') }}
+                                @if($order->meetup_time_np)
+                                    ({{ $order->meetup_time_np }} B.S.)
+                                @endif
                             </p>
                         @endif
                     @else

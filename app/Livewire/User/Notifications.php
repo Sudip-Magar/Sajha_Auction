@@ -68,6 +68,7 @@ class Notifications extends Component
             'App\Notifications\OutbidNotification' => isset($notification->data['auction_id'])
                 ? route('user.auction.detail', $notification->data['auction_id'])
                 : route('home'),
+            'App\Notifications\NewOrderReceivedNotification',
             'App\Notifications\DepositPaidNotification' => isset($notification->data['order_id'])
                 ? route('user.orders.show', $notification->data['order_id'])
                 : route('user.orders'),

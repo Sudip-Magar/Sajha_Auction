@@ -138,6 +138,11 @@ class Navbar extends Component
 
             return $this->redirect(route('user.messages'), navigate: true);
         }
+        if ($type === 'App\Notifications\NewOrderReceivedNotification') {
+            $orderId = $notification->data['order_id'] ?? null;
+
+            return $this->redirect($orderId ? route('user.orders.show', $orderId) : route('user.orders'), navigate: true);
+        }
         if ($type === 'App\Notifications\AccountStatusChangedNotification') {
             return $this->redirect(route('home'), navigate: true);
         }

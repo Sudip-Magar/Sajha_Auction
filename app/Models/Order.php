@@ -24,6 +24,7 @@ class Order extends Model
         'handover_type',
         'meetup_location',
         'meetup_time',
+        'meetup_time_np',
         'shipping_address',
         'buyer_phone',
         'notes',
