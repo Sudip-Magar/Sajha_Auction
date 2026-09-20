@@ -1,0 +1,42 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam maxMessageSize 150
+
+title Sajha Auction - Admin Flow
+
+actor Admin
+participant "Admin Pages\n(Livewire)" as PG
+database "MySQL" as DB
+participant "Notifications" as NT
+
+== Login ==
+Admin -> PG : login() on /admin/login
+PG -> DB : guard('admin')->attempt()
+PG --> Admin : redirect admin.dashboard (statistics)
+
+== Approvals ==
+Admin -> PG : SellerRequests::approveSeller()
+PG -> DB : is_seller = true
+PG -> NT : SellerApprovedNotification
+Admin -> PG : AuctionApplicationDetail::approveApplication()
+PG -> DB : is_auction_allowed = true
+PG -> NT : AuctionApplicationApprovedNotification
+Admin -> PG : Products::approveProduct()
+PG -> DB : Product::approveListing()
+PG -> NT : ProductApprovedNotification
+
+== Management ==
+Admin -> PG : Users::toggleStatus(), UserDetail::toggleSellerAccess()
+PG -> DB : users.status, is_seller, is_auction_allowed
+Admin -> PG : CategorySetup, SubCategorySetup, Faqs (save, toggle, delete)
+Admin -> PG : Orders (search, filter), Settings::saveGeneral()
+
+== Logout ==
+Admin -> PG : Sidebar::logout()
+PG --> Admin : redirect admin.login
+
+@enduml

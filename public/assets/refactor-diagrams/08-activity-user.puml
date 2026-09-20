@@ -1,0 +1,51 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 8
+skinparam ranksep 10
+skinparam wrapWidth 140
+
+title Sajha Auction - User Workflow
+
+start
+if (Has an account?) then (yes)
+  repeat
+    :Enter email\nand password;
+  repeat while (Credentials valid\nand account active?) is (no) not (yes)
+else (no)
+  :Register (email\nor Google);
+  repeat
+    :Enter 6-digit OTP;
+  repeat while (OTP correct\nand not expired?) is (no) not (yes)
+  :Complete profile,\nauto-login;
+endif
+
+switch (What next?)
+case (Buy)
+  :Add to cart\nor Buy now;
+  :Checkout (meetup-only\nlisting: cash locked);
+  :placeOrder();
+case (Bid)
+  if (Access approved\nand auction live?) then (yes)
+    :processBid();
+  else (no)
+    :Apply on\n/join-auction;
+  endif
+case (Sell)
+  if (is_seller?) then (yes)
+    :ManageProduct::\nsave();
+  else (no)
+    :Request\nseller access;
+  endif
+endswitch
+
+:Winner pays eSewa deposit;
+:Meet, inspect, pay cash;
+:Seller completes order;
+:Logout;
+stop
+
+@enduml

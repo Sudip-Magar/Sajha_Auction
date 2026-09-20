@@ -1,0 +1,99 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Admin Flow
+
+actor Admin
+participant "Auth\\Admin\\Login\n(Livewire)" as LG
+participant "AdminMiddleware\n(alias 'admin')" as MW
+participant "Admin\\Dashboard" as DASH
+participant "Admin\\SellerRequests" as SR
+participant "Admin\\AuctionApplication\nDetail" as AA
+participant "Admin\\Products /\nProductDetail" as AP
+participant "Admin\\Users /\nUserDetail" as AU
+participant "Admin\\CategorySetup /\nSubCategorySetup / Faqs" as CS
+participant "Admin\\Orders" as AO
+participant "Admin\\Settings" as ST
+participant "Sidebar" as SB
+database "MySQL" as DB
+participant "Notifications\n(database + Reverb)" as NT
+
+== Login ==
+Admin -> LG : GET /admin/login (route admin.login)
+Admin -> LG : login(email, password)
+LG -> DB : Auth::guard('admin')->attempt(credentials, remember)
+alt invalid credentials
+  LG --> Admin : toast "Invalid credentials..."
+else valid
+  LG -> LG : session admin_user {id, name, email, avatar}
+  LG --> Admin : redirect admin.dashboard
+end
+Admin -> MW : GET /admin/dashboard
+MW -> MW : Auth::guard('admin')->check()
+MW -> DASH : render()
+DASH -> DB : User::count, is_seller count, pending seller requests,\nProduct is_approved = false, Category::count
+DASH --> Admin : dashboard statistics and recent requests
+
+== Approve seller requests ==
+Admin -> SR : GET /admin/seller-requests
+Admin -> SR : approveSeller(user)
+SR -> SR : seller_application_pending and not is_seller?
+SR -> DB : user.is_seller = true, seller_application_pending = false
+SR -> NT : SellerApprovedNotification to user
+
+== Review auction applications ==
+Admin -> AA : GET /admin/auction-application/{user}
+alt approveApplication()
+  AA -> DB : documentImages is_approved = true, is_rejected = false
+  AA -> DB : user.is_auction_allowed = true
+  AA -> NT : AuctionApplicationApprovedNotification
+else rejectApplication()
+  AA -> DB : documentImages is_approved = false, is_rejected = true
+  AA -> DB : user.is_auction_allowed = false
+  AA -> NT : AuctionApplicationRejectedNotification
+end
+
+== Approve product and auction listings ==
+Admin -> AP : GET /admin/products, /admin/products/{product}
+Admin -> AP : approveProduct(product)
+AP -> DB : Product::approveListing()\nproduct.status 'active', is_approved true, expires_at +30 days,\nauction.status 'active', timeline 'approved'
+AP -> NT : ProductApprovedNotification to seller
+opt featured / trending
+  Admin -> AP : toggleFeatured() / toggleTrending()
+  AP -> DB : products.is_featured / is_trending
+end
+
+== Manage users ==
+Admin -> AU : GET /admin/users, /admin/users/{user}
+Admin -> AU : Users::toggleStatus(user)
+AU -> DB : status 'active' <-> 'inactive'
+AU -> NT : AccountStatusChangedNotification
+Admin -> AU : UserDetail::toggleSellerAccess() / toggleAuctionAccess()
+AU -> DB : is_seller / is_auction_allowed updated
+AU -> NT : SellerApprovedNotification / SellerSuspendedNotification /\nAuctionApplication notifications
+
+== Manage catalogue content ==
+Admin -> CS : GET /admin/category-setup, /admin/sub-category-setup, /admin/faqs
+Admin -> CS : saveCategory / saveSubCategory / saveFaq,\ntoggleStatus, deleteCategory / deleteSubCategory / deleteFaq
+CS -> DB : categories, sub_categories, faqs, faq_categories
+
+== Monitor orders and configure site ==
+Admin -> AO : GET /admin/orders (search, type and status filters)
+AO -> DB : orders with buyer, seller, items, deposit_status
+AO --> Admin : all second-hand and auction orders
+Admin -> ST : GET /admin/settings
+Admin -> ST : saveGeneral() / saveSocial() / saveSecurity()
+ST -> DB : Setting::set(key, value, group)
+
+== Notifications ==
+Admin -> NT : GET /admin/notifications\nmarkAsRead(), markAllAsRead(), notificationRoute()
+
+== Logout ==
+Admin -> SB : logout()
+SB -> SB : Auth::guard('admin')->logout(),\nforget admin_user, invalidate session, regenerate token
+SB --> Admin : redirect admin.login
+
+@enduml

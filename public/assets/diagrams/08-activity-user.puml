@@ -1,0 +1,142 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - User (Buyer / Seller) Workflow
+
+start
+:Visit the site (Home, search, product and auction pages are public);
+
+if (Has an account?) then (yes)
+  repeat
+    :Login::login(): enter email and password, validate;
+    if (User exists and password hash matches?) then (no)
+      :Toast "Invalid credentials. Please check your email and password.";
+    elseif (Account status is active?) then (no)
+      :Toast "Your account is inactive. Please contact the admin.";
+    else (yes)
+      :Auth::login(user, remember);
+    endif
+  repeat while (Logged in?) is (no) not (yes)
+else (no)
+  if (Sign up method) then (email)
+    :Register::verifyEmail(): validate email, store session google_user,
+otp_verified = false;
+  else (Google)
+    :GoogleAuthController::redirect / callback: store Google profile in session;
+  endif
+  :Redirect to /verify-otp;
+  repeat
+    :VerifyOtp::sendOtp(): 6-digit code emailed (OtpMail);
+    note right: resend blocked for 30 seconds
+    :Enter code, verifyOtp() (digits:6);
+    if (Session still valid?) then (no)
+      :Error "Session expired. Please start again.";
+    elseif (Code older than 10 minutes?) then (yes)
+      :Error "OTP has expired. Please request a new one.";
+    elseif (Code matches?) then (no)
+      :Error "Incorrect OTP. Please try again.";
+    else (yes)
+      :otp_verified = true;
+    endif
+  repeat while (OTP verified?) is (no) not (yes)
+  :CompleteProfile::register(): validate name, username, phone (10 digits),
+age >= 16, gender, strong password, agree_terms;
+  :Create user (status active, optional seller application), store avatar;
+  :Auth::login(user, remember);
+endif
+
+:Redirect to Home (UserMiddleware re-checks active status on every protected route);
+
+repeat
+  switch (What does the user want to do?)
+  case (Buy a second-hand product)
+    :Open /products/{slug} (ProductDetail);
+    if (Own product?) then (yes)
+      :Error "You cannot purchase your own product.";
+    else (no)
+      if (Action) then (Add to cart)
+        if (Direct-sell listing?) then (yes)
+          :addToCart(): CartItem firstOrCreate or increment;
+        else (no)
+          :Error "Only direct sell items can be added to cart.";
+        endif
+      else (Buy now)
+        :Redirect to /checkout/{product};
+      endif
+      :Checkout: choose handover and payment;
+      if (Product delivery_available = false?) then (yes)
+        :Handover locked to in-person meetup,\npayment locked to cash on meetup;
+      else (no)
+        :Choose meetup or delivery and a payment option;
+      endif
+      :Optionally pick preferred meetup date (B.S.) and time;
+      if (Form validation passes?) then (yes)
+        :placeOrder(): one Order per seller (status pending);
+        :Notify seller (NewOrderReceivedNotification);
+        :Redirect to /my-orders;
+      else (no)
+        :Show validation errors;
+      endif
+    endif
+  case (Bid in an auction)
+    if (users.is_auction_allowed?) then (no)
+      :Open /join-auction and JoinAuction::submitApplication()\n(upload identity documents);
+      :Wait for admin approve or reject;
+    else (yes)
+      :Open /auction/{auction} (AuctionDetail);
+      if (Own product?) then (yes)
+        :Error "You cannot bid on your own product listing.";
+      elseif (Auction is live?) then (no)
+        :Error "This auction is not currently live for bidding.";
+      else (yes)
+        if (Proxy bidding?) then (yes)
+          :Enter secret maximum (>= minimum next bid);
+        else (no)
+          :Enter bid (>= current_price + step increment);
+        endif
+        if (Amount valid?) then (yes)
+          :AuctionEngineService::processBid(): record bid, resolve proxy price,\nextend deadline if inside anti-sniping window;
+          :Broadcast AuctionBidPlaced and send OutbidNotification to previous leader;
+        else (no)
+          :Error "Your bid must be at least Rs. ...";
+        endif
+      endif
+    endif
+  case (Auction won)
+    :Receive AuctionWonNotification and email;
+    :Open /my-orders/{order};
+    if (deposit_status = pending?) then (yes)
+      :Pay deposit via eSewa (EsewaPaymentController::initiate);
+      :Callback verifies signature and status, sets deposit_status = paid;
+    endif
+    :Meet seller, inspect item, pay balance in cash;
+  case (Sell items)
+    if (users.is_seller?) then (no)
+      :requestSellerAccess(): seller_application_pending = true;
+      :Wait for admin approval (SellerApprovedNotification);
+    else (yes)
+      :Open /my-products/create/{direct-sell or auction};
+      :ManageProduct::save(): product status = pending, notify admins;
+      :Wait for admin approval (ProductApprovedNotification);
+      :When ordered: confirm, then mark completed after handover\n(OrderDetail::updateOrderStatus);
+    endif
+  case (Manage orders)
+    :Open /my-orders and /my-orders/{order};
+    if (Cancel the order?) then (yes)
+      :confirmCancel() with a reason\n(deposit refund_owed or forfeited if already paid);
+    else (no)
+    endif
+  case (Chat and notifications)
+    :Chat with seller via openChat() and Messages::sendChatMessage();
+    :View notifications and mark as read;
+  endswitch
+repeat while (Continue using the site?) is (yes) not (no)
+
+:Navbar::logout(): Auth::logout(), invalidate session, regenerate token;
+:Redirect to /login;
+stop
+
+@enduml

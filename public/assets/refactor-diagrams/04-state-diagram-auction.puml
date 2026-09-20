@@ -1,0 +1,47 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 10
+skinparam ranksep 16
+skinparam wrapWidth 170
+
+title Sajha Auction - Auction Lifecycle (auctions.status)
+
+[*] --> pending : seller submits\nManageProduct::save()
+pending --> pending : seller edits\nbefore approval
+pending --> [*] : seller deletes\nunapproved product
+
+pending --> active : admin approves\nProduct::approveListing()
+
+state active {
+  [*] --> Upcoming
+  Upcoming --> Live : start_time reached
+  Live --> Live : processBid()
+  Live --> Extended : bid in last\ntimer_reset_seconds
+  Extended --> Extended : another late bid
+  Live --> AwaitingSettlement : end_time passed
+  Extended --> AwaitingSettlement : extended_end_time\npassed
+}
+
+active --> completed : determineWinner()\nbid >= reserve_price
+active --> ended_unsold : determineWinner()\nno bid >= reserve_price
+
+completed --> [*]
+ended_unsold --> [*]
+
+note right of active
+  Substates are derived from
+  start_time, end_time and
+  extended_end_time. The stored
+  status stays 'active' until the
+  scheduler (every minute) or a
+  page view or bid settles it.
+end note
+
+completed : winner Order created
+completed : product.status = 'sold'
+
+@enduml

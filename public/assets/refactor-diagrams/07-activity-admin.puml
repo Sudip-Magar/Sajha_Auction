@@ -1,0 +1,41 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 8
+skinparam ranksep 10
+skinparam wrapWidth 130
+
+title Sajha Auction - Admin Workflow
+
+start
+repeat
+  :Enter email and password\non /admin/login;
+repeat while (Admin guard attempt succeeds?) is (no) not (yes)
+:Open Dashboard (statistics);
+
+repeat
+  switch (Sidebar module)
+  case (Sellers)
+    if (Request pending?) then (yes)
+      :approveSeller();
+    endif
+  case (Auctions)
+    if (Documents uploaded?) then (yes)
+      :approve or reject\napplication;
+    endif
+  case (Products)
+    if (Not yet approved?) then (yes)
+      :approveProduct();
+    endif
+  case (Others)
+    :Users, categories,\nFAQs, orders,\nsettings;
+  endswitch
+repeat while (Another task?) is (yes) not (no)
+
+:Sidebar::logout();
+stop
+
+@enduml

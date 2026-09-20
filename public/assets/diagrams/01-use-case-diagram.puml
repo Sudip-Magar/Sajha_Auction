@@ -1,0 +1,185 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype polyline
+skinparam defaultFontName Arial
+
+title Sajha Auction - Use Case Diagram
+left to right direction
+
+actor "Guest" as Guest
+actor "User\n(Buyer)" as User
+actor "Seller\n(users.is_seller)" as Seller
+actor "Admin\n(admin guard)" as Admin
+actor "Scheduler\nfinalize-expired-auctions" as Sched <<system>>
+actor "eSewa\nePay v2" as Esewa <<external>>
+actor "Google OAuth" as Google <<external>>
+actor "Gemini API" as Gemini <<external>>
+
+Guest <|-- User
+User <|-- Seller
+
+rectangle "Sajha Auction" {
+
+  package "Authentication" {
+    usecase "Register with Email OTP\n(Register::verifyEmail)" as UC_Register
+    usecase "Verify OTP\n(VerifyOtp::sendOtp / verifyOtp)" as UC_Otp
+    usecase "Complete Profile\n(CompleteProfile::register)" as UC_Profile
+    usecase "Login\n(Login::login)" as UC_Login
+    usecase "Login with Google\n(GoogleAuthController::redirect / callback)" as UC_Google
+    usecase "Reset Password\n(ForgotPassword::sendCode,\nResetPassword::resetPassword)" as UC_Reset
+    usecase "Logout\n(Navbar::logout)" as UC_Logout
+  }
+
+  package "Browse and Learn" {
+    usecase "Browse Home Feed\n(Home)" as UC_Home
+    usecase "Search and Filter Products\n(SearchProduct)" as UC_Search
+    usecase "Browse Second-Hand Products\n(MarketplaceProducts)" as UC_Marketplace
+    usecase "View Product Detail\n(ProductDetail)" as UC_Detail
+    usecase "Browse Auctions\n(AuctionMarketplace)" as UC_Auctions
+    usecase "Read FAQs and Info Pages\n(Faqs, InfoPage)" as UC_Info
+    usecase "Ask AI Guide\n(AiAssistant::send)" as UC_Ai
+    usecase "Subscribe to Newsletter\n(Footer::subscribe)" as UC_Subscribe
+  }
+
+  package "Buying Second-Hand Products" {
+    usecase "Manage Wishlist\n(toggleWishlist, removeFromWishlist)" as UC_Wishlist
+    usecase "Add to Cart / Update Cart\n(addToCart, Cart::updateQuantity,\nCart::removeItem)" as UC_Cart
+    usecase "Buy Now\n(ProductDetail::buyNow)" as UC_BuyNow
+    usecase "Checkout and Place Order\n(Checkout::placeOrder)" as UC_Checkout
+    usecase "Track My Orders\n(Orders, OrderDetail)" as UC_Orders
+    usecase "Cancel Order with Reason\n(OrderDetail::confirmCancel)" as UC_Cancel
+    usecase "Chat with Seller\n(ProductDetail::openChat,\nMessages::sendChatMessage)" as UC_Chat
+  }
+
+  package "Auction Bidding" {
+    usecase "Apply for Auction Access\n(JoinAuction::submitApplication)" as UC_JoinAuction
+    usecase "Place Bid\n(AuctionDetail::placeBid)" as UC_Bid
+    usecase "Use Proxy Bidding\n(AuctionDetail::toggleProxyMode)" as UC_Proxy
+    usecase "Apply Suggested Bid\n(AuctionDetail::applyRecommendedBid)" as UC_Suggest
+    usecase "Pay Auction Deposit\n(EsewaPaymentController::initiate)" as UC_Deposit
+  }
+
+  package "Account" {
+    usecase "Manage Profile and Password\n(Settings::updateProfile,\nupdatePassword)" as UC_Settings
+    usecase "View Notifications\n(Notifications::markAsRead)" as UC_Notif
+    usecase "Request Seller Access\n(requestSellerAccess)" as UC_ReqSeller
+  }
+
+  package "Selling" {
+    usecase "List Second-Hand Product\n(ManageProduct::save)" as UC_ListDirect
+    usecase "Create Auction Listing\n(ManageProduct::save)" as UC_ListAuction
+    usecase "Manage My Products\n(Products::deleteProduct)" as UC_MyProducts
+    usecase "Confirm / Complete Order\n(OrderDetail::updateOrderStatus)" as UC_Fulfil
+    usecase "Receive New Order Alert\n(NewOrderReceivedNotification)" as UC_OrderAlert
+  }
+
+  package "Administration" {
+    usecase "Admin Login\n(Auth\\Admin\\Login::login)" as UC_AdminLogin
+    usecase "View Dashboard Statistics\n(Admin\\Dashboard)" as UC_Dashboard
+    usecase "Approve Seller Request\n(SellerRequests::approveSeller)" as UC_ApproveSeller
+    usecase "Approve / Reject Auction Application\n(AuctionApplicationDetail::\napproveApplication / rejectApplication)" as UC_ReviewAuctionApp
+    usecase "Approve Product Listing\n(Products::approveProduct)" as UC_ApproveProduct
+    usecase "Feature / Trend Product\n(ProductDetail::toggleFeatured,\ntoggleTrending)" as UC_Feature
+    usecase "Manage Users\n(Users::toggleStatus,\nUserDetail::toggleSellerAccess,\ntoggleAuctionAccess)" as UC_ManageUsers
+    usecase "Manage Categories and Sub-Categories\n(CategorySetup, SubCategorySetup)" as UC_Categories
+    usecase "Manage FAQs\n(Admin\\Faqs::saveFaq)" as UC_Faqs
+    usecase "Monitor All Orders\n(Admin\\Orders)" as UC_AdminOrders
+    usecase "Configure Site Settings\n(Settings::saveGeneral,\nsaveSocial, saveSecurity)" as UC_AdminSettings
+    usecase "Admin Logout\n(Sidebar::logout)" as UC_AdminLogout
+  }
+
+  package "Automatic Processing" {
+    usecase "Finalize Expired Auctions\nand Determine Winner\n(AuctionEngineService::determineWinner)" as UC_Finalize
+    usecase "Create Order for Winner" as UC_WinOrder
+  }
+}
+
+' Guest
+Guest --> UC_Home
+Guest --> UC_Search
+Guest --> UC_Marketplace
+Guest --> UC_Detail
+Guest --> UC_Auctions
+Guest --> UC_Info
+Guest --> UC_Ai
+Guest --> UC_Subscribe
+Guest --> UC_Register
+Guest --> UC_Login
+Guest --> UC_Google
+Guest --> UC_Reset
+
+UC_Register .> UC_Otp : <<include>>
+UC_Register .> UC_Profile : <<include>>
+UC_Google .> UC_Otp : <<include>>
+UC_Google --> Google
+
+' User (Buyer)
+User --> UC_Wishlist
+User --> UC_Cart
+User --> UC_BuyNow
+User --> UC_Checkout
+User --> UC_Orders
+User --> UC_Cancel
+User --> UC_Chat
+User --> UC_JoinAuction
+User --> UC_Bid
+User --> UC_Deposit
+User --> UC_Settings
+User --> UC_Notif
+User --> UC_ReqSeller
+User --> UC_Logout
+
+UC_BuyNow .> UC_Checkout : <<include>>
+UC_Cart .> UC_Checkout : <<extend>>
+UC_Proxy .> UC_Bid : <<extend>>
+UC_Suggest .> UC_Bid : <<extend>>
+UC_Deposit --> Esewa
+UC_Ai --> Gemini
+
+note right of UC_Bid
+  Requires users.is_auction_allowed
+  and the bidder must not be the
+  product's own seller
+end note
+
+note right of UC_Checkout
+  Meetup-only listings
+  (delivery_available = false) lock
+  handover to in-person meetup
+  and cash on meetup
+end note
+
+' Seller
+Seller --> UC_ListDirect
+Seller --> UC_ListAuction
+Seller --> UC_MyProducts
+Seller --> UC_Fulfil
+Seller --> UC_OrderAlert
+
+note right of UC_ListAuction
+  Requires is_seller and
+  is_auction_allowed
+end note
+
+' Admin
+Admin --> UC_AdminLogin
+Admin --> UC_Dashboard
+Admin --> UC_ApproveSeller
+Admin --> UC_ReviewAuctionApp
+Admin --> UC_ApproveProduct
+Admin --> UC_Feature
+Admin --> UC_ManageUsers
+Admin --> UC_Categories
+Admin --> UC_Faqs
+Admin --> UC_AdminOrders
+Admin --> UC_AdminSettings
+Admin --> UC_AdminLogout
+
+UC_ApproveProduct .> UC_Feature : <<extend>>
+
+' System
+Sched --> UC_Finalize
+UC_Finalize .> UC_WinOrder : <<include>>
+
+@enduml

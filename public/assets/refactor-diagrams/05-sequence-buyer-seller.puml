@@ -1,0 +1,45 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam maxMessageSize 130
+
+title Sajha Auction - Seller Listing and Buyer Bidding
+
+actor Seller
+actor Buyer
+participant "ManageProduct" as MP
+participant "AuctionDetail" as AD
+participant "AuctionEngine\nService" as ENG
+database "MySQL" as DB
+participant "Reverb" as WS
+
+== Seller lists an auction ==
+Seller -> MP : GET /my-products/create/auction
+MP -> MP : mount(): is_seller and\nis_auction_allowed?
+Seller -> MP : save()
+MP -> DB : Product (pending), Auction (pending),\nTraditionalAuction
+MP --> Seller : uploaded, awaiting admin approval
+note over MP, DB : Admin: approveProduct() sets\nproduct and auction 'active'
+
+== Buyer bids ==
+Buyer -> AD : GET /auction/{auction}
+AD -> ENG : checkAndFinalizeIfExpired()
+Buyer -> AD : placeBid()
+AD -> AD : checks: is_auction_allowed,\nnot own product, isLive()
+AD -> ENG : processBid(auction, user, amount, maxProxy)
+ENG -> DB : lockForUpdate, getStepIncrement()
+ENG -> DB : Bid::create() + proxy resolution,\nanti-sniping extend
+ENG -> WS : afterCommit: AuctionBidPlaced
+WS --> Buyer : viewers refresh live price
+note right of ENG : if the leader changed, the previous\nleading bidder gets OutbidNotification
+
+== Auction ends ==
+ENG -> ENG : scheduler: determineWinner()
+ENG -> DB : auction 'completed', product 'sold',\nOrder + OrderItem created
+ENG --> Buyer : AuctionWonNotification + mail
+ENG --> Seller : NewOrderReceivedNotification
+
+@enduml

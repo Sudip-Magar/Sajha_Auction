@@ -1,0 +1,81 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Admin Workflow
+
+start
+:Open /admin/login (route admin.login);
+
+repeat
+  :Enter email and password;
+  :Validate input (email required|email, password required);
+  if (Admin guard attempt succeeds?) then (yes)
+  else (no)
+    :Toast "Invalid credentials. Please check your email and password.";
+  endif
+repeat while (Logged in?) is (no) not (yes)
+
+:Store session admin_user (id, name, email, avatar);
+:Redirect to Admin Dashboard (AdminMiddleware checks admin guard);
+:View statistics: total users, total sellers, pending seller requests,\npending products, total categories;
+
+repeat
+  switch (Choose sidebar module)
+  case (Seller Requests)
+    :Open /admin/seller-requests;
+    if (seller_application_pending and not is_seller?) then (yes)
+      :approveSeller(): set is_seller = true,\nseller_application_pending = false;
+      :Send SellerApprovedNotification;
+    else (no)
+      :Warn "This request is already processed.";
+    endif
+  case (Auction Applications)
+    :Open /admin/auction-application and select a user;
+    if (User has uploaded documents?) then (yes)
+      if (Decision) then (approve)
+        :approveApplication(): documents approved,\nis_auction_allowed = true;
+        :Send AuctionApplicationApprovedNotification;
+      else (reject)
+        :rejectApplication(): documents rejected,\nis_auction_allowed = false;
+        :Send AuctionApplicationRejectedNotification;
+      endif
+    else (no)
+      :Warn "No auction application documents were found";
+    endif
+  case (Products)
+    :Open /admin/products and review the listing;
+    if (Product already approved?) then (no)
+      :approveProduct(): Product::approveListing()\nstatus = active, auction status = active;
+      :Send ProductApprovedNotification to seller;
+    else (yes)
+      :Warn "This product is already approved.";
+    endif
+    :Optionally toggleFeatured() / toggleTrending();
+  case (Users)
+    :Open /admin/users;
+    :toggleStatus(): active <-> inactive;
+    :Send AccountStatusChangedNotification;
+    :Optionally toggleSellerAccess() / toggleAuctionAccess()\non /admin/users/{user};
+  case (Categories and FAQs)
+    :Open /admin/category-setup, /admin/sub-category-setup or /admin/faqs;
+    :Create, edit, toggle status or delete\n(saveCategory, saveSubCategory, saveFaq, deleteFaq);
+  case (Orders)
+    :Open /admin/orders;
+    :Search and filter by type and status\n(second-hand vs auction, deposit status);
+  case (Settings)
+    :Open /admin/settings;
+    :saveGeneral() / saveSocial() / saveSecurity();
+  case (Notifications)
+    :Open /admin/notifications;
+    :markAsRead() / markAllAsRead() and follow notificationRoute();
+  endswitch
+repeat while (Another task?) is (yes) not (no)
+
+:Sidebar::logout(): guard logout, forget admin_user,\ninvalidate session, regenerate token;
+:Redirect to /admin/login;
+stop
+
+@enduml

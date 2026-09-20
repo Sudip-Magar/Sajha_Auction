@@ -1,0 +1,538 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Refined Class Diagram (domain, services, notifications)
+
+class User <<Authenticatable, Notifiable>> {
+  +id : bigint
+  +google_id : string
+  +name : string
+  +email : string
+  +username : string
+  +phone : string
+  +date_of_birth_en : date
+  +daate_of_birth_np : string
+  +gender : string
+  +bio : text
+  +avatar : string
+  -password : string <<hashed>>
+  +is_verified : bool
+  +is_seller : bool
+  +seller_application_pending : bool
+  +is_auction_allowed : bool
+  +status : string
+  --
+  +isActiveStatus() : bool
+  +scopeActive(query) : Builder
+}
+
+class Admin <<Authenticatable, Notifiable>> {
+  +id : bigint
+  +name : string
+  +email : string
+  +phone : string
+  +role : string
+  +position : string
+  +date_of_joining : string
+  +gender : string
+  -password : string <<hashed>>
+  +avatar : string
+  +address : string
+  +status : string
+  --
+  +receivesBroadcastNotificationsOn() : string
+}
+
+class DocumentImage {
+  +id : bigint
+  +user_id : bigint
+  +type : DocumentImageType
+  +image : string
+  +is_approved : bool
+  +is_rejected : bool
+}
+
+class Category {
+  +id : bigint
+  +name : string
+  +slug : string
+  +description : text
+  +image : string
+  +icon : string
+  +color : string
+  +status : string
+  +sort_order : int
+  --
+  +children() : HasMany
+}
+
+class SubCategory {
+  +id : bigint
+  +category_id : bigint
+  +name : string
+  +slug : string
+  +description : text
+  +image : string
+  +icon : string
+  +color : string
+  +status : string
+  +sort_order : int
+}
+
+class Product {
+  +id : bigint
+  +sku : string
+  +seller_id : bigint
+  +sub_category_id : bigint
+  +name : string
+  +slug : string
+  +description : text
+  +specifications : text
+  +condition : string
+  +usage_duration : string
+  +purchase_date : date
+  +quantity : string
+  +retail_price : decimal(15,2)
+  +sale_price : decimal(15,2)
+  +negotiable : ProductNegotiability
+  +listing_type : ProductSaleType
+  +is_approved : bool
+  +is_featured : bool
+  +is_trending : bool
+  +views_count : int
+  +location : string
+  +meetup_location : string
+  +meetup_instructions : text
+  +delivery_available : bool
+  +expires_at : datetime
+  +status : string
+  --
+  +isDirectSell() : bool
+  +isAuction() : bool
+  +isWishlistedBy(user) : bool
+  +logTimeline(eventType, title, description, actor) : ProductTimeline
+  +approveListing() : void
+  +getStockQuantityAttribute() : int
+  +getEstimatedValueAttribute() : float
+  +getSuggestedStartingPriceAttribute() : float
+}
+
+class ProductImage {
+  +id : bigint
+  +product_id : bigint
+  +path : string
+  +image_type : ProductImageType
+  +sort_order : int
+}
+
+class ProductTimeline {
+  +id : bigint
+  +product_id : bigint
+  +event_type : string
+  +title : string
+  +description : text
+  +actor_id : bigint
+}
+
+class Auction {
+  +id : bigint
+  +product_id : bigint
+  +auction_type : string
+  +winner_id : bigint
+  +start_time : datetime
+  +start_time_np : string
+  +end_time : datetime
+  +end_time_np : string
+  +extended_end_time : datetime
+  +current_price : decimal(12,2)
+  +winning_price : decimal(12,2)
+  +total_bids : int
+  +status : string
+  +settlement_reason : text
+  --
+  +isLive() : bool
+  +isUpcoming() : bool
+  +isEnded() : bool
+  +getStepIncrement() : float
+  +getMinNextBid() : float
+  +getEffectiveEndTimeAttribute() : datetime
+}
+
+class TraditionalAuction {
+  +id : bigint
+  +auction_id : bigint
+  +starting_bid : decimal(12,2)
+  +reserve_price : decimal(12,2)
+  +min_bid_increment : decimal(12,2)
+  +timer_start_seconds : int
+  +timer_reset_seconds : int
+}
+
+class Bid {
+  +id : bigint
+  +auction_id : bigint
+  +bidder_id : bigint
+  +bid_amount : decimal(12,2)
+  +max_proxy_amount : decimal(12,2)
+  +is_proxy : bool
+  +ip_address : string
+  +placed_at : time
+}
+
+class Order {
+  +id : bigint
+  +order_number : string
+  +buyer_id : bigint
+  +seller_id : bigint
+  +auction_id : bigint
+  +status : string
+  +total_amount : decimal(15,2)
+  +deposit_amount : decimal(15,2)
+  +deposit_status : string
+  +deposit_transaction_uuid : string
+  +payment_method : string
+  +payment_status : string
+  +handover_type : string
+  +meetup_location : string
+  +meetup_time : datetime
+  +meetup_time_np : string
+  +shipping_address : text
+  +buyer_phone : string
+  +notes : text
+  +cancellation_reason_category : string
+  +cancellation_note : text
+  --
+  +needsDeposit() : bool
+  +getStatusBadgeAttribute() : string
+  +getStatusLabelAttribute() : string
+}
+
+class OrderItem {
+  +id : bigint
+  +order_id : bigint
+  +product_id : bigint
+  +price : decimal(15,2)
+  +quantity : int
+  +subtotal : decimal(15,2)
+}
+
+class CartItem {
+  +id : bigint
+  +user_id : bigint
+  +product_id : bigint
+  +quantity : int
+}
+
+class Wishlist {
+  +id : bigint
+  +user_id : bigint
+  +product_id : bigint
+}
+
+class Conversation {
+  +id : bigint
+  +product_id : bigint
+  +buyer_id : bigint
+  +seller_id : bigint
+  +last_message_at : datetime
+  --
+  +hasParticipant(user) : bool
+}
+
+class ChatMessage {
+  +id : bigint
+  +conversation_id : bigint
+  +sender_id : bigint
+  +body : text
+  +read_at : datetime
+}
+
+class FaqCategory {
+  +id : bigint
+  +name : string
+  +slug : string
+  +sort_order : int
+}
+
+class Faq {
+  +id : bigint
+  +faq_category_id : bigint
+  +question : string
+  +answer : text
+  +sort_order : int
+  +is_active : bool
+}
+
+class Setting {
+  +id : bigint
+  +key : string
+  +value : text
+  +group : string
+  --
+  +{static} get(key, default) : mixed
+  +{static} set(key, value, group) : Setting
+}
+
+class Subscriber {
+  +id : bigint
+  +email : string
+}
+
+class AiChatMessage {
+  +id : bigint
+  +user_id : bigint
+  +session_id : string
+  +role : string
+  +body : text
+  +is_error : bool
+  --
+  +scopeForOwner(query, userId, sessionId) : Builder
+  +scopeSameOwnerAs(query, message) : Builder
+}
+
+enum ProductSaleType {
+  DIRECT_SELLER = direct_seller
+  AUCTION = auction
+}
+
+enum ProductNegotiability {
+  ANY = any
+  NEGOTIABLE = negotiable
+  FIXED = fixed
+}
+
+enum ProductImageType {
+  GENERAL = general
+  PROOF = proof
+}
+
+enum ProductAuctionType {
+  TRADITIONAL = traditional
+}
+
+enum DocumentImageType {
+  CITIZENSHIPFRONT
+  CITIZENSHIPBACK
+  PASSPORT
+  DRIVING_LICENSE
+  NATIONAL_ID
+  OTHER
+}
+
+enum StatusState {
+  ACTIVE = active
+  INACTIVE = inactive
+}
+
+enum GenderState {
+  MALE
+  FEMALE
+  OTHER
+}
+
+class AuctionEngineService <<service>> {
+  +{static} getStepIncrement(currentPrice, customMinIncrement) : float
+  +{static} processBid(auction, bidder, bidAmount, maxProxyAmount, ip) : Bid
+  +{static} determineWinner(auction) : array
+  +{static} checkAndFinalizeIfExpired(auction) : bool
+  +{static} calculateOptimalReserve(sellerValuation, startingBid) : float
+  +{static} calculateEquilibriumBid(privateValuation, numberOfBidders) : float
+}
+
+class AuctionValuationService <<service>> {
+  +{static} depreciationRateForAge(ageInMonths) : float
+  +{static} conditionFactor(condition) : float
+  +{static} calculateEstimatedValue(originalPrice, purchaseDate, condition) : float
+  +{static} calculateSuggestedStartingPrice(estimatedValue, ratio) : float
+}
+
+class OrderCancellationService <<service>> {
+  +{static} BUYER_REASONS : array
+  +{static} cancel(order, actor, reasonCategory, note) : void
+}
+
+class EsewaPaymentService <<service>> {
+  +buildPaymentForm(order) : array
+  +decodeAndVerifyCallback(encodedData) : array
+  +checkStatus(order) : string
+}
+
+class AiClientService <<service>> {
+  +isConfigured() : bool
+  +generate(systemPrompt, history) : string
+}
+
+class AiAssistantPromptService <<service>> {
+  +systemPrompt() : string
+}
+
+class HtmlSanitizerService <<service>> {
+  +{static} sanitize(html) : string
+  +{static} toSafeHtml(value) : string
+}
+
+class GenerateAiAssistantReply <<queued job>> {
+  +messageId : int
+  +handle(client, prompt) : void
+  +failed(exception) : void
+}
+
+class AuctionBidPlaced <<broadcast event>> {
+  channel : auctions.ID
+}
+
+class ChatMessageSent <<broadcast event>> {
+  channels : conversations.ID and App.Models.User.ID (seller and buyer)
+}
+
+class "DatabaseNotification" as DatabaseNotification <<Illuminate\\Notifications>> {
+  +id : uuid
+  +type : string
+  +notifiable_type : string
+  +notifiable_id : bigint
+  +data : json
+  +read_at : datetime
+}
+
+class "App\\Notifications\\*" as AppNotifications <<Notification, ShouldBroadcastNow>> {
+  NewOrderReceivedNotification
+  AuctionWonNotification
+  OutbidNotification
+  DepositPaidNotification
+  NewChatMessageNotification
+  NewProductUploadedNotification
+  ProductApprovedNotification
+  SellerRegisteredNotification
+  SellerApprovedNotification
+  SellerSuspendedNotification
+  AuctionApplicationSubmittedNotification
+  AuctionApplicationApprovedNotification
+  AuctionApplicationRejectedNotification
+  AccountStatusChangedNotification
+  --
+  via() : database, broadcast
+}
+
+' catalogue
+Category "1" *-- "0..*" SubCategory : subCategories()\ncategory_id NOT NULL, cascade
+SubCategory "1" o-- "0..*" Product : products()\nsub_category_id NOT NULL, cascade
+User "1" o-- "0..*" Product : products()\nseller_id NOT NULL, cascade
+Product "1" *-- "0..*" ProductImage : images() / proofImages()\ncascade
+Product "1" *-- "0..*" ProductTimeline : timelines()\ncascade
+ProductTimeline "0..*" --> "0..1" User : actor()\nactor_id nullable, set null
+
+' auction
+Product "1" *-- "0..1" Auction : auction() hasOne\ncascade
+Auction "1" *-- "0..1" TraditionalAuction : traditionalAuction() hasOne\ncascade
+Auction "1" *-- "0..*" Bid : bids()\ncascade
+User "1" <-- "0..*" Bid : bidder()\nbidder_id NOT NULL, cascade
+Auction "0..*" --> "0..1" User : winner()\nwinner_id nullable
+
+' orders
+User "1" <-- "0..*" Order : buyer()\nbuyer_id NOT NULL
+User "1" <-- "0..*" Order : seller()\nseller_id NOT NULL
+Auction "0..1" <-- "0..*" Order : auction()\nnullable, set null
+Order "1" *-- "1..*" OrderItem : items()\ncascade
+OrderItem "0..*" --> "1" Product : product()
+
+' cart and wishlist
+User "1" o-- "0..*" CartItem : cartItems()
+CartItem "0..*" --> "1" Product : product()
+User "1" o-- "0..*" Wishlist : wishlists()
+Wishlist "0..*" --> "1" Product : product()
+
+' messaging
+Product "1" <-- "0..*" Conversation : product()
+User "1" <-- "0..*" Conversation : buyer()
+User "1" <-- "0..*" Conversation : seller()
+Conversation "1" *-- "0..*" ChatMessage : messages()
+User "1" <-- "0..*" ChatMessage : sender()
+
+' identity and content
+User "1" *-- "0..*" DocumentImage : documentImages()
+FaqCategory "1" *-- "0..*" Faq : faqs()
+User "0..1" <-- "0..*" AiChatMessage : user_id nullable\n(guests use session_id)
+
+' polymorphic notifications (Notifiable trait -> notifications table)
+User "1" o-- "0..*" DatabaseNotification : notifications()\nnotifiable_id (morph)
+Admin "1" o-- "0..*" DatabaseNotification : notifications()\nnotifiable_id (morph)
+AppNotifications ..> DatabaseNotification : toDatabase() persists
+
+' enums used as casts
+Product ..> ProductSaleType : listing_type
+Product ..> ProductNegotiability : negotiable
+ProductImage ..> ProductImageType : image_type
+Auction ..> ProductAuctionType : auction_type (values)
+DocumentImage ..> DocumentImageType : type
+User ..> StatusState : status
+Admin ..> StatusState : status
+User ..> GenderState : gender
+
+' service layer
+AuctionEngineService ..> Auction : locks and updates
+AuctionEngineService ..> Bid : creates
+AuctionEngineService ..> Order : creates on win
+AuctionEngineService ..> OrderItem : creates
+AuctionEngineService ..> AuctionBidPlaced : event after commit
+AuctionEngineService ..> AppNotifications : Outbid, AuctionWon, NewOrderReceived
+AuctionValuationService ..> Product : estimated value
+OrderCancellationService ..> Order : cancel, deposit_status
+OrderCancellationService ..> Product : relist auction product
+EsewaPaymentService ..> Order : deposit payment
+EsewaPaymentService ..> AppNotifications : DepositPaid (via controller)
+AuctionBidPlaced ..> Auction
+ChatMessageSent ..> ChatMessage
+GenerateAiAssistantReply ..> AiClientService
+GenerateAiAssistantReply ..> AiAssistantPromptService
+GenerateAiAssistantReply ..> AiChatMessage : stores reply
+Product ..> HtmlSanitizerService : description sanitized on save
+
+note right of Order
+  There is no separate Payment class or table.
+  Payment data lives on Order:
+  payment_method, payment_status and the
+  eSewa deposit fields (deposit_amount,
+  deposit_status, deposit_transaction_uuid).
+  status: pending, confirmed, completed, cancelled
+  deposit_status: pending, paid, refund_owed, forfeited
+  handover_type: meetup, delivery
+end note
+
+note right of Auction
+  status: pending, active, completed, ended_unsold
+  ('ended' is checked in isEnded() but never written)
+end note
+
+note right of Product
+  status: pending, active, sold
+  Product::category() returns a SubCategory;
+  the top-level Category is reached through it.
+  quantity is stored as varchar(255) and cast by
+  getStockQuantityAttribute().
+end note
+
+note bottom of User
+  users.daate_of_birth_np keeps the misspelled column name used
+  by the migration, fillable list and CompleteProfile.
+  Roles are boolean flags (is_seller, is_auction_allowed) on User;
+  Admin is a separate authenticatable model with its own guard.
+  No permission package is used.
+end note
+
+note as N2
+  Multiplicities verified against foreign keys:
+  - nullable FKs give 0..1: auctions.winner_id, orders.auction_id,
+    product_timelines.actor_id, ai_chat_messages.user_id
+  - all other FKs are NOT NULL and cascade on delete,
+    except orders.auction_id and product_timelines.actor_id (set null)
+  - Product to Auction and Auction to TraditionalAuction are hasOne
+  - Order to OrderItem is hasMany (checkout always creates at least one item)
+  - Wishlist and CartItem are join records between User and Product
+  Not shown because their tables no longer exist:
+  DirectSellerProduct model and Product::bookmarkedByUsers().
+end note
+
+@enduml

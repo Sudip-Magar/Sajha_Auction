@@ -1,0 +1,259 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Object Diagram (won auction through to its order)
+
+note as N1
+  Field names and types come from the real migrations and models.
+  The repository only ships UserFactory and AdminSeeder, so every value except the
+  seeded admin row is illustrative, but consistent with the engine rules:
+  minimum step Rs. 500 at ~Rs. 30,000, first bid >= starting_bid + step,
+  proxy resolution p* = min(m1, m2 + step), 10% deposit, anti-sniping window 15 s.
+end note
+
+object "admin1 : Admin" as admin1 {
+  id = 1
+  name = "Admin"
+  email = "admin@sajhaauction.com"
+  phone = "9761834027"
+  role = "admin"
+  position = "admin"
+  gender = "MALE"
+  address = "Kathmandu"
+  status = "active"
+}
+
+object "seller : User" as seller {
+  id = 2
+  name = "Ramesh Shrestha"
+  username = "ramesh_s"
+  email = "ramesh@example.com"
+  phone = "9841234567"
+  gender = "MALE"
+  is_verified = true
+  is_seller = true
+  seller_application_pending = false
+  is_auction_allowed = true
+  status = "active"
+}
+
+object "bidder1 : User" as bidder1 {
+  id = 3
+  name = "Sita Karki"
+  username = "sita_k"
+  email = "sita@example.com"
+  phone = "9812345678"
+  gender = "FEMALE"
+  is_seller = false
+  is_auction_allowed = true
+  status = "active"
+}
+
+object "bidder2 : User" as bidder2 {
+  id = 4
+  name = "Anil Thapa"
+  username = "anil_t"
+  is_seller = false
+  is_auction_allowed = true
+  status = "active"
+}
+
+object "doc : DocumentImage" as doc {
+  id = 1
+  user_id = 2
+  type = "passport"
+  image = "document-images/passport.png"
+  is_approved = true
+  is_rejected = false
+}
+
+object "cat : Category" as cat {
+  id = 1
+  name = "Electronics"
+  slug = "electronics"
+  status = "active"
+  sort_order = 1
+}
+
+object "sub : SubCategory" as sub {
+  id = 3
+  category_id = 1
+  name = "Cameras"
+  slug = "cameras"
+  status = "active"
+  sort_order = 1
+}
+
+object "camera : Product" as camera {
+  id = 10
+  sku = "PRD-K3M9QW2X"
+  seller_id = 2
+  sub_category_id = 3
+  name = "Canon EOS 1500D DSLR"
+  slug = "canon-eos-1500d-dslr-x7Qp2"
+  condition = "lightly-used"
+  retail_price = 65000.00
+  sale_price = null
+  listing_type = "auction"
+  negotiable = "fixed"
+  meetup_location = "New Road, Kathmandu"
+  delivery_available = false
+  is_approved = true
+  status = "sold"
+}
+
+object "img : ProductImage" as img {
+  id = 1
+  product_id = 10
+  path = "products/canon-front.jpg"
+  image_type = "general"
+  sort_order = 0
+}
+
+object "tl : ProductTimeline" as tl {
+  id = 31
+  product_id = 10
+  event_type = "auction_ended"
+  title = "Auction Finalized & Won"
+  actor_id = 3
+}
+
+object "auction : Auction" as auction {
+  id = 5
+  product_id = 10
+  auction_type = "traditional"
+  start_time = "2026-09-14 10:00:00"
+  start_time_np = "2083-05-29"
+  end_time = "2026-09-15 20:00:00"
+  end_time_np = "2083-05-30"
+  extended_end_time = "2026-09-15 20:00:07"
+  current_price = 32000.00
+  winner_id = 3
+  winning_price = 32000.00
+  total_bids = 4
+  status = "completed"
+  settlement_reason = "Highest admissible bid of Rs. 32,000.00 above reserve price of Rs. 25,000.00."
+}
+
+object "rules : TraditionalAuction" as rules {
+  id = 5
+  auction_id = 5
+  starting_bid = 20000.00
+  reserve_price = 25000.00
+  min_bid_increment = 500.00
+  timer_start_seconds = 60
+  timer_reset_seconds = 15
+}
+
+object "bid1 : Bid" as bid1 {
+  id = 41
+  auction_id = 5
+  bidder_id = 4
+  bid_amount = 30500.00
+  max_proxy_amount = null
+  is_proxy = false
+  placed_at = "19:42:10"
+}
+
+object "bid2 : Bid" as bid2 {
+  id = 42
+  auction_id = 5
+  bidder_id = 3
+  bid_amount = 31000.00
+  max_proxy_amount = 40000.00
+  is_proxy = true
+  placed_at = "19:51:03"
+}
+
+object "bid3 : Bid" as bid3 {
+  id = 43
+  auction_id = 5
+  bidder_id = 4
+  bid_amount = 31500.00
+  is_proxy = false
+  placed_at = "19:59:52"
+}
+
+object "bid4 : Bid (automatic proxy response)" as bid4 {
+  id = 44
+  auction_id = 5
+  bidder_id = 3
+  bid_amount = 32000.00
+  max_proxy_amount = 40000.00
+  is_proxy = true
+  placed_at = "19:59:52"
+}
+
+object "order : Order" as order {
+  id = 7
+  order_number = "ORD-20260915-7KQ2M"
+  buyer_id = 3
+  seller_id = 2
+  auction_id = 5
+  status = "confirmed"
+  total_amount = 32000.00
+  deposit_amount = 3200.00
+  deposit_status = "paid"
+  deposit_transaction_uuid = "9b1d6c3e-5f0a-4c1e-8a57-2d3f7e91b0aa"
+  payment_method = "cash_on_meetup"
+  payment_status = "pending"
+  handover_type = "meetup"
+  meetup_location = "New Road, Kathmandu"
+  meetup_time = "2026-09-18 15:00:00"
+  meetup_time_np = "2083-06-02 15:00"
+  buyer_phone = "9812345678"
+}
+
+object "item : OrderItem" as item {
+  id = 9
+  order_id = 7
+  product_id = 10
+  price = 32000.00
+  quantity = 1
+  subtotal = 32000.00
+}
+
+object "alert : DatabaseNotification" as alert {
+  type = "App\\Notifications\\NewOrderReceivedNotification"
+  notifiable_type = "App\\Models\\User"
+  notifiable_id = 2
+  data = "{message, order_id = 7, order_number, buyer_name, total_amount, type = new_order_received}"
+  read_at = null
+}
+
+' ownership and catalogue
+sub --> cat : category_id
+camera --> sub : sub_category_id
+camera --> seller : seller_id
+doc --> seller : user_id
+img --> camera : product_id
+tl --> camera : product_id
+tl --> bidder1 : actor_id
+
+' auction
+auction --> camera : product_id
+rules --> auction : auction_id
+bid1 --> auction : auction_id
+bid2 --> auction : auction_id
+bid3 --> auction : auction_id
+bid4 --> auction : auction_id
+bid1 --> bidder2 : bidder_id
+bid2 --> bidder1 : bidder_id
+bid3 --> bidder2 : bidder_id
+bid4 --> bidder1 : bidder_id
+auction --> bidder1 : winner_id
+
+' settlement
+order --> auction : auction_id
+order --> bidder1 : buyer_id
+order --> seller : seller_id
+item --> order : order_id
+item --> camera : product_id
+alert --> seller : notifiable_id
+
+admin1 ..> camera : approved via Product::approveListing()
+
+@enduml
