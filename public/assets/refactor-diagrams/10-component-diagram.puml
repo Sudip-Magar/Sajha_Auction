@@ -1,0 +1,63 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 12
+skinparam ranksep 16
+
+title Sajha Auction - Component Diagram
+
+[Livewire Pages\n(User and Admin)] as UI
+
+[Auth Module] as Auth
+[Catalogue Module] as Cat
+[Auction Module\n(AuctionEngineService)] as Auc
+[Order Module] as Ord
+[Payment Module\n(EsewaPaymentService)] as Pay
+[Messaging Module] as Msg
+[Notification Module] as Not
+[Admin Module] as Adm
+[AI Assistant Module] as Ai
+
+database "MySQL" as DB
+[Laravel Reverb] as WS
+cloud "eSewa" as Esewa
+cloud "Gemini API" as Gemini
+cloud "SMTP" as Smtp
+cloud "Google OAuth" as Google
+
+UI -down-> Auth
+UI -down-> Cat
+UI -down-> Auc
+UI -down-> Ord
+UI -down-> Msg
+UI -down-> Adm
+UI -down-> Ai
+
+Auth -right-> Cat : User flags
+Cat -right-> Auc : Product
+Auc -down-> Ord : creates winner Order
+Ord -right-> Pay : deposit
+Adm -down-> Cat : approveListing
+Adm -down-> Auth : seller and auction access
+Msg -down-> Not
+Ord -down-> Not
+Auc -down-> Not
+Adm -down-> Not
+
+Auth -down-> Google
+Auth -down-> Smtp : OTP mail
+Pay -down-> Esewa
+Ai -down-> Gemini
+Not -down-> WS : broadcast
+Not -down-> Smtp : mail
+Auc -down-> WS : AuctionBidPlaced
+Msg -down-> WS : ChatMessageSent
+
+Cat -down-> DB
+Ord -down-> DB
+Ai -down-> DB
+
+@enduml

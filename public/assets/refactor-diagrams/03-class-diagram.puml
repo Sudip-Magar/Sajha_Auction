@@ -1,0 +1,158 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 10
+skinparam ranksep 22
+skinparam classAttributeIconSize 0
+hide empty members
+
+title Sajha Auction - Class Diagram (core Eloquent models)
+
+class User {
+  +id : bigint
+  +name : string
+  +email : string
+  +phone : string
+  +is_seller : bool
+  +is_auction_allowed : bool
+  +status : string
+  --
+  +isActiveStatus() : bool
+}
+
+class DocumentImage {
+  +type : DocumentImageType
+  +image : string
+  +is_approved : bool
+}
+
+class Category {
+  +id : bigint
+  +name : string
+  +status : string
+}
+
+class SubCategory {
+  +id : bigint
+  +category_id : bigint
+  +name : string
+}
+
+class Product {
+  +id : bigint
+  +seller_id : bigint
+  +sub_category_id : bigint
+  +name : string
+  +condition : string
+  +sale_price : decimal
+  +listing_type : ProductSaleType
+  +delivery_available : bool
+  +is_approved : bool
+  +status : string
+  --
+  +isDirectSell() : bool
+  +isAuction() : bool
+  +approveListing() : void
+}
+
+class ProductImage {
+  +path : string
+  +image_type : ProductImageType
+}
+
+class Auction {
+  +id : bigint
+  +product_id : bigint
+  +winner_id : bigint
+  +start_time : datetime
+  +end_time : datetime
+  +extended_end_time : datetime
+  +current_price : decimal
+  +winning_price : decimal
+  +status : string
+  --
+  +isLive() : bool
+  +isEnded() : bool
+  +getMinNextBid() : float
+}
+
+class TraditionalAuction {
+  +starting_bid : decimal
+  +reserve_price : decimal
+  +min_bid_increment : decimal
+  +timer_reset_seconds : int
+}
+
+class Bid {
+  +id : bigint
+  +bidder_id : bigint
+  +bid_amount : decimal
+  +max_proxy_amount : decimal
+  +is_proxy : bool
+}
+
+class Order {
+  +id : bigint
+  +order_number : string
+  +buyer_id : bigint
+  +seller_id : bigint
+  +auction_id : bigint
+  +status : string
+  +total_amount : decimal
+  +deposit_status : string
+  +payment_method : string
+  +handover_type : string
+  --
+  +needsDeposit() : bool
+}
+
+class OrderItem {
+  +price : decimal
+  +quantity : int
+  +subtotal : decimal
+}
+
+class CartItem {
+  +user_id : bigint
+  +product_id : bigint
+  +quantity : int
+}
+
+class Conversation {
+  +buyer_id : bigint
+  +seller_id : bigint
+  --
+  +hasParticipant(user) : bool
+}
+
+class ChatMessage {
+  +sender_id : bigint
+  +body : text
+  +read_at : datetime
+}
+
+Category "1" *-- "0..*" SubCategory
+SubCategory "1" o-- "0..*" Product
+User "1" o-- "0..*" Product : seller
+Product "1" *-- "0..*" ProductImage
+Product "1" *-- "0..1" Auction
+Auction "1" *-- "0..1" TraditionalAuction
+Auction "1" *-- "0..*" Bid
+User "1" -- "0..*" Bid : bidder
+Auction "0..*" -- "0..1" User : winner
+User "1" -- "0..*" Order : buyer
+User "1" -- "0..*" Order : seller
+Auction "0..1" -- "0..*" Order
+Order "1" *-- "1..*" OrderItem
+OrderItem "0..*" -- "1" Product
+User "1" o-- "0..*" CartItem
+CartItem "0..*" -- "1" Product
+User "1" *-- "0..*" DocumentImage
+Product "1" -- "0..*" Conversation
+Conversation "1" *-- "0..*" ChatMessage
+User "1" -- "0..*" ChatMessage : sender
+
+@enduml

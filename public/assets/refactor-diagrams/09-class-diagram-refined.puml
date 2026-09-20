@@ -1,0 +1,170 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 10
+skinparam ranksep 20
+skinparam wrapWidth 200
+skinparam classAttributeIconSize 0
+hide empty members
+
+title Sajha Auction - Refined Class Diagram
+
+class User {
+  +id : bigint
+  +name : string
+  +is_seller : bool
+  +is_auction_allowed : bool
+  +status : string
+}
+
+class Admin {
+  +id : bigint
+  +email : string
+  +role : string
+  +status : string
+}
+
+class DocumentImage {
+  +type : DocumentImageType
+  +is_approved : bool
+}
+
+class Category {
+  +name : string
+}
+
+class SubCategory {
+  +name : string
+}
+
+class Product {
+  +id : bigint
+  +name : string
+  +listing_type : ProductSaleType
+  +delivery_available : bool
+  +is_approved : bool
+  +status : string
+  --
+  +approveListing() : void
+}
+
+class ProductImage {
+  +image_type : ProductImageType
+}
+
+class ProductTimeline {
+  +event_type : string
+}
+
+class Auction {
+  +id : bigint
+  +status : string
+  +current_price : decimal
+  +winning_price : decimal
+  +extended_end_time : datetime
+  --
+  +isLive() : bool
+  +getMinNextBid() : float
+}
+
+class TraditionalAuction {
+  +starting_bid : decimal
+  +reserve_price : decimal
+  +min_bid_increment : decimal
+}
+
+class Bid {
+  +bid_amount : decimal
+  +max_proxy_amount : decimal
+  +is_proxy : bool
+}
+
+class Order {
+  +order_number : string
+  +status : string
+  +total_amount : decimal
+  +payment_method : string
+  +payment_status : string
+  +deposit_status : string
+  +handover_type : string
+}
+
+class OrderItem {
+  +price : decimal
+  +quantity : int
+}
+
+class CartItem
+class Wishlist
+class Conversation
+class ChatMessage {
+  +body : text
+}
+
+class DatabaseNotification {
+  +type : string
+  +data : json
+  +read_at : datetime
+}
+
+class AuctionEngineService <<service>> {
+  +processBid()
+  +determineWinner()
+}
+
+class OrderCancellationService <<service>> {
+  +cancel()
+}
+
+class EsewaPaymentService <<service>> {
+  +buildPaymentForm()
+  +checkStatus()
+}
+
+Category "1" *-- "0..*" SubCategory
+SubCategory "1" o-- "0..*" Product
+User "1" o-- "0..*" Product : seller
+Product "1" *-- "0..*" ProductImage
+Product "1" *-- "0..*" ProductTimeline
+ProductTimeline "0..*" -- "0..1" User : actor
+
+Product "1" *-- "0..1" Auction
+Auction "1" *-- "0..1" TraditionalAuction
+Auction "1" *-- "0..*" Bid
+User "1" -- "0..*" Bid : bidder
+Auction "0..*" -- "0..1" User : winner
+
+User "1" -- "0..*" Order : buyer
+User "1" -- "0..*" Order : seller
+Auction "0..1" -- "0..*" Order
+Order "1" *-- "1..*" OrderItem
+OrderItem "0..*" -- "1" Product
+
+User "1" o-- "0..*" CartItem
+CartItem "0..*" -- "1" Product
+User "1" o-- "0..*" Wishlist
+Wishlist "0..*" -- "1" Product
+
+Product "1" -- "0..*" Conversation
+Conversation "1" *-- "0..*" ChatMessage
+User "1" -- "0..*" ChatMessage : sender
+User "1" *-- "0..*" DocumentImage
+
+User "1" o-- "0..*" DatabaseNotification
+Admin "1" o-- "0..*" DatabaseNotification
+
+AuctionEngineService ..> Auction
+AuctionEngineService ..> Order : creates on win
+OrderCancellationService ..> Order
+EsewaPaymentService ..> Order : deposit
+
+note right of Order
+  No separate Payment class:
+  payment data lives on Order
+  (payment_*, deposit_*).
+end note
+
+@enduml

@@ -1,0 +1,180 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Component Diagram (modules as they exist in app/)
+
+package "Presentation (Livewire + Blade + Alpine)" {
+  [Layouts and Shell\nlayouts/app, layouts/admin\nNavbar, Footer, Topbar, Sidebar\nAuctionNotice, AiAssistant drawer] as Shell
+}
+
+package "Authentication Module" {
+  [Livewire Auth\nLogin, Register, VerifyOtp,\nCompleteProfile, ForgotPassword,\nResetPassword, Admin Login] as Auth
+  [GoogleAuthController\n(Socialite)] as GoogleCtl
+  [Middleware\nUserMiddleware 'user'\nAdminMiddleware 'admin'\nEnsureGoogleSession 'auth.otp'] as Middleware
+}
+
+package "Catalogue Module" {
+  [Home, SearchProduct,\nMarketplaceProducts,\nProductDetail, Wishlist,\nFaqs, InfoPage] as Catalogue
+  [Category, SubCategory,\nProduct, ProductImage,\nProductTimeline, Wishlist,\nFaq, FaqCategory] as CatalogueModels
+}
+
+package "Seller Listing Module" {
+  [ManageProduct, Products,\nUser Dashboard] as Listing
+  [AuctionValuationService\nHtmlSanitizerService] as ListingSvc
+}
+
+package "Auction Module" {
+  [AuctionMarketplace,\nAuctionDetail, JoinAuction] as AuctionUI
+  [AuctionEngineService\nprocessBid, determineWinner,\ncheckAndFinalizeIfExpired] as Engine
+  [Auction, TraditionalAuction,\nBid, DocumentImage] as AuctionModels
+  [Scheduler\nroutes/console.php\nfinalize-expired-auctions] as Scheduler
+}
+
+package "Order Module" {
+  [Cart, Checkout,\nOrders, OrderDetail] as OrderUI
+  [OrderCancellationService] as CancelSvc
+  [Order, OrderItem, CartItem] as OrderModels
+}
+
+package "Payment Module" {
+  [EsewaPaymentController] as PayCtl
+  [EsewaPaymentService\nbuildPaymentForm,\ndecodeAndVerifyCallback,\ncheckStatus] as PaySvc
+}
+
+package "Messaging Module" {
+  [Messages, ProductDetail chat] as ChatUI
+  [Conversation, ChatMessage] as ChatModels
+}
+
+package "Notification Module" {
+  [app/Notifications/*\nNewOrderReceived, AuctionWon,\nOutbid, DepositPaid,\nProductApproved, SellerApproved ...] as Notifs
+  [Mail\nAuctionWonMail, OtpMail,\nPasswordResetOtpMail] as Mails
+  [Notifications pages\nNavbar, Topbar] as NotifUI
+}
+
+package "Admin Module" {
+  [Livewire Admin\nDashboard, SellerRequests,\nAuctionApplication, Products,\nUsers, CategorySetup, SubCategorySetup,\nFaqs, Orders, Settings] as AdminUI
+  [Admin, Setting] as AdminModels
+}
+
+package "AI Assistant Module" {
+  [AiAssistant (Livewire)] as AiUI
+  [GenerateAiAssistantReply\n(queued job)] as AiJob
+  [AiClientService\nAiAssistantPromptService] as AiSvc
+  [AiChatMessage] as AiModel
+}
+
+package "Account Module" {
+  [Settings, User, Subscriber] as Account
+}
+
+package "Realtime" {
+  [Events\nAuctionBidPlaced\nChatMessageSent] as Events
+  [routes/channels.php\nApp.Models.User.{id}\nApp.Models.Admin.{id}\nconversations.{conversation}] as Channels
+  [Laravel Reverb\n+ Echo (resources/js/echo.js)] as Reverb
+}
+
+database "MySQL\nsajha_auction" as DB
+
+cloud "eSewa ePay v2" as Esewa
+cloud "Google OAuth" as GoogleApi
+cloud "Gemini API" as Gemini
+cloud "SMTP\nsmtp.gmail.com" as Smtp
+
+' presentation
+Shell ..> Auth
+Shell ..> Catalogue
+Shell ..> AuctionUI
+Shell ..> OrderUI
+Shell ..> AiUI
+Shell ..> AdminUI
+
+' auth
+Auth --> Account : User model
+Auth ..> Mails : OTP emails
+Auth ..> Middleware : guards
+GoogleCtl --> GoogleApi
+GoogleCtl ..> Auth : session google_user
+Auth ..> AdminModels : admin guard
+
+' catalogue and listing
+Catalogue --> CatalogueModels
+Listing --> CatalogueModels
+Listing --> ListingSvc
+Listing --> AuctionModels : Auction + TraditionalAuction
+Listing ..> Notifs : NewProductUploadedNotification
+Catalogue ..> ChatUI : openChat
+Catalogue ..> OrderUI : addToCart, buyNow
+
+' auction
+AuctionUI --> Engine
+AuctionUI --> AuctionModels
+Engine --> AuctionModels
+Engine --> OrderModels : creates winner Order
+Engine --> CatalogueModels : Product status 'sold'
+Engine ..> Notifs : Outbid, AuctionWon
+Engine ..> Mails : AuctionWonMail
+Engine ..> Events : AuctionBidPlaced
+Scheduler --> Engine : checkAndFinalizeIfExpired
+
+' orders and payment
+OrderUI --> OrderModels
+OrderUI --> CatalogueModels
+OrderUI ..> Notifs : NewOrderReceivedNotification
+OrderUI --> CancelSvc
+CancelSvc --> OrderModels
+CancelSvc --> CatalogueModels : relist product
+PayCtl --> PaySvc
+PayCtl --> OrderModels : deposit_status
+PayCtl ..> Notifs : DepositPaidNotification
+PaySvc --> Esewa : form POST + status API
+OrderUI ..> PayCtl : pay-deposit link
+
+' messaging
+ChatUI --> ChatModels
+ChatUI ..> Events : ChatMessageSent
+ChatUI ..> Notifs : NewChatMessageNotification
+
+' admin
+AdminUI --> AdminModels
+AdminUI --> CatalogueModels : approveListing, categories, FAQs
+AdminUI --> Account : seller and auction access
+AdminUI --> AuctionModels : application review
+AdminUI ..> Notifs
+
+' notifications and realtime
+Notifs --> Channels : broadcast
+Events --> Channels
+Channels --> Reverb
+NotifUI --> Notifs
+Shell ..> NotifUI
+Reverb ..> Shell : Echo listeners
+
+' AI
+AiUI --> AiModel
+AiUI ..> AiJob : dispatch
+AiJob --> AiSvc
+AiJob --> AiModel
+AiSvc --> Gemini
+
+' mail
+Mails --> Smtp
+
+' persistence
+CatalogueModels --> DB
+AuctionModels --> DB
+OrderModels --> DB
+ChatModels --> DB
+AdminModels --> DB
+Account --> DB
+AiModel --> DB
+
+note bottom of DB
+  Also holds framework tables used at runtime:
+  jobs (queue), sessions, cache, notifications
+end note
+
+@enduml

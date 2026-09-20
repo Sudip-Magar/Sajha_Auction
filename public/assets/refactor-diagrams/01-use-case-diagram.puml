@@ -1,0 +1,71 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype polyline
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 8
+skinparam ranksep 14
+skinparam wrapWidth 150
+
+title Sajha Auction - Use Case Diagram
+left to right direction
+
+actor Guest
+actor "User\n(Buyer)" as User
+actor Seller
+actor Admin
+actor "eSewa" as Esewa <<external>>
+actor "Scheduler" as Sched <<system>>
+
+Guest <|-- User
+User <|-- Seller
+
+rectangle "Sajha Auction" {
+  usecase "Register / Login\n(Email OTP, Google)" as U1
+  usecase "Browse and Search\nProducts and Auctions" as U2
+  usecase "Ask AI Guide" as U3
+  usecase "Manage Wishlist\nand Cart" as U4
+  usecase "Checkout and\nPlace Order" as U5
+  usecase "Track or Cancel\nOrders" as U6
+  usecase "Chat with Seller" as U7
+  usecase "Apply for\nAuction Access" as U8
+  usecase "Place Bid\n(Manual / Proxy)" as U9
+  usecase "Pay Auction\nDeposit" as U10
+  usecase "List Product\nor Auction" as U11
+  usecase "Confirm and\nComplete Order" as U12
+  usecase "Approve Sellers and\nAuction Access" as A1
+  usecase "Approve Product\nListings" as A2
+  usecase "Manage Users" as A3
+  usecase "Manage Categories\nand FAQs" as A4
+  usecase "Monitor Orders\nand Settings" as A5
+  usecase "Finalize Auctions\nand Pick Winner" as S1
+}
+
+Guest --> U1
+Guest --> U2
+Guest --> U3
+
+User --> U4
+User --> U5
+User --> U6
+User --> U7
+User --> U8
+User --> U9
+User --> U10
+
+Seller --> U11
+Seller --> U12
+
+Admin --> A1
+Admin --> A2
+Admin --> A3
+Admin --> A4
+Admin --> A5
+
+Sched --> S1
+
+U10 --> Esewa
+note right of U9 : Requires auction access (is_auction_allowed)
+
+@enduml

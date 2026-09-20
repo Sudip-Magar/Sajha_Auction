@@ -1,0 +1,83 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 12
+skinparam ranksep 16
+
+title Sajha Auction - Object Diagram (a won auction and its order)
+
+object "seller : User" as seller {
+  id = 2
+  name = "Ramesh Shrestha"
+  is_seller = true
+  is_auction_allowed = true
+}
+
+object "buyer : User" as buyer {
+  id = 3
+  name = "Sita Karki"
+  is_auction_allowed = true
+}
+
+object "camera : Product" as camera {
+  id = 10
+  name = "Canon EOS 1500D DSLR"
+  listing_type = "auction"
+  status = "sold"
+  is_approved = true
+}
+
+object "auction : Auction" as auction {
+  id = 5
+  status = "completed"
+  current_price = 32000.00
+  winning_price = 32000.00
+  total_bids = 4
+}
+
+object "rules : TraditionalAuction" as rules {
+  starting_bid = 20000.00
+  reserve_price = 25000.00
+  min_bid_increment = 500.00
+  timer_reset_seconds = 15
+}
+
+object "bid : Bid" as bid {
+  id = 44
+  bid_amount = 32000.00
+  max_proxy_amount = 40000.00
+  is_proxy = true
+}
+
+object "order : Order" as order {
+  order_number = "ORD-20260915-7KQ2M"
+  status = "confirmed"
+  total_amount = 32000.00
+  deposit_amount = 3200.00
+  deposit_status = "paid"
+  handover_type = "meetup"
+  payment_method = "cash_on_meetup"
+}
+
+object "item : OrderItem" as item {
+  price = 32000.00
+  quantity = 1
+  subtotal = 32000.00
+}
+
+camera --> seller : seller_id = 2
+auction --> camera : product_id = 10
+rules --> auction : auction_id = 5
+bid --> auction : auction_id = 5
+bid --> buyer : bidder_id = 3
+auction --> buyer : winner_id = 3
+order --> auction : auction_id = 5
+order --> buyer : buyer_id = 3
+order --> seller : seller_id = 2
+item --> order : order_id
+item --> camera : product_id = 10
+
+@enduml

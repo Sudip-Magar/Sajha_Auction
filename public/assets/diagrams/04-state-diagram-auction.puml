@@ -1,0 +1,57 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Auction Lifecycle (auctions.status)
+
+[*] --> pending : Seller submits auction listing\nManageProduct::save()\nAuction updateOrCreate(status = 'pending')
+
+pending --> pending : Seller edits listing before approval\n(approved products can no longer be edited)
+pending --> [*] : Seller deletes unapproved product\nProducts::deleteProduct() (cascade)
+
+pending --> active : Admin approves listing\nProduct::approveListing()\n(Products::approveProduct / ProductDetail::approveProduct)
+
+state active {
+  [*] --> Upcoming
+  Upcoming --> Live : start_time reached\nAuction::isLive()
+
+  Live --> Live : AuctionEngineService::processBid()\ncurrent_price and total_bids updated
+  Live --> Extended : bid inside last timer_reset_seconds\nextended_end_time = now() + timer_reset_seconds
+  Extended --> Extended : another late bid\n(deadline only ever moves later)
+
+  Live --> AwaitingSettlement : effective_end_time passed\n(extended_end_time ?? end_time)
+  Extended --> AwaitingSettlement : extended_end_time passed
+}
+
+note right of active
+  Upcoming, Live, Extended and AwaitingSettlement are derived from
+  start_time, end_time and extended_end_time.
+  The stored status stays 'active' until settlement runs.
+  Settlement is triggered by any of:
+  - scheduler 'finalize-expired-auctions' (every minute)
+  - AuctionDetail mount / render / placeBid
+  All go through AuctionEngineService::checkAndFinalizeIfExpired()
+end note
+
+active --> completed : determineWinner()\nat least one bid_amount >= reserve_price\nwinner_id, winning_price, settlement_reason set
+active --> ended_unsold : determineWinner()\nno bid_amount >= reserve_price\nwinner_id = null, winning_price = 0
+
+completed --> completed : Order created for winner (status 'pending'),\nproduct.status = 'sold',\nAuctionWonNotification + AuctionWonMail\n+ NewOrderReceivedNotification to seller
+
+note bottom of completed
+  If the auction order is later cancelled
+  (OrderCancellationService::cancel), the product returns to
+  'active' but this auction row stays 'completed' as history.
+end note
+
+completed --> [*]
+ended_unsold --> [*]
+
+note bottom of ended_unsold
+  Auction::isEnded() also lists an 'ended' status,
+  but no code path ever writes it.
+end note
+
+@enduml

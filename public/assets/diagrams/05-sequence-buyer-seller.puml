@@ -1,0 +1,95 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Seller Listing and Buyer Bidding Flow
+
+actor Seller
+actor Buyer
+actor Admin
+participant "UserMiddleware\n(alias 'user')" as MW
+participant "ManageProduct\n(Livewire)" as MP
+participant "AuctionMarketplace\n(Livewire)" as AM
+participant "AuctionDetail\n(Livewire)" as AD
+participant "AuctionEngineService" as ENG
+participant "Product / Auction /\nTraditionalAuction / Bid" as M
+database "MySQL" as DB
+participant "Reverb\nchannel auctions.{id}" as WS
+participant "Scheduler\nfinalize-expired-auctions" as SCH
+participant "Notifications / Mail" as NT
+
+== Seller creates an auction listing ==
+Seller -> MW : GET /my-products/create/auction\n(route user.products.create)
+MW -> MW : Auth::guard('web')->check()\nUser::isActiveStatus()
+MW -> MP : mount(type = 'auction')
+alt not is_seller
+  MP --> Seller : warning, redirect user.products
+else is_seller but not is_auction_allowed
+  MP --> Seller : warning, redirect user.join-auction
+else allowed
+  MP --> Seller : render form
+end
+Seller -> MP : save()
+MP -> MP : validate (sub_category_id, starting_bid,\nauction_start_date_en > today, end >= start,\nat least one image)
+MP -> DB : DB::transaction
+MP -> M : Product::create(status 'pending', listing_type 'auction')
+MP -> M : product->auction()->updateOrCreate(status 'pending',\ncurrent_price = starting_bid)
+MP -> M : auction->traditionalAuction()->updateOrCreate(starting_bid,\nreserve_price, min_bid_increment, timer_*_seconds)
+MP -> M : Product::logTimeline('uploaded')
+MP -> NT : notifyAdmins()\nNewProductUploadedNotification
+MP --> Seller : toast "Product uploaded for approval", redirect user.products
+
+Admin -> M : Admin\\Products::approveProduct(product)\nProduct::approveListing()
+M -> DB : product.status 'active', is_approved true,\nauction.status 'active'
+M -> NT : ProductApprovedNotification to seller
+
+== Buyer browses and opens the live auction ==
+Buyer -> AM : GET /auction (public route user.auction)
+AM -> DB : auctions with status in\n(active, pending, completed, ended_unsold)
+AM --> Buyer : auction list
+Buyer -> MW : GET /auction/{auction}\n(route user.auction.detail)
+MW -> AD : mount(Auction)
+AD -> ENG : checkAndFinalizeIfExpired(auction)
+AD --> Buyer : bidding room\n(Echo listens on auctions.{id})
+
+== Buyer places a bid ==
+Buyer -> AD : placeBid() (toggleProxyMode / setQuickBid optional)
+AD -> AD : guards: logged in, is_auction_allowed,\nnot seller of this product
+AD -> ENG : checkAndFinalizeIfExpired(auction)
+AD -> AD : Auction::isLive(), bidAmount >= getMinNextBid()\n(proxy mode: maxProxyAmount >= min next bid)
+AD -> ENG : processBid(auction, user, bidAmount, maxProxyAmount, ip)
+ENG -> DB : DB::transaction + Auction lockForUpdate()
+ENG -> ENG : getStepIncrement(current_price, min_bid_increment)\nreject if below current_price + step
+ENG -> M : Bid::create(...)
+ENG -> ENG : rankBidderMaxes() and resolve p* = min(m1, m2 + step)
+opt leader has a proxy ceiling and price moved
+  ENG -> M : Bid::create(automatic proxy bid, is_proxy = true)
+end
+opt bid within last timer_reset_seconds
+  ENG -> M : auction.extended_end_time = now() + timer_reset_seconds
+end
+ENG -> M : auction.update(current_price, total_bids)
+ENG --> DB : commit
+ENG -> WS : DB::afterCommit -> event(AuctionBidPlaced)
+WS --> Buyer : refreshAuctionState() on all viewers
+opt leading bidder changed
+  ENG -> NT : OutbidNotification to previous leader
+end
+AD --> Buyer : toast "Your bid has been placed successfully!"
+
+== Auction ends and winner is decided ==
+SCH -> ENG : every minute: checkAndFinalizeIfExpired(auction)
+ENG -> ENG : determineWinner(auction)\n(bids >= reserve_price, highest wins, earliest breaks ties)
+alt at least one admissible bid
+  ENG -> DB : auction.status 'completed', winner_id, winning_price
+  ENG -> DB : product.status 'sold'
+  ENG -> M : Order::create(status 'pending', deposit_status 'pending',\nhandover_type 'meetup', payment_method 'cash_on_meetup')\n+ OrderItem::create
+  ENG -> NT : AuctionWonNotification + AuctionWonMail to winner
+  ENG -> NT : NewOrderReceivedNotification to seller
+else no admissible bid
+  ENG -> DB : auction.status 'ended_unsold'
+end
+
+@enduml

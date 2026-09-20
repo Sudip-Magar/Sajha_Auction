@@ -1,0 +1,43 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 14
+skinparam ranksep 22
+
+title Sajha Auction - Deployment Diagram
+
+node "Client Browser\nLivewire + Alpine.js + Echo" as Client
+
+node "Application Host (PHP 8.3, Laravel 13)" as Host {
+  node "Web Server\nartisan serve (dev)\nNginx + PHP-FPM\n(prod, assumed)" as Web
+  node "Laravel Reverb\nWebSocket :8080" as Reverb
+  node "Queue Worker\nqueue:listen" as Queue
+  node "Scheduler\nfinalize-expired-auctions" as Sched
+}
+
+node "MySQL 8 :3306\nsajha_auction\n(+ jobs, sessions, cache)" as DB
+
+cloud "SMTP\nsmtp.gmail.com" as Smtp
+cloud "eSewa ePay v2\n(sandbox)" as Esewa
+cloud "Gemini API" as Gemini
+
+Web -[hidden]right-> Reverb
+Queue -[hidden]right-> Sched
+Web -[hidden]down-> Queue
+
+Client -down-> Web : HTTPS (HTTP in dev)
+Client -down-> Reverb : WSS (WS in dev)
+Web --> DB
+Queue --> DB
+Sched --> DB
+Web --> Reverb : broadcast
+Queue --> Gemini : HTTPS
+Queue --> Smtp : OTP mail
+Web --> Esewa : signed form,\nstatus API
+
+footer No Docker files. Session, cache and queue use the database driver; Redis is not used.
+
+@enduml

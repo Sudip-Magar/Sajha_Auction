@@ -1,0 +1,68 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+title Sajha Auction - Deployment Diagram (as configured in .env / composer run dev)
+
+node "Client Device" as Client {
+  artifact "Web Browser\nLivewire 4 + Alpine.js 3\nTailwind 4 / daisyUI / Mary UI" as Browser
+  artifact "Laravel Echo + pusher-js\n(resources/js/echo.js)" as Echo
+}
+
+node "Application Host\n(PHP 8.3, Laravel 13)" as Host {
+
+  node "Web Server\nphp artisan serve (dev)\nAPP_URL http://localhost\nNginx or Apache + PHP-FPM assumed for production" as Web {
+    artifact "Laravel 13 Application\nLivewire components\nUser and Admin guards" as App
+    artifact "public/storage -> storage/app/public\n(product, avatar, document images)" as Storage
+  }
+
+  node "Queue Worker\nphp artisan queue:listen --tries=1 --timeout=0\nQUEUE_CONNECTION=database" as Queue {
+    artifact "GenerateAiAssistantReply (job)\nOtpMail (ShouldQueue)" as Jobs
+  }
+
+  node "Task Scheduler\nphp artisan schedule:work" as Sched {
+    artifact "finalize-expired-auctions\n(every minute)" as Task
+  }
+
+  node "Laravel Reverb\nphp artisan reverb:start\nWebSocket server\nREVERB_HOST 127.0.0.1, port 8080\nscheme http (https/wss in production)" as Reverb
+
+  node "Vite Dev Server\nnpm run dev\n(development only; npm run build for production)" as Vite
+}
+
+node "Database Server\nMySQL 8 (DB_CONNECTION=mysql)\n127.0.0.1:3306" as DBNode {
+  database "sajha_auction\napplication tables +\njobs, sessions, cache, notifications" as DB
+}
+
+cloud "External Services" as Ext {
+  node "SMTP\nsmtp.gmail.com:587" as Smtp
+  node "Google OAuth\n(Socialite)" as Google
+  node "eSewa ePay v2\nrc-epay.esewa.com.np (sandbox)" as Esewa
+  node "Gemini API\ngenerativelanguage.googleapis.com/v1beta" as Gemini
+}
+
+Browser --> App : HTTPS (HTTP on localhost in dev)\nLivewire updates
+Echo --> Reverb : WSS (WS in dev)\nauctions.{id}, private channels
+App --> DB : TCP 3306 (Eloquent)
+Jobs --> DB : jobs table
+Jobs --> Smtp : OTP email
+Task --> DB : Auction queries
+Jobs --> Gemini : HTTPS generateContent
+App --> Reverb : broadcast events\nBROADCAST_CONNECTION=reverb
+App --> Smtp : SMTP (OTP, auction won mail)
+App --> Google : OAuth redirect and callback
+App --> Esewa : signed form POST, status-check API
+Browser --> Esewa : redirect for deposit payment
+Esewa --> App : browser redirect to\n/payment/esewa/success and /failure
+Browser --> Vite : dev assets (HMR)
+
+note bottom of Host
+  No docker-compose.yml or Dockerfile exists.
+  Session, cache and queue all use the database driver.
+  REDIS_CLIENT is set but Redis is not used at runtime
+  (Reverb scaling is disabled by default).
+  FILESYSTEM_DISK=local; uploads are written to the 'public' disk.
+end note
+
+@enduml
