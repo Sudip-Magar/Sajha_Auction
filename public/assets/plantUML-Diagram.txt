@@ -1,0 +1,115 @@
+Analyze this Laravel project (Sajha Auction) thoroughly — models, migrations, routes, controllers, middleware, Livewire components, roles/permissions (spatie/laravel-permission), and any docker-compose/.env/queue/broadcast config — to understand the real actors, entities, relationships, statuses, and module structure actually implemented in the code.
+
+Create a folder at: Sajha_Auction/public/assets/diagrams
+
+Inside that folder, generate the following 11 PlantUML (.puml) files, each based strictly on the REAL classes, fields, routes, methods, statuses, and modules found in the codebase — do not invent placeholder names if the real ones can be found in the code:
+
+1. Analyze this Laravel project's routes, controllers, and middleware (especially anything related to auctions, bidding, users, roles/permissions, and payments). Identify the real actors (e.g. Admin, Seller, Buyer/User) and their actual use cases based on the routes and controller actions that exist.
+
+Generate a PlantUML (.puml) file for a USE CASE DIAGRAM of "Sajha Auction" using real use case names from the code (not generic placeholders). Add this to the top of the file:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype polyline
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+2. Look at this project's actual Eloquent models and a sample seeded/factory record for each (User, Auction/Item, Bid, Payment, Category, etc.). 
+
+Generate a PlantUML (.puml) file for an OBJECT DIAGRAM of "Sajha Auction" showing real instances with realistic sample field values taken from actual model attributes/migrations (not invented fields). Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+3. Analyze this project's Eloquent models, their fillable/cast attributes, relationships (hasMany, belongsTo, etc.), and key methods.
+
+Generate a PlantUML (.puml) file for a CLASS DIAGRAM of "Sajha Auction" using the real classes, real attributes (with types), real methods, and real relationship multiplicities as they exist in the code. Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+4. Look at the actual status/state field and its transitions for the Auction (or Bid/Order) model — check for enums, constants, or status strings used in the code/migrations, and how controllers or jobs transition between them.
+
+Generate a PlantUML (.puml) file for a STATE DIAGRAM of the Auction lifecycle in "Sajha Auction", using the real status values found in the code (not invented ones). Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+5. Trace the actual controller/route flow for: a buyer browsing and bidding on an auction, and a seller creating/listing an auction, using the real endpoints, controller method names, and system components (e.g. real class/service names) in this project.
+
+Generate a PlantUML (.puml) file for a SEQUENCE DIAGRAM covering both the Buyer and Seller flow in "Sajha Auction", using real endpoint/method names as message labels. Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+6. Trace the actual admin-side controller/route flow (approving sellers/auctions, managing users, managing categories, viewing reports) using real endpoint and method names from this project.
+
+Generate a PlantUML (.puml) file for a SEQUENCE DIAGRAM of the Admin flow in "Sajha Auction". Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+7. Based on the real admin routes/controllers in this project, map out the actual step-by-step admin workflow (login through logout).
+
+Generate a PlantUML (.puml) file for an ACTIVITY DIAGRAM of the Admin workflow in "Sajha Auction", using real step/action names from the code. Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+8. Based on the real buyer/seller-facing routes/controllers in this project, map out the actual step-by-step user workflow (login/validation through logout), including any decision points (e.g. valid login, sufficient balance, auction still open).
+
+Generate a PlantUML (.puml) file for an ACTIVITY DIAGRAM of the User workflow in "Sajha Auction", using real step/action names and real decision conditions from the code. Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+9. Take the class diagram you generated earlier for this project and refine it: verify every multiplicity against the actual foreign keys/relationship definitions in the code, add any missing classes or relationships you find (e.g. Payment, Notification, Category) that belong in the domain model, and correct anything that doesn't match the real schema.
+
+Generate a PlantUML (.puml) file for the REFINED CLASS DIAGRAM of "Sajha Auction". Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+10. Analyze this project's actual module/folder structure (e.g. app/Http/Controllers, app/Models, app/Services, Livewire components, middleware) to identify the real functional modules (e.g. Auction Module, Bid Module, Payment Module, User Module, Auth Module) and how they actually depend on/call each other.
+
+Generate a PlantUML (.puml) file for a COMPONENT DIAGRAM of "Sajha Auction" reflecting the real module boundaries and dependencies in this codebase. Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
+
+11. Check this project's actual deployment setup — .env / config files, docker-compose.yml if present, queue/broadcast config (e.g. Reverb, Redis), database driver, and web server assumptions.
+
+Generate a PlantUML (.puml) file for a DEPLOYMENT DIAGRAM of "Sajha Auction" reflecting the real infrastructure components in this project (web server, database, queue/broadcast server, client browsers over HTTPS). Add this to the top:
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+Output only the .puml file content.
