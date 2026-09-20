@@ -179,6 +179,12 @@
                 </div>
             </div>
 
+            <button type="button" x-data @click="$dispatch('open-ai-assistant')"
+                    class="flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-left text-sm font-bold text-[#1F6F5F] transition hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-[#7CE0C5] dark:hover:bg-emerald-950/40">
+                <x-icon name="o-sparkles" class="h-5 w-5 shrink-0" />
+                <span>New to bidding? Ask the AI guide how it works</span>
+            </button>
+
             {{-- Auction result (if ended) --}}
             @if($auction->isEnded())
                 <div class="bg-white dark:bg-[#181A1F] rounded-3xl border-2 {{ $auction->winner_id ? 'border-emerald-500' : 'border-amber-500' }} p-6 shadow-sm">

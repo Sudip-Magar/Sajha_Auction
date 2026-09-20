@@ -41,6 +41,16 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', env('GOOGLE_REDIRECT_URL')),      // Your Google Redirect URL
     ],
 
+    // "How does this work?" assistant. Only the Gemini provider is implemented.
+    'ai' => [
+        'provider' => env('AI_PROVIDER', 'gemini'),
+        'api_key' => env('AI_API_KEY'),
+        'model' => env('AI_MODEL', 'gemini-3.6-flash'),
+        'base_url' => env('AI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
+        'timeout' => (int) env('AI_TIMEOUT', 20),
+        'history_limit' => 10,
+    ],
+
     // eSewa ePay v2 - defaults are eSewa's public sandbox test credentials.
     // Swap for real merchant values (and the production URLs) to go live.
     'esewa' => [

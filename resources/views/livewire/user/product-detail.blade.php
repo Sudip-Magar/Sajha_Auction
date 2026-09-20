@@ -293,6 +293,12 @@
                                 </button>
                             @endif
                         </div>
+
+                        <button type="button" x-data @click="$dispatch('open-ai-assistant')"
+                                class="flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-left text-xs font-bold text-[#1F6F5F] transition hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-[#7CE0C5] dark:hover:bg-emerald-950/40">
+                            <x-icon name="o-sparkles" class="h-5 w-5 shrink-0" />
+                            <span>Not sure how ordering works? Ask the AI guide</span>
+                        </button>
                     </div>
                 </aside>
             </section>

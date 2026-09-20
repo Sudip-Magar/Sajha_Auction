@@ -39,6 +39,9 @@
 
 <livewire:components.user.footer/>
 <livewire:components.user.auction-notice />
+@unless(request()->routeIs('user.ai-assistant'))
+    <livewire:user.ai-assistant mode="drawer" />
+@endunless
 <x-toast/>
 @livewireScripts
 
