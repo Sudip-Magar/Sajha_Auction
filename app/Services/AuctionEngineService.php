@@ -9,6 +9,7 @@ use App\Models\Bid;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\AuctionWonNotification;
+use App\Notifications\NewOrderReceivedNotification;
 use App\Notifications\OutbidNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -346,6 +347,16 @@ class AuctionEngineService
                 Log::warning('Auction winner notification could not be delivered.', [
                     'auction_id' => $auction->id,
                     'winner_id' => $winningBid->bidder_id,
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
+
+            try {
+                $auction->product->user?->notify(new NewOrderReceivedNotification($order));
+            } catch (\Throwable $exception) {
+                Log::warning('Auction seller notification could not be delivered.', [
+                    'auction_id' => $auction->id,
+                    'seller_id' => $auction->product->seller_id,
                     'exception' => $exception->getMessage(),
                 ]);
             }

@@ -9,9 +9,11 @@ use App\Models\SubCategory;
 use App\Models\TraditionalAuction;
 use App\Models\User;
 use App\Notifications\AuctionWonNotification;
+use App\Notifications\NewOrderReceivedNotification;
 use App\Notifications\OutbidNotification;
 use App\Services\AuctionEngineService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
@@ -108,6 +110,7 @@ test('algorithm 1: determines winner correctly with reserve price and earliest t
         'total_amount' => 12000,
     ]);
     Notification::assertSentTo($bidder1, AuctionWonNotification::class);
+    Notification::assertSentTo($seller, NewOrderReceivedNotification::class);
     Mail::assertSent(AuctionWonMail::class, fn (AuctionWonMail $mail): bool => $mail->hasTo($bidder1->email));
 });
 
@@ -379,8 +382,8 @@ test('outbid notification: raising your own leading proxy bid does not notify yo
 });
 
 test('anti-sniping: a bid inside the closing window extends the deadline by timer_reset_seconds', function () {
-    $frozenNow = \Illuminate\Support\Carbon::create(2026, 1, 1, 12, 0, 0);
-    \Illuminate\Support\Carbon::setTestNow($frozenNow);
+    $frozenNow = Carbon::create(2026, 1, 1, 12, 0, 0);
+    Carbon::setTestNow($frozenNow);
 
     $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
     $subCategory = createTestSubCategory();
@@ -420,12 +423,12 @@ test('anti-sniping: a bid inside the closing window extends the deadline by time
     expect($auction->extended_end_time->timestamp)->toBe($frozenNow->copy()->addSeconds(15)->timestamp);
     expect($auction->effective_end_time->timestamp)->toBe($auction->extended_end_time->timestamp);
 
-    \Illuminate\Support\Carbon::setTestNow();
+    Carbon::setTestNow();
 });
 
 test('anti-sniping: a bid outside the closing window does not extend the deadline', function () {
-    $frozenNow = \Illuminate\Support\Carbon::create(2026, 1, 1, 12, 0, 0);
-    \Illuminate\Support\Carbon::setTestNow($frozenNow);
+    $frozenNow = Carbon::create(2026, 1, 1, 12, 0, 0);
+    Carbon::setTestNow($frozenNow);
 
     $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
     $subCategory = createTestSubCategory();
@@ -463,12 +466,12 @@ test('anti-sniping: a bid outside the closing window does not extend the deadlin
 
     expect($auction->extended_end_time)->toBeNull();
 
-    \Illuminate\Support\Carbon::setTestNow();
+    Carbon::setTestNow();
 });
 
 test('anti-sniping: a second late bid extends further, never shrinking an existing extension', function () {
-    $frozenNow = \Illuminate\Support\Carbon::create(2026, 1, 1, 12, 0, 0);
-    \Illuminate\Support\Carbon::setTestNow($frozenNow);
+    $frozenNow = Carbon::create(2026, 1, 1, 12, 0, 0);
+    Carbon::setTestNow($frozenNow);
 
     $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
     $subCategory = createTestSubCategory();
@@ -509,14 +512,14 @@ test('anti-sniping: a second late bid extends further, never shrinking an existi
     expect($firstExtension)->toBe($frozenNow->copy()->addSeconds(15)->timestamp);
 
     // 5 seconds later, still inside the (extended) closing window.
-    \Illuminate\Support\Carbon::setTestNow($frozenNow->copy()->addSeconds(5));
+    Carbon::setTestNow($frozenNow->copy()->addSeconds(5));
     AuctionEngineService::processBid($auction, $bidderB, 1200);
     $auction->refresh();
 
     expect($auction->extended_end_time->timestamp)->toBeGreaterThan($firstExtension);
     expect($auction->extended_end_time->timestamp)->toBe($frozenNow->copy()->addSeconds(5 + 15)->timestamp);
 
-    \Illuminate\Support\Carbon::setTestNow();
+    Carbon::setTestNow();
 });
 
 test('anti-sniping: an extended auction is not finalized until the extension itself has passed', function () {
