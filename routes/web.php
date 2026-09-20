@@ -23,6 +23,7 @@ use App\Livewire\Auth\User\VerifyOtp;
 use App\Livewire\Faqs;
 use App\Livewire\Home;
 use App\Livewire\InfoPage;
+use App\Livewire\User\AiAssistant;
 use App\Livewire\User\AuctionDetail;
 use App\Livewire\User\AuctionMarketplace;
 use App\Livewire\User\Cart;
@@ -48,6 +49,7 @@ Route::get('/', function () {
 
 Route::get('/home', Home::class)->name('home');
 Route::get('/faqs', Faqs::class)->name('faqs');
+Route::get('/ai-assistant', AiAssistant::class)->name('user.ai-assistant');
 Route::get('/products', MarketplaceProducts::class)->name('user.marketplace-products');
 Route::get('/products/{product:slug}', UserProductDetail::class)->name('user.products.show');
 Route::get('/register', Register::class)->name('user.register');
