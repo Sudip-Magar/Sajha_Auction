@@ -19,7 +19,7 @@ node "Application Host\n(PHP 8.3, Laravel 13)" as Host {
   }
 
   node "Queue Worker\nphp artisan queue:listen --tries=1 --timeout=0\nQUEUE_CONNECTION=database" as Queue {
-    artifact "GenerateAiAssistantReply (job)\nOtpMail (ShouldQueue)" as Jobs
+    artifact "Optional: no job needs a worker by default\n(AI replies run inside the web request)" as Jobs
   }
 
   node "Task Scheduler\nphp artisan schedule:work" as Sched {
@@ -46,9 +46,8 @@ Browser --> App : HTTPS (HTTP on localhost in dev)\nLivewire updates
 Echo --> Reverb : WSS (WS in dev)\nauctions.{id}, private channels
 App --> DB : TCP 3306 (Eloquent)
 Jobs --> DB : jobs table
-Jobs --> Smtp : OTP email
 Task --> DB : Auction queries
-Jobs --> Gemini : HTTPS generateContent
+App --> Gemini : HTTPS generateContent
 App --> Reverb : broadcast events\nBROADCAST_CONNECTION=reverb
 App --> Smtp : SMTP (OTP, auction won mail)
 App --> Google : OAuth redirect and callback

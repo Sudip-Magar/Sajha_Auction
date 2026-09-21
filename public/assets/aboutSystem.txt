@@ -1,0 +1,994 @@
+=====================================================================
+ABOUT THE SYSTEM - SAJHA AUCTION (COMPLETE OVERVIEW)
+Database, migrations, routes, views, components, services, and more
+=====================================================================
+
+TABLE OF CONTENTS
+   1.  What the system is
+   2.  How a request travels through the system (architecture)
+   3.  Technology stack
+   4.  Folder map (where things live)
+   5.  The database (every table)
+   6.  The migrations (every migration file, in order)
+   7.  Models and their relationships
+   8.  Enums (fixed lists of values)
+   9.  Routes (every URL and what it does)
+  10.  Middleware and guards
+  11.  Livewire components and their views (pages)
+  12.  Layouts, shared components and emails (Blade views)
+  13.  Services (business logic)
+  14.  Events, notifications, mail and jobs
+  15.  Front-end files (JavaScript and CSS)
+  16.  Scheduler and background processes
+  17.  Configuration and .env
+  18.  Seeders, factories and tests
+  19.  The main workflows, end to end
+  20.  Other documents in this folder
+  21.  Known limitations
+
+
+=====================================================================
+1. WHAT THE SYSTEM IS
+=====================================================================
+Sajha Auction is a Nepal-focused marketplace for SECOND-HAND products.
+Items are sold in two ways:
+   - DIRECT SELL  : fixed (or negotiable) price. Buyer orders, meets
+                    the seller in person, inspects, pays CASH.
+   - AUCTION      : live bidding (manual and proxy bids). The highest
+                    valid bid wins. The winner pays a small deposit
+                    online (eSewa, sandbox) and the rest in cash at the
+                    meetup.
+
+There are three kinds of people:
+   - GUEST   : can browse products and auctions and use the AI guide.
+   - USER    : registers (email OTP or Google), can buy, bid (if
+               approved for auctions), chat, wishlist, cart, orders.
+   - SELLER  : a user approved by an admin; can list products/auctions.
+   - ADMIN   : a separate login; approves sellers, auction access and
+               listings; manages users, categories, FAQs, orders and
+               settings.
+
+Everything is real time: live bids, chat and notifications update
+without refreshing (Laravel Reverb WebSockets).
+
+There is also an AI assistant (Google Gemini) that explains how the
+site works.
+
+
+=====================================================================
+2. HOW A REQUEST TRAVELS THROUGH THE SYSTEM
+=====================================================================
+The project is a Laravel application where almost every PAGE is a
+LIVEWIRE COMPONENT (a PHP class + a Blade view).
+
+   Browser asks for  /auction/5
+        |
+   routes/web.php  finds the route:
+        Route::get('/auction/{auction}', AuctionDetail::class)
+        |
+   MIDDLEWARE runs first (here: 'user' = must be logged in and active)
+        |
+   The Livewire component class  App\Livewire\User\AuctionDetail
+        - mount()  loads data (models) from the database
+        - render() returns the Blade view
+             resources/views/livewire/user/auction-detail.blade.php
+        |
+   HTML is sent to the browser. From now on the page "talks" to PHP
+   through Livewire:
+        - a button with wire:click="placeBid" calls the PHP method
+          placeBid() (an AJAX request to /livewire/update)
+        - PHP changes the database (through MODELS and SERVICES)
+        - PHP may fire EVENTS / NOTIFICATIONS
+        - Livewire re-draws only the parts that changed
+        |
+   Real-time: events are broadcast through Laravel Reverb; the browser
+   (Laravel Echo) hears them and asks Livewire to refresh.
+
+The layers, from top to bottom:
+   Blade views (what you see)  ->  Livewire components (page logic)
+   ->  Services (business rules, e.g. the auction engine)
+   ->  Models (database access)  ->  MySQL database
+   Side channels: Events + Notifications + Mail + Reverb (real time),
+   Scheduler (auctions ending).
+
+
+=====================================================================
+3. TECHNOLOGY STACK
+=====================================================================
+   PHP 8.3, Laravel 13          the framework
+   Livewire 4                   dynamic pages without writing JS APIs
+   Alpine.js 3                  small in-page interactions
+   Tailwind CSS 4 + daisyUI     styling;  Mary UI = ready-made
+                                Blade components (x-input, x-button...)
+   Laravel Reverb + Echo        WebSockets (real time)
+   Laravel Socialite            Google sign-in
+   MySQL                        database (SQLite only for tests)
+   Vite                         builds the CSS/JS into public/build
+   Pest / PHPUnit               tests
+   TipTap                       rich text editor (descriptions)
+   Nepali Datepicker            Bikram Sambat (B.S.) date picker
+   Google Gemini API            AI assistant
+   eSewa ePay v2                deposit payment (sandbox)
+
+
+=====================================================================
+4. FOLDER MAP (WHERE THINGS LIVE)
+=====================================================================
+   app/Enums/          fixed value lists with labels (section 8)
+   app/Events/         broadcast events (AuctionBidPlaced, ...)
+   app/Exceptions/     AiUnavailableException
+   app/Helper/         helper.php (small global functions)
+   app/Http/Controllers/  GoogleAuthController, EsewaPaymentController
+   app/Http/Middleware/   UserMiddleware, AdminMiddleware,
+                          EnsureGoogleSession
+   app/Jobs/           GenerateAiAssistantReply
+   app/Livewire/       every page as a component:
+        Admin/         admin panel pages
+        Auth/User/     login, register, OTP, profile, reset password
+        Auth/Admin/    admin login
+        User/          all user-side pages
+        Components/    parts of the layout (navbar, footer, sidebar...)
+        Home.php, Faqs.php, InfoPage.php   public pages
+   app/Mail/           OtpMail, PasswordResetOtpMail, AuctionWonMail
+   app/Models/         database models (section 7)
+   app/Notifications/  bell notifications (section 14)
+   app/Providers/      AppServiceProvider (empty boot)
+   app/Services/       business logic (section 13)
+   bootstrap/app.php   middleware aliases, broadcasting, routing setup
+   config/             app, auth, broadcasting, reverb, services, ...
+   database/migrations/  table definitions (section 6)
+   database/seeders/   AdminSeeder (default admin)
+   database/factories/ UserFactory
+   docs/               ESEWA_PAYMENT_INTEGRATION.md
+   public/assets/      documentation .txt files, diagrams, images
+   resources/css, js   front-end sources (section 15)
+   resources/views/    all Blade templates (section 12 and 11)
+   routes/web.php      all page URLs
+   routes/channels.php real-time channel permissions
+   routes/console.php  the scheduler (auction settlement)
+   tests/Feature/      automated tests (section 18)
+
+
+=====================================================================
+5. THE DATABASE (EVERY TABLE)
+=====================================================================
+"FK" = foreign key (a link to a row in another table).
+
+---- PEOPLE ------------------------------------------------------
+users
+   Every normal account. Columns: id, google_id (unique), name, email
+   (must be unique: enforced by the sign-up validation, not by a
+   database constraint), username (unique), phone, date_of_birth_en (AD date),
+   daate_of_birth_np (B.S. date; the spelling "daate" is in the real
+   column name), gender ('male'|'female'|'other'), bio, avatar,
+   password (hashed), is_verified, is_seller, seller_application_pending,
+   is_auction_allowed, status ('active'|'inactive'), timestamps.
+   The three yes/no flags are the "roles":
+       is_seller           -> may list products
+       is_auction_allowed  -> may bid and host auctions
+       seller_application_pending -> asked to become a seller, waiting
+admins
+   Separate accounts for the admin panel (own login guard). Columns:
+   name, email, phone, role, position, date_of_joining, gender,
+   password, avatar, address, status.
+document_images
+   Identity documents a user uploads to apply for AUCTION access.
+   user_id FK, type (citizenship_front/back, passport, driving_license,
+   national_id, other), image path, is_approved, is_rejected.
+password_reset_tokens, sessions
+   Standard Laravel tables (sessions store logins because the session
+   driver is "database").
+
+---- CATALOGUE ---------------------------------------------------
+categories
+   Top-level categories: name, slug, description, image, icon, color,
+   status, sort_order.
+sub_categories
+   Children of a category: category_id FK + the same fields. A product
+   belongs to a SUB-category.
+products
+   Every listing (direct-sell or auction). sku, name, slug,
+   seller_id FK->users, sub_category_id FK->sub_categories, description,
+   specifications, condition, usage_duration, purchase_date, quantity,
+   retail_price (original price), sale_price (direct-sell price),
+   negotiable, listing_type ('direct_seller'|'auction'), is_approved,
+   is_featured, is_trending, views_count, location, meetup_location,
+   meetup_instructions, delivery_available (no longer used), expires_at,
+   status ('pending'|'active'|'sold').
+product_images
+   Photos: product_id FK, path, image_type ('general'|'proof' -
+   proof = warranty card etc. shown only to admins), sort_order.
+product_timelines
+   A history log per product: event_type, title, description, actor_id
+   (who did it). Written on upload, approval, order, cancellation...
+wishlists          user_id + product_id (saved items)
+cart_items         user_id + product_id + quantity
+faq_categories     name, slug, sort_order
+faqs               faq_category_id, question, answer, sort_order,
+                   is_active (managed by admin)
+subscribers        newsletter emails from the footer
+settings           key / value / group (admin site settings such as
+                   site name, social links, security options)
+
+---- AUCTIONS ----------------------------------------------------
+auctions
+   One per auction product. product_id FK, auction_type,
+   start_time/end_time (+ the B.S. text versions start_time_np,
+   end_time_np), extended_end_time (set by anti-sniping),
+   current_price, total_bids, winner_id FK->users (nullable),
+   winning_price, settlement_reason, status
+   ('pending' -> 'active' -> 'completed' | 'ended_unsold').
+traditional_auctions
+   The rule set of a traditional auction: auction_id FK,
+   starting_bid, reserve_price (secret minimum), min_bid_increment,
+   timer_start_seconds, timer_reset_seconds (anti-sniping window).
+bids
+   Every bid: auction_id FK, bidder_id FK->users, bid_amount,
+   max_proxy_amount (secret maximum for proxy bids), is_proxy,
+   ip_address, placed_at (time).
+
+---- ORDERS ------------------------------------------------------
+orders
+   One order per seller per checkout, and one per won auction.
+   order_number (ORD-YYYYMMDD-XXXXX), buyer_id, seller_id,
+   auction_id (only for auction orders), status
+   ('pending'|'confirmed'|'completed'|'cancelled'), total_amount,
+   deposit_amount, deposit_status ('not_required'|'pending'|'paid'|
+   'refund_owed'|'forfeited'), deposit_transaction_uuid (links the
+   eSewa payment), payment_method, payment_status, handover_type,
+   meetup_location, meetup_time (date+time in AD), meetup_time_np
+   (the same date in B.S. text), shipping_address (old, unused),
+   buyer_phone, notes, cancellation_reason_category, cancellation_note.
+order_items        order_id, product_id, price, quantity, subtotal
+
+---- MESSAGING / NOTIFICATIONS / AI ------------------------------
+conversations      product_id, buyer_id, seller_id, last_message_at
+chat_messages      conversation_id, sender_id, body, read_at
+notifications      Laravel's bell notifications: id (uuid), type,
+                   notifiable_type + notifiable_id (a user OR an
+                   admin), data (JSON), read_at
+ai_chat_messages   AI assistant chat: user_id (null for guests),
+                   session_id, role ('user'|'assistant'), body, is_error
+
+---- FRAMEWORK TABLES --------------------------------------------
+cache, cache_locks     database cache and locks (AI answer cache, locks)
+jobs, job_batches, failed_jobs   the queue tables (no feature uses the
+                                 queue by default)
+
+RELATIONSHIPS IN WORDS
+   A user has many products, orders (as buyer and as seller), cart
+   items, wishlist items, document images, conversations, bids.
+   A category has many sub-categories; a sub-category has many products.
+   A product has many images, timelines, and (if auction) ONE auction.
+   An auction has ONE traditional_auction rule set and many bids.
+   An order has many order_items; an auction order links to its auction.
+   A conversation has many chat_messages.
+   Deleting a user/product/auction cascades to its children (foreign
+   keys are set to delete on cascade), except: orders.auction_id and
+   product_timelines.actor_id become NULL instead.
+
+
+=====================================================================
+6. THE MIGRATIONS (EVERY MIGRATION FILE, IN ORDER)
+=====================================================================
+A migration is a PHP file that changes the database structure. They
+run in filename order with:  php artisan migrate
+
+  FILE (database/migrations/)                    WHAT IT DOES
+  ---------------------------------------------  -----------------------------------
+  0001_01_01_000000_create_users_table           Creates users, password_reset_tokens
+                                                 and sessions.
+  0001_01_01_000001_create_cache_table           Creates cache and cache_locks.
+  0001_01_01_000002_create_jobs_table            Creates jobs, job_batches, failed_jobs.
+  2026_05_02_132332_create_admins_table          Creates admins (admin panel accounts).
+  2026_05_07_100631_create_categories_table      Creates categories (originally with a
+                                                 parent_id for a tree; changed later).
+  2026_05_09_044213_create_notifications_table   Creates notifications (uuid id,
+                                                 polymorphic notifiable, JSON data).
+  2026_05_17_060934_create_settings_table        Creates settings (key/value/group).
+  2026_05_17_064000_create_products_table        Creates products (listing_type,
+                                                 is_approved, status...).
+  2026_05_17_101124_add_seller_application_
+        pending_to_users_table                   Adds users.seller_application_pending.
+  2026_05_19_085113_create_product_images_table  Creates product_images.
+  2026_05_19_085230_create_auctions_table        Creates auctions (times, price, status,
+                                                 winner, extended_end_time).
+  2026_05_25_065008_create_document_images_table Creates document_images (uploaded IDs).
+  2026_05_27_094224_create_traditional_
+        auctions_table                           Creates traditional_auctions
+                                                 (starting bid, reserve, increment,
+                                                 timers).
+  2026_05_28_083141_create_bids_table            Creates bids.
+  2026_06_07_000001_add_marketplace_metadata_
+        to_products_table                        Adds is_featured, is_trending,
+                                                 views_count, location,
+                                                 delivery_available, expires_at.
+  2026_06_07_000002_create_bookmarks_table       Created the bookmarks table (later
+                                                 dropped, see 2026_09_07).
+  2026_07_21_052011_add_negotiable_to_
+        products_table                           Adds products.negotiable.
+  2026_07_21_054350_restructure_categories_
+        and_sub_categories                       Splits the category tree: creates
+                                                 sub_categories, moves the child rows
+                                                 there, removes categories.parent_id and
+                                                 renames products.category_id to
+                                                 sub_category_id (this migration also
+                                                 moves existing data).
+  2026_07_22_070758_add_meetup_fields_to_
+        products_table                           Adds meetup_location,
+                                                 meetup_instructions, usage_duration.
+  2026_07_22_070841_create_wishlists_table       Creates wishlists.
+  2026_07_22_070845_create_cart_items_table      Creates cart_items.
+  2026_07_22_070849_create_orders_table          Creates orders (buyer, seller, totals,
+                                                 payment, handover, meetup).
+  2026_07_22_070853_create_order_items_table     Creates order_items.
+  2026_07_22_070857_create_product_timelines_
+        table                                    Creates product_timelines (history).
+  2026_07_22_083528_create_conversations_table   Creates conversations.
+  2026_07_22_083529_create_chat_messages_table   Creates chat_messages.
+  2026_07_23_101637_add_proxy_and_settlement_
+        fields_to_bids_and_auctions_tables       Adds bids.max_proxy_amount, bids.is_proxy
+                                                 and auctions.winning_price,
+                                                 auctions.settlement_reason.
+  2026_09_06_120000_create_faq_categories_table  Creates faq_categories.
+  2026_09_06_120001_create_faqs_table            Creates faqs.
+  2026_09_06_130000_add_purchase_date_to_
+        products_table                           Adds products.purchase_date (used for
+                                                 the estimated value).
+  2026_09_07_163959_create_subscribers_table     Creates subscribers (newsletter).
+  2026_09_07_175028_drop_bookmarks_table         Drops the unused bookmarks table
+                                                 (bookmarks and wishlists were the same
+                                                 feature).
+  2026_09_08_163309_add_deposit_fields_to_
+        orders_table                             Adds orders.auction_id (nullable FK),
+                                                 deposit_amount, deposit_status,
+                                                 deposit_transaction_uuid (eSewa).
+  2026_09_08_170309_add_cancellation_reason_
+        to_orders_table                          Adds cancellation_reason_category and
+                                                 cancellation_note.
+  2026_09_09_000000_add_image_type_to_
+        product_images_table                     Adds product_images.image_type
+                                                 (general / proof).
+  2026_09_20_000000_add_meetup_time_np_to_
+        orders_table                             Adds orders.meetup_time_np (B.S. date
+                                                 and time text).
+  2026_09_20_100000_create_ai_chat_messages_
+        table                                    Creates ai_chat_messages (AI chat).
+  2026_09_21_000000_standardize_enum_values      Data fix: lowercases users/admins gender,
+                                                 changes document_images.type from a
+                                                 MySQL ENUM to a string and renames
+                                                 'citizenship Front/Back' to
+                                                 'citizenship_front/back'.
+
+Commands:
+   php artisan migrate            run all pending migrations
+   php artisan migrate:status     see which have run
+   php artisan migrate:rollback   undo the last batch (uses down())
+   php artisan migrate:fresh --seed   rebuild everything (DELETES data)
+
+
+=====================================================================
+7. MODELS AND THEIR RELATIONSHIPS
+=====================================================================
+A model is a PHP class for one table (app/Models/).
+
+  User            hasMany: products (as seller), documentImages,
+                  wishlists, cartItems, buyerOrders, sellerOrders,
+                  buyerConversations, sellerConversations, chatMessages.
+                  Methods: isActiveStatus(), scopeActive(). The status
+                  and gender values are always stored lowercase;
+                  gender_label gives "Male"/"Female"/"Other".
+  Admin           Separate login model (admin guard). Notifiable.
+  Product         belongsTo user (seller) and category (sub-category);
+                  hasMany images, proofImages, timelines, cartItems,
+                  orderItems, conversations; hasOne auction;
+                  belongsToMany wishlistedByUsers.
+                  Methods: isDirectSell(), isAuction(),
+                  isWishlistedBy(), logTimeline() (writes history),
+                  approveListing() (approve product AND activate its
+                  auction), estimated_value, suggested_starting_price,
+                  condition_label, status_label.
+  ProductImage    belongsTo product; image_type enum.
+  ProductTimeline belongsTo product and actor (user).
+  Category        hasMany subCategories.
+  SubCategory     belongsTo category; hasMany products.
+  Auction         belongsTo product and winner; hasOne
+                  traditionalAuction; hasMany bids.
+                  Methods: isLive(), isUpcoming(), isEnded(),
+                  isSettled(), getStepIncrement(), getMinNextBid(),
+                  effective_end_time (extended_end_time else end_time).
+  TraditionalAuction  belongsTo auction (bid rules).
+  Bid             belongsTo auction and bidder.
+  Order           belongsTo buyer, seller, auction; hasMany items.
+                  Methods: needsDeposit(), status_label, status_badge,
+                  handover_label, payment_method_label. It creates the
+                  order number ORD-YYYYMMDD-XXXXX automatically.
+  OrderItem       belongsTo order and product.
+  CartItem, Wishlist   belongsTo user and product.
+  Conversation    belongsTo product, buyer, seller; hasMany messages;
+                  hasParticipant($user).
+  ChatMessage     belongsTo conversation and sender.
+  DocumentImage   belongsTo user (identity documents).
+  Faq, FaqCategory  FAQ content.
+  Setting         key/value store: Setting::get('key', default),
+                  Setting::set('key', value, group).
+  Subscriber      newsletter email.
+  AiChatMessage   AI chat rows; scopes forOwner(), sameOwnerAs().
+  (Notifications use Laravel's own DatabaseNotification model.)
+
+
+=====================================================================
+8. ENUMS (FIXED LISTS OF VALUES)
+=====================================================================
+app/Enums/. Values are stored in the database in lowercase; every enum
+has a label() that gives the human-readable text for screens.
+   ProductSaleType      direct_seller | auction
+   ProductNegotiability any | negotiable | fixed   ("any" is only used
+                        by the search filter)
+   ProductAuctionType   traditional
+   ProductImageType     general | proof
+   ProductCondition     new | like-new | lightly-used | well-used |
+                        refurbished | used
+   ProductStatus        pending | active | sold
+   OrderStatus          pending | confirmed | meetup_scheduled |
+                        completed | cancelled
+   HandoverType         meetup | delivery (delivery only for old orders)
+   PaymentMethod        cash_on_meetup | cash_on_delivery | khalti |
+                        esewa | wallet (only cash_on_meetup is offered)
+   StatusState          active | inactive (accounts)
+   GenderState          male | female | other
+   DocumentImageType    citizenship_front | citizenship_back | passport |
+                        driving_license | national_id | other
+Note: some other statuses (auction status, deposit_status,
+payment_status) are plain text values, listed in section 5.
+
+
+=====================================================================
+9. ROUTES (EVERY URL AND WHAT IT DOES)
+=====================================================================
+Defined in routes/web.php. "component" = the Livewire class that shows
+the page. Route names are in [brackets].
+
+---- PUBLIC (anyone) ---------------------------------------------
+  /                       redirects to /home
+  /home            [home]                 Home - main feed: banner,
+                          categories, products and auctions
+  /products        [user.marketplace-products]  MarketplaceProducts -
+                          grid of direct-sell products
+  /products/{slug} [user.products.show]  ProductDetail - one product:
+                          photos, price, buy now, add to cart, wishlist,
+                          chat with seller
+  /search-product  [user.search.product] SearchProduct - search + filters
+  /auction         [user.auction]        AuctionMarketplace - list of
+                          upcoming / live / ended auctions
+  /faqs            [faqs]                Faqs - questions and answers
+  /info/{slug}     [info.page]           InfoPage - static guides. Slugs:
+                          safety-tips, posting-rules, how-it-works,
+                          help-center, buying-guide, selling-guide
+  /ai-assistant    [user.ai-assistant]   AiAssistant (full-page mode)
+  /register        [user.register]       Register - step 1: email
+  /login           [user.login]          Login (email + password)
+  /forgot-password [password.forgot]     ForgotPassword - request OTP
+  /reset-password  [password.reset]      ResetPassword - OTP + new password
+  /auth/google/redirect [auth.google.redirect]  GoogleAuthController
+                          @redirect - sends the user to Google
+  /auth/google/callback [auth.google.callback]  GoogleAuthController
+                          @callback - Google returns here
+  /payment/esewa/success [payment.esewa.success] EsewaPaymentController
+                          @success - eSewa returns here after paying
+  /payment/esewa/failure [payment.esewa.failure] EsewaPaymentController
+                          @failure - payment cancelled/failed
+  (The two payment routes are public because eSewa redirects the
+   browser to them; the payment is matched by its transaction id.)
+
+---- SIGN-UP STEPS (middleware auth.otp = must have a pending signup) --
+  /verify-otp      [verify.otp]          VerifyOtp - enter the 6-digit
+                          code from the email
+  /complete-profile [complete.profile]   CompleteProfile - name,
+                          username, phone, date of birth, password...
+
+---- LOGGED-IN USER (middleware "user") --------------------------
+  /dashboard       [dashboard]           Dashboard - seller statistics
+  /wishlist        [user.wishlist]       Wishlist (saved items)
+  /bookmarks       [user.bookmarks]      same Wishlist page (old URL)
+  /cart            [user.cart]           Cart
+  /checkout/{product?} [user.checkout]   Checkout (buy one product or
+                          the whole cart)
+  /my-orders       [user.orders]         Orders - my orders list
+  /my-orders/{order} [user.orders.show]  OrderDetail - one order
+  /my-orders/{order}/pay-deposit [payment.esewa.initiate]
+                          EsewaPaymentController@initiate - start the
+                          eSewa deposit payment
+  /notifications   [user.notifications]  Notifications page
+  /settings        [user.settings]       Settings - profile, password,
+                          seller request
+  /my-products     [user.products]       Products - my listings
+  /my-products/create/{direct-sell|auction} [user.products.create]
+                          ManageProduct - create a listing
+  /my-products/{product}/edit [user.products.edit]  ManageProduct - edit
+  /join-auction    [user.join-auction]   JoinAuction - apply for auction
+                          access (upload identity documents)
+  /auction/{auction} [user.auction.detail] AuctionDetail - live bidding
+                          room
+  /messages/{conversation?} [user.messages] Messages - chat inbox
+
+---- ADMIN (prefix /admin, middleware "admin") -------------------
+  /admin/login          [admin.login]        Auth\Admin\Login (public)
+  /admin/dashboard      [admin.dashboard]    Dashboard statistics
+  /admin/users          [admin.users]        Users list
+  /admin/users/{user}   [admin.users.show]   UserDetail
+  /admin/category-setup [admin.category-setup]  CategorySetup
+  /admin/sub-category-setup [admin.sub-category-setup] SubCategorySetup
+  /admin/faqs           [admin.faqs]         Faqs (manage FAQs)
+  /admin/seller-requests [admin.seller-requests] SellerRequests
+  /admin/products       [admin.products]     Products (approval list)
+  /admin/products/{product} [admin.products.show] ProductDetail
+  /admin/orders         [admin.orders]       Orders (all orders)
+  /admin/notifications  [admin.notifications] Notifications
+  /admin/settings       [admin.settings]     Settings
+  /admin/auction-application [admin.auction-application] AuctionApplication
+  /admin/auction-application/{user} [admin.auction-application.show]
+                          AuctionApplicationDetail
+
+---- SYSTEM URLS (not pages) -------------------------------------
+  /livewire/update       Livewire posts every button click here
+  /broadcasting/auth     Reverb private-channel permission check
+  /up                    Laravel health check
+
+
+=====================================================================
+10. MIDDLEWARE AND GUARDS
+=====================================================================
+Aliases are registered in bootstrap/app.php.
+
+  user   -> UserMiddleware
+            Must be logged in on the "web" guard. If the account status
+            is not "active" the user is logged out with the message
+            "Your account has been marked inactive by the admin."
+  admin  -> AdminMiddleware
+            Must be logged in on the separate "admin" guard, else
+            redirected to /admin/login.
+  auth.otp -> EnsureGoogleSession
+            Only lets you reach /verify-otp and /complete-profile when a
+            signup/Google session exists (session key google_user); the
+            profile step also requires the OTP to be verified first.
+
+Unauthenticated redirects (redirectGuestsTo): URLs starting with
+"admin" go to the admin login, everything else to the user login.
+
+Two guards exist (config/auth.php): "web" (users) and "admin". They are
+completely separate: an admin is not a user and vice versa.
+
+
+=====================================================================
+11. LIVEWIRE COMPONENTS AND THEIR VIEWS (PAGES)
+=====================================================================
+Rule: class  App\Livewire\User\AuctionDetail  <->  view
+resources/views/livewire/user/auction-detail.blade.php.
+"Actions" are the public methods a button/form can call.
+
+---- PUBLIC PAGES ------------------------------------------------
+Home (livewire/home.blade.php)
+   The front page. Shows a banner, active categories with their
+   sub-categories, and approved products/auctions (including ended
+   auctions so results are visible). Actions: toggleWishlist,
+   toggleBookmark, addToCart.
+Faqs (livewire/faqs.blade.php)
+   Lists active FAQs, optionally filtered by FAQ category.
+InfoPage (livewire/info-page.blade.php)
+   Static guides (safety tips, posting rules, how it works, help
+   center, buying guide, selling guide); text is inside the class.
+AiAssistant (livewire/user/ai-assistant.blade.php + partial
+   livewire/user/partials/ai-assistant-chat.blade.php)
+   The AI guide. Full page here, and a drawer on every page.
+   See AIChatExplanation.txt.
+
+---- USER: SHOPPING ----------------------------------------------
+MarketplaceProducts (livewire/user/marketplace-products.blade.php)
+   12 direct-sell products per page.
+SearchProduct (livewire/user/search-product.blade.php)
+   Text search + filters (category, condition, price range,
+   negotiable) with pagination.
+ProductDetail (livewire/user/product-detail.blade.php)
+   Product page. Actions: toggleWishlist, addToCart, buyNow (go to
+   checkout), openChat/openConversation/closeChat/sendChatMessage
+   (chat with the seller in a popup), refreshChatFromBroadcast.
+Wishlist (livewire/user/wishlist.blade.php)
+   Saved items. Actions: removeFromWishlist, addToCart.
+Cart (livewire/user/cart.blade.php)
+   Cart lines. Actions: updateQuantity, removeItem.
+Checkout (livewire/user/checkout.blade.php)
+   Order placing. Only in-person meetup + cash on handover exist. The
+   buyer gives phone, meetup location, required meetup date (B.S.
+   picker) and time. Action: placeOrder - creates one order per seller
+   and notifies each seller.
+Orders (livewire/user/orders.blade.php)
+   My orders (as buyer and as seller) with meetup date/time, payment
+   and deposit badges.
+OrderDetail (livewire/user/order-detail.blade.php)
+   One order: items, handover details, deposit card with the
+   "Pay Deposit via eSewa" button, timeline. Actions:
+   updateOrderStatus (seller confirms/completes), toggleCancelForm and
+   confirmCancel (cancel with a reason; decides refund vs forfeit).
+Messages (livewire/user/messages.blade.php)
+   Two-way chat inbox. Actions: selectConversation, sendChatMessage.
+Notifications (livewire/user/notifications.blade.php)
+   All bell notifications. Actions: markAsRead, markAllAsRead; each
+   notification links to the right page (notificationRoute).
+
+---- USER: AUCTIONS ----------------------------------------------
+AuctionMarketplace (livewire/user/auction.blade.php)
+   Auction list: upcoming, live and finished.
+AuctionDetail (livewire/user/auction-detail.blade.php)
+   The live bidding room: countdown, current price, "Minimum bid
+   increase", bid form, proxy mode, suggested bid guide, bid history,
+   result card. Actions: placeBid, toggleProxyMode, setQuickBid,
+   applyRecommendedBid, finalizeIfEnded (called by the countdown when
+   time is up), refreshAuctionState (called by real-time events).
+JoinAuction (livewire/user/join-auction.blade.php)
+   Apply for auction access by uploading identity documents. Actions:
+   addDocumentRow, removeDocumentRow, submitApplication.
+
+---- USER: SELLING -----------------------------------------------
+Dashboard (livewire/user/dashboard.blade.php)
+   Seller statistics: total, active, pending, auction products, and the
+   5 newest listings (non-sellers are sent home).
+Products (livewire/user/products.blade.php)
+   My listings table with status. Actions: deleteProduct (only
+   unapproved), requestSellerAccess.
+ManageProduct (livewire/user/manage-product.blade.php)
+   Create/edit a listing (direct-sell or auction). Basic information,
+   auction schedule and pricing (with suggested starting price and
+   suggested reserve), photos, proof photos, meetup place. Action:
+   save (validates, stores product + auction + rules, notifies admins).
+   Approved products cannot be edited.
+
+---- USER: ACCOUNT -----------------------------------------------
+Settings (livewire/user/settings.blade.php)
+   Actions: updateProfile, updatePassword, requestSellerAccess.
+
+---- AUTH (users) ------------------------------------------------
+Register (livewire/auth/user/register.blade.php)          verifyEmail
+Login (livewire/auth/user/login.blade.php)                login
+VerifyOtp (livewire/auth/user/verify-otp.blade.php)       sendOtp, verifyOtp
+CompleteProfile (livewire/auth/user/complete-profile.blade.php)  register
+ForgotPassword (livewire/auth/user/forgot-password.blade.php)    sendCode
+ResetPassword (livewire/auth/user/reset-password.blade.php)
+                                                 resetPassword, resendCode
+   Details in GoogleAuthExplanation.txt.
+
+---- ADMIN PAGES (views in livewire/admin/) ----------------------
+Auth\Admin\Login (livewire/auth/admin/login.blade.php)   login
+Admin\Dashboard (dashboard.blade.php)
+   Totals: users, sellers, pending seller requests, pending products,
+   categories; recent requests.
+Admin\Users (users.blade.php)                    search, toggleStatus
+Admin\UserDetail (user-detail.blade.php)
+   Full profile; toggleStatus, toggleSellerAccess, toggleAuctionAccess.
+Admin\SellerRequests (seller-requests.blade.php) approveSeller
+Admin\AuctionApplication (auction-application.blade.php)
+   List of applications; approveApplication, rejectApplication.
+Admin\AuctionApplicationDetail (auction-application-detail.blade.php)
+   The user's documents; approveApplication, rejectApplication.
+Admin\Products (products.blade.php)              approveProduct
+Admin\ProductDetail (product-detail.blade.php)
+   Full listing review; approveProduct, toggleFeatured, toggleTrending.
+Admin\CategorySetup (category-setup.blade.php)
+   openCreateModal, editCategory, saveCategory, removeImage,
+   deleteCategory, toggleStatus.
+Admin\SubCategorySetup (sub-category-setup.blade.php)   same, for
+   sub-categories.
+Admin\Faqs (faqs.blade.php)
+   openCreateModal, editFaq, saveFaq, deleteFaq, toggleStatus,
+   openCategoryQuickAdd, saveCategoryQuickAdd.
+Admin\Orders (orders.blade.php)
+   Every order (second-hand and auction) with search and type/status
+   filters.
+Admin\Notifications (notifications.blade.php)    markAsRead, markAllAsRead
+Admin\Settings (settings.blade.php)
+   saveGeneral, saveSocial, saveSecurity (stored in the settings table).
+
+---- LAYOUT COMPONENTS (parts of every page) ---------------------
+Components\User\Navbar (livewire/components/user/navbar.blade.php)
+   Top bar: links, dark-mode switch, cart/wishlist counts, bell with
+   the 5 newest notifications, user menu, logout. Listens for
+   real-time notification events.
+Components\User\Footer (livewire/components/user/footer.blade.php)
+   Footer links, social links from Settings, newsletter box (subscribe).
+Components\User\AuctionNotice (livewire/components/user/auction-notice.blade.php)
+   The floating green card telling a logged-in user they are not yet
+   approved for auctions (can be dismissed).
+Components\User\SearchFilterComponent
+   (livewire/components/user/search-filter-component.blade.php)
+   The search bar on the home page.
+Components\Admin\Sidebar (livewire/components/admin/sidebar.blade.php)
+   Admin menu; logout.
+Components\Admin\Topbar (livewire/components/admin/topbar.blade.php)
+   Admin bell notifications.
+
+
+=====================================================================
+12. LAYOUTS, SHARED COMPONENTS AND EMAILS (BLADE VIEWS)
+=====================================================================
+resources/views/layouts/
+   app.blade.php         user layout: theme (dark mode) script, Vite CSS/JS,
+                         navbar, page slot, footer, auction notice, AI
+                         drawer, toast messages, and the Echo
+                         subscription for the logged-in user's bell.
+   admin.blade.php       admin layout: sidebar + topbar + page.
+   auth.blade.php, user-auth.blade.php, admin-auth.blade.php
+                         the simpler layouts for login/registration pages.
+resources/views/components/
+   info-tip.blade.php    the small "?" tooltip used on the auction form
+                         (<x-info-tip text="..." />).
+   user/category-sidebar.blade.php   the category list on the home page.
+resources/views/emails/
+   otp.blade.php                 the sign-up verification email
+   password-reset-otp.blade.php  the password-reset code email
+   auction-won.blade.php         the "you won" email
+resources/views/payment/
+   esewa-redirect.blade.php      a tiny auto-submitting form that sends
+                                 the browser to eSewa with the signed
+                                 payment fields.
+resources/views/welcome.blade.php   Laravel's default (not used).
+Views also use Mary UI components (x-input, x-select, x-button, x-icon,
+x-toast, x-header, x-form ...) and daisyUI/Tailwind classes.
+
+
+=====================================================================
+13. SERVICES (BUSINESS LOGIC)  -  app/Services/
+=====================================================================
+AuctionEngineService
+   The heart of bidding: getStepIncrement (minimum step),
+   processBid (manual/proxy bids, anti-sniping, notifications),
+   determineWinner (winner, reserve, tie-break, order creation),
+   checkAndFinalizeIfExpired (safe settlement), calculateOptimalReserve
+   and calculateEquilibriumBid (advisory suggestions).
+   See AlgorithmsExplanation.txt.
+AuctionValuationService
+   Estimated value of a used item (depreciation by age x condition
+   factor) and the suggested starting price (80%).
+OrderCancellationService
+   Cancels an order and decides what happens to a paid deposit
+   (refund owed vs forfeited); relists the product when an auction
+   sale falls through.
+EsewaPaymentService
+   Builds the signed eSewa payment form, verifies eSewa's callback and
+   checks the payment status. See ESewaExplanation.txt.
+AiClientService, AiAssistantPromptService
+   Talk to Gemini and build the AI's instructions.
+HtmlSanitizerService
+   Cleans the rich-text description and specifications before saving
+   (removes dangerous HTML) and prepares them for display.
+Helper: app/Helper/helper.php (loaded by Composer) has small global
+functions such as backedEnumAsArray().
+
+
+=====================================================================
+14. EVENTS, NOTIFICATIONS, MAIL AND JOBS
+=====================================================================
+EVENTS (broadcast in real time, app/Events/)
+   AuctionBidPlaced   a new bid  -> channel auctions.{id}
+   AuctionEnded       result recorded -> channel auctions.{id}
+   ChatMessageSent    a chat message -> private conversation channel
+                      and the two users' private channels
+
+NOTIFICATIONS (bell + real time, app/Notifications/) - stored in the
+notifications table and broadcast
+   SellerRegisteredNotification            to admins: a user asked to
+                                           become a seller
+   SellerApprovedNotification              to the user: you are a seller
+   SellerSuspendedNotification             to the user: seller access
+                                           removed
+   NewProductUploadedNotification          to admins: a listing needs review
+   ProductApprovedNotification             to the seller: listing approved
+   AuctionApplicationSubmittedNotification to admins: auction application
+   AuctionApplicationApprovedNotification  to the user: auction access given
+   AuctionApplicationRejectedNotification  to the user: application rejected
+   AccountStatusChangedNotification        to the user: account activated
+                                           or deactivated
+   OutbidNotification                      to the previous leading bidder
+   AuctionWonNotification                  to the auction winner
+   NewOrderReceivedNotification            to the seller: a new order
+   DepositPaidNotification                 to the seller: deposit paid
+   NewChatMessageNotification              to the chat recipient
+
+MAIL (app/Mail/)
+   OtpMail                     6-digit sign-up code (sent immediately)
+   PasswordResetOtpMail        6-digit password-reset code
+   AuctionWonMail              email to the winner
+
+JOB (app/Jobs/)
+   GenerateAiAssistantReply    produces one AI answer (normally run
+                               directly, see AIChatExplanation.txt)
+
+See ReverbExplanation.txt for how events and notifications reach the
+browser.
+
+
+=====================================================================
+15. FRONT-END FILES (JAVASCRIPT AND CSS)
+=====================================================================
+resources/js/
+   app.js       Starts Echo (import './echo'), loads the Nepali date
+                picker and TipTap editor, and defines DateSync: it keeps
+                each B.S. date input and its hidden A.D. date input in
+                sync (data-nepali-date / data-english-date attributes) and
+                re-attaches pickers after Livewire re-renders.
+   echo.js      Creates window.Echo (Laravel Echo with the Reverb
+                broadcaster) using the VITE_REVERB_* settings.
+   tiptap-editor.js   The rich-text editor used for description and
+                specifications.
+   nepali.datepicker.v5.0.6.min.js   The B.S. date picker library.
+resources/css/
+   app.css      Tailwind + daisyUI setup, fonts, dark-mode helpers,
+                global rules (hidden number spinners, pointer cursors
+                on clickable elements), and the TipTap editor styles.
+   poppins.css, nepali.datepicker.v5.0.6.min.css   font and picker styles.
+vite.config.js builds resources/css/app.css and resources/js/app.js into
+   public/build (run  npm run dev  or  npm run build).
+
+
+=====================================================================
+16. SCHEDULER AND BACKGROUND PROCESSES
+=====================================================================
+   php artisan serve          the web server (development)
+   php artisan queue:listen   runs queued jobs (optional: nothing needs
+                              it by default; OTP emails and AI replies
+                              run inside the web request)
+   php artisan reverb:start   the WebSocket server (real time)
+   php artisan schedule:work  runs the scheduler:
+        routes/console.php -> "finalize-expired-auctions", every minute:
+        finds active auctions whose end time has passed and settles them
+        (winner or unsold, order creation, notifications).
+   npm run dev                Vite dev server
+   composer run dev           starts server + queue + Reverb + logs +
+                              Vite together (but NOT the scheduler).
+Auctions are also settled when someone opens the auction page, when the
+countdown reaches zero on an open page, or when someone tries to bid,
+so the scheduler is a safety net that guarantees settlement.
+
+
+=====================================================================
+17. CONFIGURATION AND .env
+=====================================================================
+   config/app.php          app name, URL, locale, debug
+   config/auth.php         guards (web, admin) and providers
+   config/database.php     database connections (MySQL)
+   config/session.php, cache.php, queue.php   all use the "database"
+                           driver by default
+   config/broadcasting.php, reverb.php        real time (Reverb)
+   config/mail.php         email
+   config/filesystems.php  storage ('public' disk for uploads;
+                           run  php artisan storage:link)
+   config/services.php     third parties:
+        'google'   GOOGLE_CLIENT_ID / SECRET / redirect
+        'esewa'    product code, secret key, form URL, status URL,
+                   deposit percentage
+        'ai'       provider, API key, model, fallback models, base
+                   URL, timeout, history limit
+Important .env groups: APP_*, DB_*, SESSION/QUEUE/CACHE, BROADCAST_
+CONNECTION + REVERB_* + VITE_REVERB_*, MAIL_*, GOOGLE_*, ESEWA_*, AI_*.
+Never commit .env (it holds secrets).
+
+
+=====================================================================
+18. SEEDERS, FACTORIES AND TESTS
+=====================================================================
+   database/seeders/DatabaseSeeder.php   calls AdminSeeder
+   database/seeders/AdminSeeder.php      creates the default admin
+                                         (admin@sajhaauction.com, local
+                                         only - change it)
+   database/factories/UserFactory.php    fake users for tests
+
+tests/Feature (run:  php artisan test --compact)
+   AuctionEngineTest            bidding, proxy bids, winner, reserve,
+                                anti-sniping, outbid notice, suggestions
+   AuctionSettlementTest        settling when time is up, unsold,
+                                double-settlement safety
+   AuctionValuationServiceTest  estimated value and starting price
+   AuctionApplicationTest       applying for auction access
+   AdminUserManagementTest, AdminSubCategorySetupTest, AdminOrdersTest
+                                admin pages
+   CompleteProfileTest, PasswordResetTest   sign-up and password reset
+   CheckoutMeetupOnlyTest, DirectSellMarketplaceTest   checkout/orders
+   OrderStatusAuthorizationTest who may confirm/complete/cancel orders
+   EsewaPaymentTest             eSewa signature and callbacks
+   AiAssistantTest              the AI assistant
+   HomeSmokeTest, HomeButtonsFixTest, BookmarksCleanupTest,
+   ExampleTest                  page smoke tests and clean-up checks
+(Two older tests currently fail for reasons unrelated to the features:
+AdminUserManagementTest and AuctionApplicationTest.)
+
+
+=====================================================================
+19. THE MAIN WORKFLOWS, END TO END
+=====================================================================
+A) BECOMING A USER
+   /register (email) -> /verify-otp (6-digit code by email) ->
+   /complete-profile (details, password; can apply as seller) -> logged in.
+   Or "Continue with Google" -> same OTP step -> profile -> logged in.
+
+B) BECOMING A SELLER
+   User asks (navbar, settings, products page or profile step) ->
+   users.seller_application_pending = true, admins notified ->
+   admin approves at /admin/seller-requests -> is_seller = true.
+
+C) LISTING A SECOND-HAND PRODUCT
+   Seller: /my-products/create/direct-sell -> ManageProduct.save ->
+   product status "pending", admins notified -> admin approves at
+   /admin/products -> product active and visible.
+
+D) LISTING AN AUCTION
+   User applies at /join-auction (documents) -> admin approves ->
+   is_auction_allowed = true. Seller: /my-products/create/auction (with
+   schedule, starting bid, reserve, increment) -> admin approves ->
+   auction becomes "active" and goes live at the start time.
+
+E) BUYING A SECOND-HAND PRODUCT
+   Product page -> Buy now / Add to cart -> /checkout -> placeOrder ->
+   order per seller, seller notified -> seller confirms in
+   /my-orders/{order} -> meetup, inspect, pay cash -> seller marks
+   completed. Either side can cancel with a reason.
+
+F) BIDDING AND WINNING
+   /auction/{id} -> placeBid -> AuctionEngineService::processBid ->
+   price updated, others see it live, previous leader gets an outbid
+   notice -> when the time ends the auction is settled (scheduler / page
+   / countdown) -> winner and order created, winner and seller
+   notified, winner emailed.
+
+G) PAYING THE AUCTION DEPOSIT AND HANDOVER
+   Winner opens the order -> "Pay Deposit via eSewa" ->
+   /my-orders/{order}/pay-deposit -> eSewa -> success callback marks
+   deposit "paid" and notifies the seller -> meetup, balance in cash,
+   seller marks completed. If cancelled after paying: refund owed (seller
+   cancelled or item defective) or forfeited (buyer changed their mind).
+
+H) CHATTING
+   Product page -> "Message Product Owner" -> conversation created ->
+   messages appear live on both sides and as bell notifications; the
+   full inbox is /messages.
+
+I) ADMIN OVERSIGHT
+   Dashboard counts, seller/auction/product approvals, user status,
+   categories and FAQs, all orders, and site settings.
+
+
+=====================================================================
+20. OTHER DOCUMENTS IN THIS FOLDER
+=====================================================================
+   AIChatExplanation.txt     the AI assistant in detail
+   ESewaExplanation.txt      the eSewa deposit payment in detail
+   AlgorithmsExplanation.txt every auction/valuation algorithm
+   GoogleAuthExplanation.txt Google sign-in, OTP, login, password reset
+   ReverbExplanation.txt     real time (Reverb, Echo, channels, events)
+   minBidIncreament.txt      how the minimum bid increase is calculated
+   aboutproject.txt, systerm_improvement.txt,
+   requirementneeded changes for sajha.txt,
+   estimated_value_feature_changes.txt   earlier project notes
+   algorithm/                earlier algorithm write-ups (.md)
+   diagrams/, refactor-diagrams/   PlantUML diagrams for the report
+                             (refactor-diagrams = sized to fit A4)
+   plantUML-Diagram.txt      the prompt used to generate the diagrams
+   ../../README.md           install and run guide
+   ../../docs/ESEWA_PAYMENT_INTEGRATION.md   eSewa setup notes
+
+
+=====================================================================
+21. KNOWN LIMITATIONS
+=====================================================================
+   - eSewa runs against eSewa's SANDBOX only, and only for the
+     auction-win deposit. Second-hand orders are cash on meetup only.
+   - Refunds of a paid deposit are recorded ("refund owed") and paid
+     back manually outside the app.
+   - Gemini models can be overloaded or retired; the AI uses fallback
+     models and shows a clear message if all fail.
+   - The scheduler must be running for auctions to be settled with
+     nobody looking at them.
+   - Change the default admin password and set APP_DEBUG=false before
+     any public deployment.
+   - Some older leftovers exist: orders.shipping_address,
+     products.delivery_available and the "delivery" handover value are
+     kept only so old data still displays.
+=====================================================================

@@ -155,7 +155,7 @@ A separate, informational-only assistant (`app/Livewire/User/AiAssistant.php`). 
    MAIL_FROM_NAME="${APP_NAME}"
    ```
 
-   OTP emails are queued, so the queue worker (see below) must be running for them to be sent.
+   OTP emails are sent immediately (they are not queued), so no queue worker is needed for them.
 
 6. **Optional integrations**
 
@@ -244,7 +244,7 @@ npm run dev
 |---|---|---|
 | App | `APP_URL`, `APP_DEBUG` | Set `APP_DEBUG=false` in production |
 | Database | `DB_*` | MySQL by default |
-| Queue, session, cache | `QUEUE_CONNECTION`, `SESSION_DRIVER`, `CACHE_STORE` | All `database` by default, so run `php artisan migrate` and keep a queue worker running |
+| Queue, session, cache | `QUEUE_CONNECTION`, `SESSION_DRIVER`, `CACHE_STORE` | All `database` by default, so run `php artisan migrate` first. No feature needs a queue worker by default |
 | Real-time | `BROADCAST_CONNECTION`, `REVERB_*`, `VITE_REVERB_*` | `log` disables live updates |
 | Mail | `MAIL_*` | `log` writes emails to the log file |
 | Google login | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL` | Optional |

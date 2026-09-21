@@ -1,0 +1,711 @@
+=====================================================================
+ESEWA PAYMENT INTEGRATION - HOW EVERYTHING WORKS (EASY EXPLANATION)
+Sajha Auction  |  Auction-win deposit paid through eSewa ePay v2
+=====================================================================
+
+TABLE OF CONTENTS
+  1.  What eSewa is and why we use it (big picture)
+  2.  The files and what each one does
+  3.  What happens step by step (the whole payment flow)
+  4.  The form sent to eSewa (every field)
+  5.  The signature (HMAC-SHA256): how it is built and checked
+  6.  The callback: what eSewa sends back
+  7.  Double verification (signature + status API)
+  8.  Deposit amount: how it is calculated
+  9.  Deposit status values and every transition
+  10. Cancellation rules: refund or forfeit
+  11. Database columns
+  12. Checks in every controller method (who may do what)
+  13. Errors and edge cases: what the user sees
+  14. Notifications and messages
+  15. Settings (.env / config) and going to production
+  16. Security notes
+  17. How to test it
+  18. A full worked example with a timeline
+  19. Things worth knowing / possible improvements
+  20. Small glossary
+
+
+=====================================================================
+1. WHAT ESEWA IS AND WHY WE USE IT (BIG PICTURE)
+=====================================================================
+eSewa is Nepal's digital wallet / online payment service. A website can
+send a customer to eSewa's payment page, the customer pays with their
+eSewa wallet, and eSewa sends the customer back to the website.
+
+IMPORTANT: In Sajha Auction eSewa is used for ONE thing only:
+      THE DEPOSIT THAT SECURES AN AUCTION WIN.
+
+Why?  When someone wins an auction there is a real risk that they
+simply disappear and never come to the meetup. To discourage that, the
+winner pays a small deposit (default 10% of the winning price) online.
+The REST (the balance) is paid in CASH at the in-person meetup, after
+the buyer has inspected the item.
+
+Everything else stays cash-only BY DESIGN:
+  - Second-hand (direct-sell) checkout: in-person meetup + cash on
+    meetup / handover. No online payment at all.
+  - Auction balance: cash at the meetup.
+
+The integration runs against eSewa's SANDBOX (test environment) by
+default: fake money, fake accounts, but the exact same flow as
+production. It is meant for the final-year project demo, not for real
+money.
+
+
+=====================================================================
+2. THE FILES AND WHAT EACH ONE DOES
+=====================================================================
+  app/Http/Controllers/EsewaPaymentController.php
+      Three actions: initiate (start paying), success (eSewa sent the
+      user back happy), failure (eSewa sent the user back cancelled).
+
+  app/Services/EsewaPaymentService.php
+      All the eSewa-specific work: builds the signed form fields,
+      verifies the signed callback, and asks eSewa's status API to
+      confirm the payment. Also holds the signing function.
+
+  resources/views/payment/esewa-redirect.blade.php
+      A tiny page containing a hidden form that AUTO-SUBMITS (POST) to
+      eSewa. eSewa requires a real form POST, a normal link is not
+      enough. The user sees only "Redirecting you to eSewa...".
+
+  routes/web.php
+      Three routes (see below).
+
+  app/Models/Order.php
+      needsDeposit() -> true when deposit_status is 'pending'.
+
+  app/Services/AuctionEngineService.php  (determineWinner)
+      Creates the order when an auction ends and sets the deposit
+      amount and status 'pending' (section 8).
+
+  app/Services/OrderCancellationService.php
+      Decides what happens to a PAID deposit when an order is cancelled
+      (refund owed or forfeited, section 10).
+
+  app/Notifications/DepositPaidNotification.php
+      Tells the SELLER that the deposit was paid (in-app + real-time).
+
+  resources/views/livewire/user/order-detail.blade.php
+      The "Auction Win Deposit" card and the green
+      "Pay Deposit via eSewa" button (buyer only, only while pending).
+
+  resources/views/livewire/user/orders.blade.php
+      A small deposit badge on each order in the list.
+
+  app/Livewire/User/OrderDetail.php  and  Orders.php
+      Show a toast (green/red/blue message) from the messages the
+      payment controller leaves in the session.
+
+  config/services.php  ->  the 'esewa' block
+      Reads the ESEWA_* values from the .env file.
+
+  database/migrations/..._add_deposit_fields_to_orders_table.php
+  database/migrations/..._add_cancellation_reason_to_orders_table.php
+      The order columns used by this feature (section 11).
+
+  tests/Feature/EsewaPaymentTest.php
+      Automatic tests (section 17).
+
+  docs/ESEWA_PAYMENT_INTEGRATION.md
+      The original written notes: list of changed files, setup on a new
+      machine, reusing the pattern in another project.
+
+THE THREE ROUTES
+  Name                        Method+URL                              Login needed?
+  --------------------------  --------------------------------------  -------------
+  payment.esewa.initiate      GET /my-orders/{order}/pay-deposit      YES (user)
+  payment.esewa.success       GET /payment/esewa/success              no (public)
+  payment.esewa.failure       GET /payment/esewa/failure              no (public)
+  (success and failure are public because eSewa redirects the browser
+  there and they are matched by a transaction id, not by the session.)
+
+
+=====================================================================
+3. WHAT HAPPENS STEP BY STEP (THE WHOLE PAYMENT FLOW)
+=====================================================================
+STEP 0 - The auction ends and the winner gets an order
+   determineWinner() creates an Order for the winner with:
+     total_amount   = the winning price
+     deposit_amount = winning price x deposit percentage / 100
+     deposit_status = 'pending'
+   The winner is notified (app + email).
+
+STEP 1 - The buyer opens the order
+   My Orders -> the order. The "Auction Win Deposit" card shows the
+   amount, the status PENDING and the button "Pay Deposit via eSewa".
+   (Only the BUYER sees the button, and only while status is pending.)
+   The card also explains: "The remaining Rs. X is paid in cash at the
+   meetup after you inspect the item."
+
+STEP 2 - initiate  (GET /my-orders/{order}/pay-deposit)
+   The controller checks the user is the buyer and a deposit is
+   pending (section 12). Then the service:
+     - creates a NEW random transaction id (UUID) and SAVES it on the
+       order (deposit_transaction_uuid),
+     - builds the form fields and signs them (sections 4 and 5).
+   The controller shows the redirect page.
+
+STEP 3 - The redirect page auto-submits
+   A hidden <form method="POST"> with all the fields is submitted by
+   JavaScript to eSewa's payment page (ESEWA_FORM_URL).
+
+STEP 4 - The buyer pays on eSewa
+   The buyer logs in with their eSewa account (sandbox test account in
+   development), confirms the amount and pays.
+
+STEP 5a - eSewa sends the buyer back: SUCCESS
+   eSewa redirects the browser to our success_url with a query
+   parameter  ?data=<base64 text>.  Controller success():
+     1. decode + verify the signature (section 6)
+     2. check status inside the data is "COMPLETE"
+     3. find the order by transaction_uuid; refuse if unknown or
+        already paid
+     4. ask eSewa's status API to confirm (section 7)
+     5. only then: deposit_status = 'paid'
+     6. write a timeline entry on the product
+     7. notify the SELLER (DepositPaidNotification)
+     8. redirect to the order page with a green toast:
+        "Deposit paid successfully! The seller has been notified."
+
+STEP 5b - eSewa sends the buyer back: FAILURE / CANCELLED
+   eSewa redirects to our failure_url (which contains the order id).
+   Controller failure() redirects to that order page with a red toast:
+   "The eSewa payment was cancelled or failed. You can try again from
+   the order page."   Nothing in the database changes; the deposit is
+   still 'pending' and the button is still there.
+
+STEP 6 - The meetup
+   Buyer and seller meet, the buyer inspects the item, pays the rest
+   (balance) in cash, and the seller marks the order completed.
+
+
+=====================================================================
+4. THE FORM SENT TO ESEWA (EVERY FIELD)
+=====================================================================
+Built in EsewaPaymentService::buildPaymentForm(). Sent by POST.
+
+  Field                     Value / meaning
+  ------------------------  -----------------------------------------
+  amount                    Deposit amount, 2 decimals, e.g. 3200.00
+  tax_amount                "0"   (no tax on the deposit)
+  product_service_charge    "0"
+  product_delivery_charge   "0"
+  total_amount              Same as amount (3200.00). This is what the
+                            customer pays.
+  transaction_uuid          A fresh random UUID for THIS attempt
+  product_code              Our merchant code (ESEWA_PRODUCT_CODE;
+                            the sandbox uses eSewa's public test code)
+  success_url               Our success route (full URL)
+  failure_url               Our failure route + ?order=<order id>
+  signed_field_names        "total_amount,transaction_uuid,product_code"
+                            (which fields are covered by the signature,
+                            and in which order)
+  signature                 The signature (section 5)
+
+The amount is formatted like  3200.00  (dot, two decimals, no
+thousands separator). The SAME formatting must be used when signing and
+when calling the status API, otherwise the signatures do not match.
+
+
+=====================================================================
+5. THE SIGNATURE (HMAC-SHA256): HOW IT IS BUILT AND CHECKED
+=====================================================================
+WHAT IS A SIGNATURE?
+   A signature proves two things: (1) the message really comes from
+   someone who knows the shared SECRET KEY, and (2) nobody changed the
+   message on the way. Our server and eSewa both know the secret key.
+   A customer's browser does NOT, so the customer cannot forge it.
+
+BUILDING IT  (private function sign() in EsewaPaymentService)
+   1. Take the fields listed in signed_field_names, IN THAT ORDER.
+   2. Join them as  name=value  pairs separated by commas:
+        total_amount=3200.00,transaction_uuid=<the uuid>,product_code=EPAYTEST
+   3. Compute HMAC-SHA256 of that text using the secret key
+      (ESEWA_SECRET_KEY), as raw binary.
+   4. Base64-encode the result. That text is the "signature".
+   In code:  base64_encode( hash_hmac('sha256', $message, $secret, true) )
+
+ORDER MATTERS
+   total_amount, then transaction_uuid, then product_code. A different
+   order or a different amount format gives a completely different
+   signature and eSewa rejects the payment.
+
+CHECKING eSewa'S RESPONSE  (decodeAndVerifyCallback)
+   eSewa signs its reply the same way, but with ITS OWN list of fields
+   (it tells us which one in the reply's signed_field_names). We:
+     1. rebuild the message from the fields it names, in its order,
+     2. sign it with OUR secret key,
+     3. compare with the signature it sent using hash_equals()
+        (a safe comparison that does not leak timing information).
+   Different -> the reply is rejected (treated as tampered).
+
+
+=====================================================================
+6. THE CALLBACK: WHAT ESEWA SENDS BACK
+=====================================================================
+On success eSewa redirects the browser to:
+      /payment/esewa/success?data=<BASE64 TEXT>
+
+The base64 text decodes to JSON like this (values are examples):
+  {
+    "transaction_code": "ABC123",
+    "status": "COMPLETE",
+    "total_amount": "3200.00",
+    "transaction_uuid": "9b1d6c3e-....",
+    "product_code": "EPAYTEST",
+    "signed_field_names": "transaction_code,status,total_amount,transaction_uuid,product_code",
+    "signature": "<base64 signature>"
+  }
+decodeAndVerifyCallback() returns null (= reject) when:
+   - the text is not valid base64/JSON,
+   - "signed_field_names" or "signature" is missing,
+   - a field named in signed_field_names is missing,
+   - the signature does not match.
+On acceptance it returns the decoded array.
+
+IMPORTANT: this arrives through the USER'S BROWSER. A person could type
+any URL, so we never trust it on its own (next section).
+
+
+=====================================================================
+7. DOUBLE VERIFICATION (SIGNATURE + STATUS API)
+=====================================================================
+Two independent checks must BOTH pass before the deposit is marked paid:
+
+  CHECK 1 - Signature (section 5/6)
+     Proves the reply was created by someone who knows the secret key,
+     and was not changed.
+
+  CHECK 2 - eSewa's status API (checkStatus)
+     Our SERVER (not the browser) calls eSewa directly:
+        GET {ESEWA_STATUS_URL}
+            ?product_code=...
+            &total_amount=<order's deposit amount, 2 decimals>
+            &transaction_uuid=<the uuid saved on the order>
+     eSewa answers with JSON containing "status". Only  "COMPLETE"
+     passes. If the call fails (not HTTP 200) or the status is anything
+     else (for example "PENDING"), the deposit is NOT marked paid, a
+     warning is written to laravel.log, and the buyer sees:
+        "Payment could not be confirmed with eSewa. If money was
+         deducted, contact support."
+   Note that the amount and uuid used here come from OUR database (the
+   order), not from the browser.
+
+
+=====================================================================
+8. DEPOSIT AMOUNT: HOW IT IS CALCULATED
+=====================================================================
+In AuctionEngineService::determineWinner(), when the order is created:
+
+      deposit_amount = round( winning_price x percentage / 100 , 2 )
+
+  percentage = config('services.esewa.deposit_percentage')
+             = ESEWA_DEPOSIT_PERCENTAGE in .env  (default 10)
+
+  Example:  winning price Rs 32,000  ->  deposit 3,200.00
+            balance in cash at the meetup = 32,000 - 3,200 = 28,800
+
+  Example:  winning price Rs 500,000 ->  deposit 50,000.00
+            (a big deposit needs a big wallet balance, see section 17)
+
+The amount is computed ONCE, when the auction ends, and stored in the
+order. Changing ESEWA_DEPOSIT_PERCENTAGE later only affects NEW
+auction wins; existing orders keep their stored deposit_amount.
+The order's notes explain it: "A 10% deposit (Rs. 3,200.00) secures the
+win via eSewa; the remaining balance is paid in cash at the meetup."
+
+
+=====================================================================
+9. DEPOSIT STATUS VALUES AND EVERY TRANSITION
+=====================================================================
+Column: orders.deposit_status
+
+  Value          Meaning                              Shown as
+  -------------  -----------------------------------  -------------------
+  not_required   Default. Ordinary second-hand         (no deposit card)
+                 orders have no deposit.
+  pending        Auction win; deposit not paid yet.    PENDING (amber)
+  paid           eSewa confirmed the payment.          PAID via eSewa (green)
+  refund_owed    Paid, then the order was cancelled    REFUND OWED TO BUYER
+                 in a way that entitles the buyer      (blue)
+                 to the money back.
+  forfeited      Paid, then the buyer cancelled        FORFEITED (red)
+                 without a good reason; the seller
+                 keeps the deposit.
+
+TRANSITIONS
+   (order created by an auction win)       -> pending
+   pending  --eSewa confirms COMPLETE-->      paid
+   pending  --failure/cancel on eSewa-->      pending (unchanged, retry)
+   paid     --seller cancels-->               refund_owed
+   paid     --buyer cancels: "defect or not as described"--> refund_owed
+   paid     --buyer cancels: "changed mind" or "other"-->    forfeited
+   pending  --order cancelled-->              pending (unchanged, see
+                                              section 19)
+   Ordinary second-hand orders stay not_required forever.
+
+The refund itself is NOT automatic: eSewa's refund API is not
+integrated. "REFUND OWED" only records that money must be paid back to
+the buyer OUTSIDE the app (the order page says so).
+
+
+=====================================================================
+10. CANCELLATION RULES: REFUND OR FORFEIT
+=====================================================================
+Code: app/Services/OrderCancellationService.php  (cancel())
+
+Cancelling now requires going through the "Cancel Order" form on the
+order page (a one-click cancel no longer exists). The buyer must pick a
+reason:
+   defect_mismatch : "The item had a defect or did not match the listing"
+   changed_mind    : "I no longer want to buy this item"
+   other           : "Other reason"
+An optional note can be added. The seller does not choose a reason.
+
+What happens to a PAID deposit:
+   Who cancels        Reason                     Result
+   -----------------  -------------------------  ------------
+   Seller             (any)                      refund_owed
+   Buyer              defect_mismatch            refund_owed
+   Buyer              changed_mind               forfeited
+   Buyer              other                      forfeited
+
+WHY:  the deposit exists to discourage a winner from backing out for no
+reason. If the SELLER is at fault or the item was genuinely not as
+described, the buyer gets the deposit back. If the buyer just changed
+their mind, the deposit is lost.
+
+Other things cancel() does:
+   - saves cancellation_reason_category and cancellation_note,
+   - writes a "Order Cancelled" timeline entry with a readable
+     description (including what happens to the deposit),
+   - for AUCTION orders, puts the product back to 'active' (relisted)
+     because the sale fell through. The finished auction record itself
+     stays 'completed' as history.
+The order page warns the buyer beforehand: "your paid deposit is
+refunded if the item had a genuine defect/mismatch, but forfeited if
+you simply changed your mind."
+
+
+=====================================================================
+11. DATABASE COLUMNS
+=====================================================================
+Table: orders  (added by two migrations)
+
+  Migration: add_deposit_fields_to_orders_table
+    auction_id                 links the order to its auction (nullable;
+                               set to NULL if the auction is deleted)
+    deposit_amount             decimal(15,2), nullable
+    deposit_status             text, default 'not_required'
+    deposit_transaction_uuid   nullable and UNIQUE; the id of the
+                               latest payment attempt (used to match
+                               the callback to the order)
+
+  Migration: add_cancellation_reason_to_orders_table
+    cancellation_reason_category   defect_mismatch / changed_mind /
+                                   other (empty for seller cancels)
+    cancellation_note              free text
+
+Other order columns used here: buyer_id, seller_id, total_amount,
+order_number, status, payment_method ('cash_on_meetup' for auction
+orders), handover_type ('meetup').
+
+
+=====================================================================
+12. CHECKS IN EVERY CONTROLLER METHOD (WHO MAY DO WHAT)
+=====================================================================
+initiate(Order)   [needs login: route is inside the 'user' group]
+   1. The logged-in user must be the order's BUYER, otherwise
+      HTTP 403 (forbidden). Sellers and strangers cannot pay someone
+      else's deposit.
+   2. needsDeposit() must be true (status 'pending'). Otherwise the
+      user is redirected to the order page with a blue message:
+      "No deposit is pending for this order."
+   3. Otherwise: generate a new uuid, build the signed form, show the
+      redirect page.
+
+success(Request)  [public route]
+   1. ?data must exist and pass decodeAndVerifyCallback (signature).
+   2. The decoded "status" must be exactly "COMPLETE".
+      Failing 1 or 2 -> redirect to My Orders with the red message:
+      "eSewa did not confirm the payment. Please try again."
+   3. An order with that transaction_uuid must exist and must NOT be
+      paid already. Otherwise -> "Could not match this payment to a
+      pending order."
+   4. The status API must confirm COMPLETE (section 7).
+   5. Then and only then: mark paid, timeline entry, notify seller.
+
+failure(Request)  [public route]
+   Reads ?order, redirects to that order page (or My Orders if it is
+   missing/unknown) with the red "cancelled or failed" message. It
+   changes nothing in the database. (The order page itself is protected:
+   only the buyer or seller of that order can open it.)
+
+
+=====================================================================
+13. ERRORS AND EDGE CASES: WHAT THE USER SEES
+=====================================================================
+  Situation                                   What happens / message
+  ------------------------------------------  ---------------------------
+  Someone else's order URL (pay-deposit)       403 Forbidden page
+  Deposit already paid, buyer opens the URL    Blue: "No deposit is pending
+                                               for this order."
+  Not logged in                                Redirected to the login page
+  Buyer cancels on the eSewa page              Red: "The eSewa payment was
+                                               cancelled or failed. You can
+                                               try again from the order page."
+  eSewa reply has a bad/missing signature      Red: "eSewa did not confirm
+                                               the payment. Please try again."
+  eSewa says status is not COMPLETE            Same red message.
+  Unknown transaction id                       Red: "Could not match this
+                                               payment to a pending order."
+  Callback opened twice (deposit already paid) Same "Could not match..." message;
+                                               nothing is changed twice.
+  Status API says PENDING / is unreachable     Red: "Payment could not be
+                                               confirmed with eSewa. If money
+                                               was deducted, contact support."
+                                               + a warning in laravel.log.
+  Wallet balance too low (on eSewa's page)     eSewa itself shows
+                                               "insufficient balance"; our
+                                               site is not involved. The
+                                               buyer can retry with a
+                                               different account/amount.
+  Buyer starts payment twice                   The second start creates a
+                                               NEW uuid; only the latest
+                                               attempt can complete (see
+                                               section 19).
+  Notification cannot be delivered (Reverb     The deposit is still marked
+  is down)                                     paid; the failure is only
+                                               written to the log.
+
+
+=====================================================================
+14. NOTIFICATIONS AND MESSAGES
+=====================================================================
+  DepositPaidNotification -> sent to the SELLER when the deposit is paid.
+     Channels: database (bell menu) + broadcast (real-time).
+     Text: "Deposit of Rs. 3200.00 paid via eSewa for order #ORD-...".
+     Clicking it opens that order (My Orders -> the order).
+  Product timeline entry: "Deposit Paid via eSewa (#ORD-...)" with the
+     buyer named and the reminder that the balance is due in cash.
+  Toast messages (green success, red error, blue info) come from the
+     controller through the session ("flash") keys
+     esewa_success / esewa_error / esewa_info and are shown by
+     OrderDetail and Orders when the page loads.
+  The winner also got AuctionWonNotification + email when the auction
+     ended (this is separate from eSewa).
+
+
+=====================================================================
+15. SETTINGS (.env / CONFIG) AND GOING TO PRODUCTION
+=====================================================================
+In .env (read by config/services.php -> 'esewa'):
+
+  ESEWA_PRODUCT_CODE          merchant code (sandbox: eSewa's public test
+                              code)
+  ESEWA_SECRET_KEY            the signing secret (sandbox: eSewa's public
+                              test secret). KEEP THE REAL ONE PRIVATE.
+  ESEWA_FORM_URL              eSewa payment page (sandbox:
+                              rc-epay.esewa.com.np ... /v2/form)
+  ESEWA_STATUS_URL            eSewa status check API (sandbox:
+                              rc.esewa.com.np ... /transaction/status/)
+  ESEWA_DEPOSIT_PERCENTAGE    deposit percentage, default 10
+
+The defaults in config/services.php are eSewa's PUBLIC sandbox values,
+so a fresh clone works with no setup. The sandbox login details for the
+test wallet are listed in docs/ESEWA_PAYMENT_INTEGRATION.md.
+
+GOING TO PRODUCTION (not planned for the project, for reference):
+   1. Register as an eSewa merchant and get your real product code and
+      secret key.
+   2. Put the real ESEWA_PRODUCT_CODE and ESEWA_SECRET_KEY in the
+      server's .env (never in git).
+   3. Change ESEWA_FORM_URL and ESEWA_STATUS_URL to eSewa's production
+      addresses (from eSewa's developer documentation).
+   4. Use HTTPS, and set APP_URL to your public address so success_url
+      and failure_url point to a place eSewa's redirect can reach.
+   5. Decide the real deposit percentage, and add a real refund process
+      (the app currently only records "refund owed").
+   6. Turn APP_DEBUG off. No code change is needed for the gateway
+      itself.
+After changing .env, restart the server (and run php artisan
+config:clear if config is cached).
+
+
+=====================================================================
+16. SECURITY NOTES
+=====================================================================
+  - The secret key stays on the server; the customer's browser never
+    sees it. That is why the customer cannot forge a "paid" reply.
+  - The callback is verified with a signature (hash_equals) AND an
+    independent server-to-server status call. The status call uses the
+    amount and uuid from our own database.
+  - Only the buyer of an order can start its payment (403 otherwise).
+  - The transaction uuid is unique in the database and matched exactly.
+  - An already-paid order cannot be "paid" a second time.
+  - The database stores only the deposit amount, status and uuid. No
+    wallet number, password, or card data ever touches our server;
+    the customer types them on eSewa's own page.
+  - The success/failure routes are public by necessity, but they cannot
+    change anything without a correctly signed and confirmed reply.
+
+
+=====================================================================
+17. HOW TO TEST IT
+=====================================================================
+AUTOMATIC TESTS
+   php artisan test --compact --filter=EsewaPaymentTest
+   They cover:
+     - the form signature is a correct HMAC-SHA256 over the documented
+       fields in the documented order,
+     - a correctly signed callback is accepted and a tampered one is
+       rejected,
+     - the buyer can open the redirect page for their own order,
+     - another user cannot start a payment for someone else's order,
+     - a callback marks the deposit PAID only when the status API also
+       says COMPLETE,
+     - a callback does NOT mark it paid when the status API disagrees.
+   (They fake eSewa's responses, so no real network calls happen.)
+   Cancellation rules are covered in OrderStatusAuthorizationTest.
+
+MANUAL TEST IN THE SANDBOX
+   1. Win an auction as a test buyer (or use an existing won auction).
+   2. Open My Orders -> that order -> "Auction Win Deposit" card.
+   3. Click "Pay Deposit via eSewa". You land on eSewa's test payment
+      page.
+   4. Log in with the sandbox test account from
+      docs/ESEWA_PAYMENT_INTEGRATION.md and confirm the payment.
+   5. You return to the order page: deposit shows PAID and the seller
+      gets a notification.
+
+THE "INSUFFICIENT BALANCE" SITUATION
+   eSewa's sandbox test wallet is SHARED by everyone using the public
+   test account, and its balance goes down with every test payment. If
+   the deposit (for example Rs 50,000 for a Rs 500,000 winning price) is
+   bigger than the wallet balance, eSewa itself says the balance is
+   insufficient. This is not a bug in our code: our site sent the
+   correct amount. Ways around it:
+     a. Try another test account listed in the docs (each has its own
+        balance).
+     b. Use a smaller deposit for demos: set ESEWA_DEPOSIT_PERCENTAGE to
+        a smaller number (this only affects NEW auction wins; an
+        existing order keeps its stored deposit_amount, which would have
+        to be edited).
+     c. Use a cheaper auction for the demo (a lower winning price gives
+        a lower deposit).
+
+USEFUL CHECKS
+   - Look in storage/logs/laravel.log for "eSewa callback signature
+     verified but status API disagreed".
+   - The order row shows deposit_status and deposit_transaction_uuid.
+
+
+=====================================================================
+18. A FULL WORKED EXAMPLE WITH A TIMELINE
+=====================================================================
+Auction ends. Sita has the highest valid bid: Rs 32,000. Deposit is
+10%. Ramesh is the seller.
+
+  T+0 s   Scheduler / page view runs determineWinner().
+          Auction -> completed. Order ORD-20260915-7KQ2M created:
+            total_amount 32000, deposit_amount 3200.00,
+            deposit_status 'pending', payment_method cash_on_meetup.
+          Sita gets a notification and an email.
+  T+2 min Sita opens My Orders -> the order. She sees:
+            "Auction Win Deposit  Rs. 3,200.00  PENDING"
+            "The remaining Rs. 28,800.00 is paid in cash at the meetup."
+          and the button "Pay Deposit via eSewa".
+  T+2:10  She clicks the button -> initiate():
+            - she is the buyer -> allowed; deposit is pending -> ok
+            - uuid 9b1d... is saved on the order
+            - signature over
+              "total_amount=3200.00,transaction_uuid=9b1d...,product_code=EPAYTEST"
+            - the redirect page auto-POSTs to eSewa.
+  T+2:15  On eSewa's page she pays Rs 3,200.00 with her wallet.
+  T+2:30  eSewa redirects her to /payment/esewa/success?data=...
+            - signature valid, status COMPLETE
+            - order found by uuid 9b1d..., not yet paid
+            - our server calls eSewa's status API -> COMPLETE
+            - deposit_status = 'paid'
+            - timeline: "Deposit Paid via eSewa (#ORD-...)"
+            - Ramesh receives "Deposit of Rs. 3200.00 paid via eSewa..."
+          Sita sees the green toast and the card now says
+          "PAID via eSewa".
+  T+3 days They meet in Kathmandu. Sita inspects the camera and hands
+          over Rs 28,800 in cash. Ramesh marks the order completed.
+
+ALTERNATIVE ENDINGS (after the deposit was paid)
+  - At the meetup Sita finds a serious defect and cancels with the reason
+    "The item had a defect or did not match the listing" -> deposit
+    becomes REFUND OWED (Ramesh must repay Rs 3,200 outside the app);
+    the camera is relisted.
+  - Sita simply changes her mind, cancels with "I no longer want to buy
+    this item" -> deposit becomes FORFEITED (Ramesh keeps Rs 3,200).
+  - Ramesh cancels for any reason -> REFUND OWED.
+
+If Sita had closed the eSewa page instead of paying, she would land on
+the order page with the red "cancelled or failed" message and could
+press the button again.
+
+
+=====================================================================
+19. THINGS WORTH KNOWING / POSSIBLE IMPROVEMENTS
+=====================================================================
+These are observations from reading the code, not crashes:
+
+  1. A CANCELLED order whose deposit is still 'pending' can still be
+     paid: needsDeposit() only looks at deposit_status, and cancellation
+     only changes deposit_status when it was already 'paid'. A buyer
+     could pay a deposit on a cancelled order. Suggested fix: also
+     require order status not 'cancelled' in needsDeposit()/initiate(),
+     and/or set the deposit to a closed state when cancelling a pending
+     order.
+  2. The column comment in the migration lists
+     "not_required, pending, paid, failed", but the code actually uses
+     "not_required, pending, paid, refund_owed, forfeited" and never
+     writes "failed". The comment is out of date.
+  3. Each "Pay Deposit" click creates a NEW transaction uuid and
+     overwrites the old one. If a buyer opens two eSewa windows, only the
+     one started last can complete; the older one will show "Could not
+     match this payment to a pending order".
+  4. success() checks the signature and status, and the status API is
+     called with our stored amount, but it does not compare the
+     callback's own total_amount with the order's deposit_amount. The
+     status API check makes this safe in practice.
+  5. The success and failure routes are public. That is required by
+     eSewa's redirect, and they cannot mark anything paid without valid,
+     confirmed data.
+  6. Refunds are manual (no eSewa refund API).
+  7. Sandbox only: the shared test wallet can run out of balance.
+
+
+=====================================================================
+20. SMALL GLOSSARY
+=====================================================================
+  eSewa            Nepal's online wallet / payment service.
+  ePay v2          eSewa's payment-page API used here.
+  Sandbox          eSewa's practice environment: fake money, real flow.
+  Merchant         The business receiving the payment (our website).
+  Product code     Our merchant identifier at eSewa.
+  Secret key       The shared password used to create/check signatures.
+  Deposit          The small first payment (default 10%) that secures an
+                   auction win.
+  Balance          The rest of the price, paid in cash at the meetup.
+  transaction_uuid A unique id of one payment attempt; links the eSewa
+                   reply to our order.
+  Signature        A code proving a message is genuine and unchanged.
+  HMAC-SHA256      The method used to create that signature from the
+                   message and the secret key.
+  Base64           A way of writing binary/JSON data as plain text.
+  Callback         eSewa sending the customer's browser back to us
+                   (success_url or failure_url).
+  Status API       A direct server-to-server question to eSewa:
+                   "did this transaction really complete?".
+  Flash message    A one-time message stored in the session and shown as
+                   a toast on the next page.
+  Refund owed      Status meaning the buyer must be repaid outside the
+                   app.
+  Forfeited        Status meaning the seller keeps the deposit.
+=====================================================================

@@ -1,0 +1,782 @@
+=====================================================================
+GOOGLE SIGN-IN AND THE WHOLE LOGIN SYSTEM - EASY EXPLANATION
+Sajha Auction  |  Google OAuth + Email OTP + Password + Admin login
+=====================================================================
+
+TABLE OF CONTENTS
+  1.  The big picture
+  2.  The files and what each one does
+  3.  What Google OAuth is (in simple words)
+  4.  The Google "dance" step by step
+  5.  Session keys used (the temporary notebook)
+  6.  Registration flow (email or Google -> OTP -> profile -> logged in)
+  7.  The OTP rules (every number and message)
+  8.  Complete Profile - every validation rule
+  9.  Normal login (email + password)
+  10. Forgot / reset password (OTP)
+  11. Admin login
+  12. Guards, middleware and routes (who may open what)
+  13. Database tables and models
+  14. Avatars (profile pictures) from Google
+  15. "Apply as seller" during sign-up
+  16. Logout
+  17. Setting up Google Cloud Console + .env
+  18. Local development tips
+  19. Security notes (what is good, what is risky)
+  20. Troubleshooting table
+  21. A full worked example (timeline)
+  22. Tests that cover this
+  23. Small glossary
+
+
+=====================================================================
+1. THE BIG PICTURE
+=====================================================================
+The site has TWO completely separate kinds of accounts:
+
+  - USERS (buyers and sellers) -> table `users`, guard `web`
+  - ADMINS                     -> table `admins`, guard `admin`
+
+A user can get in with:
+  (a) Email + password      (after they registered once)
+  (b) Email OTP             (a 6-digit code sent to their email)
+  (c) "Continue with Google" (Google tells us their name/email, but we
+      STILL ask for the email OTP - see section 4)
+
+Registration = prove you own the email (OTP) + fill a profile.
+Admins only use email + password on their own login page.
+
+Everything is built with Livewire components (PHP methods that the page
+calls without a full reload). There are no Laravel "Breeze/Fortify"
+controllers; the login logic lives in the components listed below.
+
+
+=====================================================================
+2. THE FILES AND WHAT EACH ONE DOES
+=====================================================================
+  app/Http/Controllers/GoogleAuthController.php
+      redirect()  - sends the browser to Google.
+      callback()  - receives the user back from Google and stores the
+                    Google details in the session.
+
+  config/services.php  ('google' block) + .env keys
+      GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URL.
+
+  app/Livewire/Auth/User/Register.php     (page /register)
+      Asks for an email only. Starts the OTP process.
+  app/Livewire/Auth/User/VerifyOtp.php    (page /verify-otp)
+      Sends the OTP email and checks the 6 digits.
+  app/Livewire/Auth/User/CompleteProfile.php (page /complete-profile)
+      New users fill in name, username, phone, birthday, password ...
+      then the account is created and they are logged in.
+  app/Livewire/Auth/User/Login.php        (page /login)
+      Email + password login. Has the "Continue with Google" button.
+  app/Livewire/Auth/User/ForgotPassword.php (page /forgot-password)
+  app/Livewire/Auth/User/ResetPassword.php  (page /reset-password)
+      Password reset with an OTP.
+  app/Livewire/Auth/Admin/Login.php       (page /admin/login)
+      Admin email + password login.
+
+  resources/views/livewire/auth/user/*.blade.php
+      login, register, verify-otp, complete-profile, forgot-password,
+      reset-password (the screens).
+  resources/views/livewire/auth/admin/login.blade.php
+      The admin login screen (layout: layouts/admin-auth.blade.php).
+  resources/views/emails/otp.blade.php
+  resources/views/emails/password-reset-otp.blade.php
+      The two email templates ("This code will expire in 10 minutes.").
+
+  app/Mail/OtpMail.php               subject "Your Sajha Auction Verification Code"
+  app/Mail/PasswordResetOtpMail.php  subject "Reset Your Sajha Auction Password"
+
+  app/Http/Middleware/EnsureGoogleSession.php  (alias  auth.otp)
+  app/Http/Middleware/UserMiddleware.php        (alias  user)
+  app/Http/Middleware/AdminMiddleware.php       (alias  admin)
+  bootstrap/app.php     registers the three aliases and sets where
+                        guests are redirected.
+  config/auth.php       defines the two guards (web, admin).
+  routes/web.php        all the auth routes.
+
+  app/Models/User.php, app/Models/Admin.php
+  database/migrations/0001_01_01_000000_create_users_table.php
+  database/migrations/2026_05_02_132332_create_admins_table.php
+  database/seeders/AdminSeeder.php   creates the first admin.
+
+
+=====================================================================
+3. WHAT GOOGLE OAUTH IS (IN SIMPLE WORDS)
+=====================================================================
+OAuth is a polite way to say: "Google, please tell this website who
+this person is, but do NOT give the website my Google password."
+
+  - The user clicks "Continue with Google".
+  - The website sends the user to Google's own page.
+  - The user logs in to Google THERE (our site never sees the password).
+  - Google sends the user back to us with a short-lived "code".
+  - Our server swaps that code (using our secret) for the user's basic
+    details: Google id, name, email, picture.
+
+We use a package called LARAVEL SOCIALITE that does the hard parts.
+We ask Google for two permissions ("scopes"): profile and email.
+
+
+=====================================================================
+4. THE GOOGLE "DANCE" STEP BY STEP
+=====================================================================
+Buttons: the login page and the register page both have a button that
+links to the route  auth.google.redirect  (/auth/google/redirect).
+
+STEP 1  User clicks "Continue with Google".
+        GET /auth/google/redirect  ->  GoogleAuthController::redirect()
+        Code:  Socialite::driver('google')->scopes(['profile','email'])->redirect()
+        The browser is sent to Google's login/consent page.
+
+STEP 2  User logs in / agrees on Google's page.
+
+STEP 3  Google sends the browser BACK to our "redirect URI":
+        GET /auth/google/callback?code=...&state=...
+        (route name auth.google.callback). This address MUST be exactly
+        the one registered in Google Cloud Console (section 17).
+
+STEP 4  GoogleAuthController::callback() runs:
+          - It asks Google (server to server) to swap the code for the
+            user's details: Socialite::driver('google')->user().
+          - If anything fails (bad code, network, wrong settings) it logs
+            "Google Auth Error: ..." into storage/logs/laravel.log and
+            redirects to /login with the flash message
+            "Google authentication failed."
+          - If it works it saves this in the SESSION:
+                google_user = [
+                    google_id => Google's id for the person,
+                    name      => their Google name,
+                    email     => their Google email,
+                    avatar    => URL of their Google picture,
+                    phone     => usually null (Google rarely gives it)
+                ]
+                otp_verified = false
+          - Then it redirects to /verify-otp.
+
+STEP 5  IMPORTANT: Google does NOT log the person in by itself here.
+        The callback never calls Auth::login(). The user must still
+        enter the 6-digit code emailed to the Google email address
+        (section 7). Only after the correct code:
+          - if an account with that email ALREADY exists -> they are
+            logged in;
+          - if not -> they go to /complete-profile to create the account.
+
+WHY the OTP for Google users too?
+   It gives one single, simple path for every kind of sign-up and makes
+   sure the person really has access to that mailbox right now.
+
+NOTE: `google_id` is only saved into the database when a NEW account is
+created in Complete Profile. For a person who already had an account,
+the code does not add or update google_id.
+
+
+=====================================================================
+5. SESSION KEYS USED (THE TEMPORARY NOTEBOOK)
+=====================================================================
+A "session" is the server-side notebook for one browser. Here the
+sessions live in the `sessions` database table (SESSION_DRIVER=database,
+lifetime 120 minutes by default).
+
+  Key                Set by            Meaning
+  -----------------  ----------------  --------------------------------
+  google_user        Google callback,  The person going through sign-up:
+                     Register,         google_id, name, email, avatar,
+                     Login             phone. (The name "google_user" is
+                                       also used for plain email sign-ups.)
+  otp_verified       callback / Register  false until the OTP is correct,
+                     / VerifyOtp          then true.
+  otp_code           VerifyOtp         The OTP stored HASHED (bcrypt),
+                                       never in plain text.
+  otp_expires_at     VerifyOtp         Now + 10 minutes.
+  otp_sent_at        VerifyOtp         Unix time of the last send
+                                       (for the 30-second resend limit).
+  password_reset     ForgotPassword /  Array: email, otp_code (hashed),
+                     ResetPassword     otp_expires_at, otp_sent_at.
+  inactive_user_error UserMiddleware   One-time message shown on /login
+                                       ("Your account has been marked
+                                       inactive by the admin.").
+  admin_user         Admin Login       id, name, email, avatar of the
+                                       logged-in admin.
+  error (flash)      Google callback   "Google authentication failed."
+
+Note: the normal password login (Login.php) also writes google_user and
+otp_verified=true into the session after a successful login. They are
+leftovers that are not needed for that flow; they are cleared when the
+session is invalidated on logout.
+
+
+=====================================================================
+6. REGISTRATION FLOW
+=====================================================================
+There are two ways in, and then the SAME path.
+
+ Way A - Email:   /register -> type email -> Register::verifyEmail()
+   - Validation: email is required and must be a valid email
+     (rule  required|email).
+   - Saves in session:  google_user = { email only }, otp_verified=false.
+   - Redirects to /verify-otp.
+   - It does NOT check whether the email is already registered yet.
+
+ Way B - Google:  the "Continue with Google" dance (section 4)
+   - Saves google_user with name/email/avatar/google_id, otp_verified=false.
+   - Redirects to /verify-otp.
+
+ THE SAME PATH FROM HERE
+   /verify-otp  (protected by middleware auth.otp)
+      1. Opening the page automatically sends an OTP email (unless one
+         was sent in the last 30 seconds).
+      2. The user types the 6 digits and presses verify.
+      3. If the code is right, otp_verified becomes true and then:
+           - NO account with this email -> go to /complete-profile
+           - Account exists AND is active -> logged in ("Welcome back!
+             You have logged in successfully.") and sent to Home
+           - Account exists but is INACTIVE -> session cleared, message
+             "Your account is inactive. Please contact the admin." and
+             back to /login
+   /complete-profile  (protected by auth.otp AND needs otp_verified)
+      4. The user fills the profile form (section 8).
+      5. On success the account is created, the user is logged in with
+         "remember me" ON, and sent to Home with the message
+         "Profile completed successfully! Welcome to Sajha Auction."
+
+ SIDE NOTE (good to know): because the OTP step logs an EXISTING user
+ in without a password, typing a registered email on /register and
+ entering the correct emailed code signs that person in. That is a
+ normal "email code login".
+
+
+=====================================================================
+7. THE OTP RULES (EVERY NUMBER AND MESSAGE)
+=====================================================================
+OTP = One Time Password = the 6-digit code in the email.
+
+CREATING IT  (VerifyOtp::sendOtp)
+  - Code = a random number from 000000 to 999999, padded with zeros to
+    6 digits (random_int - cryptographically secure).
+  - It is stored in the session HASHED with bcrypt, so even someone who
+    could read the session table cannot read the code.
+  - Expires: 10 minutes after sending (otp_expires_at).
+  - Resend limit: 30 seconds. If you ask again too soon:
+        "Please wait before resending."
+  - The email is sent with  Mail::to($email)->send(new OtpMail($code, $name))
+    Subject: "Your Sajha Auction Verification Code". Body: "Here is
+    your verification code ... This code will expire in 10 minutes."
+  - After sending the page says: "A 6-digit code was sent to <email>"
+    and a 30-second countdown starts on the Resend button
+    ("Resend code in 30s" ... "Didn't receive it? Resend OTP").
+  - Arriving on the page again within 30 seconds does not send another
+    code; the countdown continues from where it was.
+
+CHECKING IT  (VerifyOtp::verifyOtp)
+  Rule: otp = required|digits:6  (exactly six digits).
+  Then, in this order:
+     1. No stored code or no google_user in the session ->
+        "Session expired. Please start again."
+     2. Current time is after otp_expires_at ->
+        "OTP has expired. Please request a new one."
+     3. The typed code does not match the stored hash ->
+        "Incorrect OTP. Please try again."
+     4. OK -> otp_verified = true; otp_code and otp_expires_at are
+        removed from the session so the same code cannot be used twice.
+
+IMPORTANT: there is NO limit on how many wrong codes can be tried
+(see security notes, section 19).
+
+
+=====================================================================
+8. COMPLETE PROFILE - EVERY VALIDATION RULE
+=====================================================================
+Page /complete-profile. The page pre-fills name, email, phone (if any)
+and makes a suggested username from the name (lower-case, spaces ->
+underscores). If the session has no google_user or otp_verified is not
+true, the page sends the visitor back to /login.
+
+Rules (method register()):
+  Field              Rule
+  -----------------  --------------------------------------------------
+  name               required, text, max 255 characters
+  username           required, max 30, only letters/numbers/dash/underscore
+                     (alpha_dash), must be UNIQUE in users.username
+  email              required, valid email, must be UNIQUE in users.email
+  phone              required, numeric, EXACTLY 10 digits
+  date_of_birth_en   required, a real date, and the person must be at
+                     least 16 years old (date on or before today minus 16
+                     years). Message: "You must be at least 16 years old
+                     to register."
+  gender             required and one of: male, female, other
+  bio                optional, max 500 characters
+  avatarFile         optional image, max 2 MB
+  password           required, minimum 8 characters AND all of:
+                       - at least one UPPERCASE letter
+                       - at least one lowercase letter
+                       - at least one number
+                       - at least one special character  @ $ ! % * # ? &
+                       - no spaces
+                       - must be different from the email
+                       - must be different from the username
+  confirm_password   required and equal to the password
+  agree_terms        must be ticked
+
+Custom messages that exist in the code:
+  "Phone Number is required" / "Invalid Phone Number"
+  "Date of Birth is required" / "Invalid Date of Birth"
+  "You must be at least 16 years old to register."
+  "Gender is required" / "Invalid Gender"
+  "Bio must be at most 500 characters"
+  "Avatar must be an image" / "Avatar must be at most 2MB"
+  "Password is required" / "Password must be at least 8 characters"
+  "Confirm Password is required"
+  "Confirm Password must be the same as Password"
+  "You must agree to the Terms of Use and Privacy Policy."
+Rules without a custom message use Laravel's normal wording. Note: the
+five regex rules share ONE default wording ("The password field format
+is invalid."), so the screen cannot say which of them failed.
+
+The B.S. (Nepali) birthday is stored too, from a Nepali date picker,
+in the column `daate_of_birth_np` (the column name is really spelled
+with two a's in the database).
+
+WHAT HAPPENS ON SUCCESS
+  - The avatar is handled (section 14).
+  - The password is hashed with Hash::make.
+  - `User::updateOrCreate(['email' => ...], [...])` writes the row:
+        google_id            from the session (null for email sign-ups)
+        is_verified          true
+        is_seller            false
+        seller_application_pending   true only if "Apply as seller" is on
+        is_auction_allowed   false
+        status               "active"
+    (updateOrCreate means: if a row with that email somehow exists it is
+    updated, otherwise a new one is created.)
+  - session keys google_user and otp_verified are removed.
+  - Auth::login($user, remember: true)  -> user is logged in.
+  - Redirect to Home with a welcome message.
+
+
+=====================================================================
+9. NORMAL LOGIN (EMAIL + PASSWORD)
+=====================================================================
+Page /login (Login.php, method login()). Fields: email, password,
+"Remember me" checkbox.
+  Validation: email required|email, password required.
+  Then:
+    1. Find the user by email. If none, or the password does not match
+       (Hash::check) ->
+       "Invalid credentials. Please check your email and password."
+       (same message for both cases, so it does not reveal which one).
+    2. If the account is not active ->
+       "Your account is inactive. Please contact the admin."
+    3. Otherwise Auth::login($user, remember: <checkbox>) and
+       "Welcome back! You have logged in successfully." -> Home.
+  A user who is already logged in and opens /login, /register,
+  /verify-otp, /forgot-password etc. is redirected to Home.
+
+
+=====================================================================
+10. FORGOT / RESET PASSWORD (OTP)
+=====================================================================
+It reuses the same OTP idea, with its own session key `password_reset`.
+(Laravel's own password_reset_tokens table exists but is NOT used.)
+
+PAGE 1  /forgot-password  (ForgotPassword::sendCode)
+   - Validation: email required|email.
+   - No account with that email ->
+       "No account found with that email address."
+     (Yes, this tells a stranger whether an email is registered. It was
+     a deliberate choice for a friendlier message.)
+   - Account inactive -> "Your account is inactive. Please contact the
+     admin."
+   - Otherwise: make a 6-digit code, store  password_reset = {email,
+     hashed code, expires in 10 minutes, sent_at}, email it
+     (PasswordResetOtpMail, subject "Reset Your Sajha Auction Password")
+     and go to /reset-password with "A reset code has been sent to <email>."
+
+PAGE 2  /reset-password  (ResetPassword)
+   - Without a pending request it redirects to /forgot-password.
+   - Resend: allowed only after 30 seconds ("A new code has been sent.").
+   - resetPassword() validation:  otp required|digits:6,
+     password required|min:8|confirmed (needs the matching
+     password_confirmation field).
+   - Then in order:
+       no session          -> "Session expired. Please start again."
+       past the expiry     -> "This code has expired. Please request a
+                              new one."
+       wrong code          -> "Incorrect code. Please try again."
+       account missing     -> "Account not found."
+   - Success: the password is updated (the User model hashes it
+     automatically), the reset session is removed, and the user is sent
+     to /login with "Password reset. Please sign in with your new
+     password."  They are NOT logged in automatically.
+   - Note: the reset only requires 8+ characters; the stricter rules of
+     section 8 are not applied here.
+
+
+=====================================================================
+11. ADMIN LOGIN
+=====================================================================
+Page /admin/login (Auth\Admin\Login, layout layouts/admin-auth).
+  - Validation: email required|email, password required.
+  - Auth::guard('admin')->attempt([email, password], remember: true).
+    Wrong details -> "Invalid credentials. Please check your email and
+    password."
+  - On success it stores admin_user (id, name, email, avatar) in the
+    session and redirects to /admin/dashboard.
+  - Already logged-in admins are redirected to the dashboard.
+  - Admins never use OTP or Google.
+  - First admin: created by `php artisan db:seed` (AdminSeeder):
+        email admin@sajhaauction.com , password: password
+    (local development only - change it for a real site).
+  - The admin's `status` column is NOT checked at login (only users'
+    status is).
+
+
+=====================================================================
+12. GUARDS, MIDDLEWARE AND ROUTES (WHO MAY OPEN WHAT)
+=====================================================================
+GUARDS  (config/auth.php)
+   web    -> session driver, provider "users"  (model User)
+   admin  -> session driver, provider "admins" (model Admin)
+Both store the login in the same browser session, but as separate
+"who is logged in" entries.
+
+MIDDLEWARE  (aliases in bootstrap/app.php)
+   auth.otp  EnsureGoogleSession
+       - No google_user in the session -> redirect to /login.
+       - Opening /complete-profile while otp_verified is not true ->
+         redirect to /verify-otp.
+       (The name says "Google" but it guards BOTH the Google and the
+       email sign-up flows, because both use the google_user key.)
+   user      UserMiddleware
+       - Not logged in on the web guard -> redirect to /login with
+         "Please login first."
+       - Logged in but the account is not "active" -> the user is
+         logged out, the session is invalidated, the token regenerated
+         and they are sent to /login with "Your account has been marked
+         inactive by the admin."  (So an admin who deactivates a user
+         kicks them out on their next request.)
+   admin     AdminMiddleware
+       - Not logged in on the admin guard -> redirect to /admin/login
+         with "Please login first."
+
+DEFAULT REDIRECT FOR GUESTS  (redirectGuestsTo)
+   Any protected URL that starts with admin -> /admin/login,
+   everything else -> /login.
+
+ROUTES  (routes/web.php)
+   Public (no middleware):
+     GET /register                 Register          user.register
+     GET /login                    Login             user.login
+     GET /forgot-password          ForgotPassword    password.forgot
+     GET /reset-password           ResetPassword     password.reset
+     GET /auth/google/redirect     GoogleAuth redirect  auth.google.redirect
+     GET /auth/google/callback     GoogleAuth callback  auth.google.callback
+     GET /admin/login              Admin Login       admin.login
+   Group middleware 'auth.otp':
+     GET /verify-otp               VerifyOtp         verify.otp
+     GET /complete-profile         CompleteProfile   complete.profile
+   Group middleware 'user'  : the whole logged-in user area (dashboard,
+     cart, checkout, orders, my-products, messages, settings ...).
+   Group middleware 'admin' : every /admin/... page except the login.
+
+
+=====================================================================
+13. DATABASE TABLES AND MODELS
+=====================================================================
+users  (0001_01_01_000000_create_users_table.php)
+   id, google_id (nullable, unique), name, email, username (nullable,
+   unique), phone, date_of_birth_en, daate_of_birth_np, gender,
+   is_seller, is_auction_allowed, password, is_verified, avatar, bio,
+   status, email_verified_at, remember_token, timestamps.
+   Later migrations add seller_application_pending, and standardise
+   gender to lowercase.
+   Notice: the DATABASE does not make `email` unique; uniqueness is
+   enforced by the form rule unique:users,email.
+
+admins  (2026_05_02_132332_create_admins_table.php)
+   id, name, email (unique), phone (unique), role, position,
+   date_of_joining, gender, password, avatar, address, status,
+   remember_token, timestamps.
+   `role` and `position` are plain text labels (no permission system).
+
+Other tables used by the login system:
+   sessions              where the session notebook (section 5) lives
+   password_reset_tokens created by Laravel but NOT used by this app
+   jobs / cache          general framework tables
+
+MODELS
+   User::isActiveStatus()  true when status === "active".
+   User status attribute   always lower-cased on read and write, so
+                           "Active" and "active" mean the same.
+   User gender attribute   lower-cased when saved.
+   Password                hashed automatically by the model cast.
+   Admin                   its own model with its own guard; also
+                           receives notifications on its own channel.
+
+
+=====================================================================
+14. AVATARS (PROFILE PICTURES) FROM GOOGLE
+=====================================================================
+Handled inside CompleteProfile::register():
+  1. If the user UPLOADED a picture (max 2 MB image) it is stored in
+     storage/app/public/avatars.
+  2. Otherwise, if Google gave a picture URL, the server DOWNLOADS it
+     (an HTTP GET) and saves it as avatars/<random-uuid>.jpg on the
+     "public" disk. If the download is not successful, the avatar stays
+     empty. If the download throws an error, the raw Google URL is
+     saved instead.
+  3. No picture at all -> the avatar stays empty.
+The public disk needs the link created by `php artisan storage:link`.
+
+
+=====================================================================
+15. "APPLY AS SELLER" DURING SIGN-UP
+=====================================================================
+On the Complete Profile page there is a toggle "Apply as Seller".
+  - Off (default): the user is a normal buyer.
+  - On: seller_application_pending = true is saved, and EVERY admin
+    receives a SellerRegisteredNotification (bell icon, and real-time
+    over Reverb). An admin approves it later at /admin/seller-requests,
+    which sets is_seller = true.
+Being a seller does NOT allow hosting/bidding in auctions; that needs
+the separate auction-access application (is_auction_allowed).
+
+
+=====================================================================
+16. LOGOUT
+=====================================================================
+User (Navbar::logout):  Auth::logout(), session invalidated, CSRF token
+   regenerated, toast "Logged out successfully", redirect to /login.
+Admin (Sidebar::logout): admin guard logout, admin_user removed, session
+   invalidated, token regenerated, redirect to /admin/login.
+Because both guards live in ONE browser session, invalidating the
+session on logout also signs out the other kind of account if it was
+logged in in the same browser.
+
+
+=====================================================================
+17. SETTING UP GOOGLE CLOUD CONSOLE + .env
+=====================================================================
+1. Go to Google Cloud Console -> create/select a project.
+2. Configure the "OAuth consent screen" (app name, support email).
+3. Credentials -> Create credentials -> OAuth client ID -> type "Web
+   application".
+4. Under "Authorized redirect URIs" add EXACTLY:
+       http://127.0.0.1:8000/auth/google/callback      (local)
+       https://your-domain.com/auth/google/callback    (production)
+   Every character must match (http vs https, 127.0.0.1 vs localhost,
+   port, path). A mismatch gives Google's "redirect_uri_mismatch" error.
+5. Copy the Client ID and Client secret into .env:
+       GOOGLE_CLIENT_ID=...
+       GOOGLE_CLIENT_SECRET=...
+       GOOGLE_REDIRECT_URL=http://127.0.0.1:8000/auth/google/callback
+   (config/services.php reads GOOGLE_REDIRECT_URI first, then
+   GOOGLE_REDIRECT_URL.) Never commit the secret or share it.
+6. While the consent screen is in "Testing" mode only the listed test
+   users may sign in.
+7. Restart the server after changing .env.
+Google login is OPTIONAL: without these keys the normal email/OTP and
+password login still work; only the Google button fails.
+
+
+=====================================================================
+18. LOCAL DEVELOPMENT TIPS
+=====================================================================
+  - MAIL_MAILER=log (the default in .env.example) writes every email,
+    including the OTP, into storage/logs/laravel.log. Open that file and
+    copy the 6-digit code. To send real email use SMTP settings
+    (MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD ...).
+  - The OTP mails are sent IMMEDIATELY while you wait. (The mail classes
+    import "ShouldQueue" but do not implement it, so no queue worker is
+    needed for OTP emails.)
+  - Use http://127.0.0.1:8000 consistently (not localhost some of the
+    time), or the session cookie and the Google redirect URI will not
+    match.
+  - A sign-up test without email: run the app, open /register, type any
+    email, read the code from laravel.log.
+  - Sessions are stored in the database; clearing the `sessions` table
+    logs everyone out.
+
+
+=====================================================================
+19. SECURITY NOTES (WHAT IS GOOD, WHAT IS RISKY)
+=====================================================================
+GOOD
+  - OTPs are random (random_int), 6 digits, expire in 10 minutes, and
+    are stored only as a bcrypt HASH in the session.
+  - The OTP is removed from the session once used.
+  - Resend is limited to once per 30 seconds.
+  - Passwords are hashed (bcrypt) and must be strong at registration.
+  - Wrong login gives one generic message.
+  - Inactive users cannot log in and are logged out on their next
+    request.
+  - Logout invalidates the session and regenerates the CSRF token.
+  - The Google client secret lives only in .env.
+  - Users and admins are separate tables and guards.
+
+RISKS - PLEASE READ (be honest before going live)
+  1. TLS certificate checking is DISABLED in two places:
+        - GoogleAuthController::callback():
+              new \GuzzleHttp\Client(['verify' => false])
+          This is the request that swaps the Google code for the user's
+          details.
+        - CompleteProfile: Http::withOptions(['verify' => false]) when
+          downloading the Google avatar.
+     With verify=false an attacker on the network could impersonate
+     Google's servers. It is a common workaround for Windows/XAMPP
+     "cURL error 60: SSL certificate problem", but it MUST be removed
+     in production (install a CA bundle and set curl.cainfo in php.ini
+     instead).
+  2. No limit on wrong OTP guesses. There are only 1,000,000 possible
+     codes and 10 minutes to try them. Add a throttle (for example a
+     maximum of 5 attempts per code) before going public.
+  3. No throttling on password login, admin login, or on asking for
+     reset codes (each request sends a new email).
+  4. "No account found with that email address." reveals whether an
+     email is registered (deliberate, but it allows email enumeration).
+  5. The password reset only demands 8+ characters (weaker than sign-up)
+     and does not sign out the user's other sessions.
+  6. Admin login does not look at the admin's `status` column.
+  7. The `users.email` column is not UNIQUE in the database; only the
+     form rule prevents duplicates.
+  8. The mail templates print the name/code directly; fine for now, but
+     never put user-controlled HTML there.
+
+
+=====================================================================
+20. TROUBLESHOOTING TABLE
+=====================================================================
+  Problem / message                    Likely cause and fix
+  -----------------------------------  ---------------------------------
+  Google shows redirect_uri_mismatch   The redirect URI in Google Cloud
+                                       Console differs from
+                                       GOOGLE_REDIRECT_URL. Make them
+                                       identical.
+  "Google authentication failed."      Check storage/logs/laravel.log
+                                       ("Google Auth Error: ..."). Common:
+                                       wrong client id/secret, expired
+                                       code (reload and retry), or no
+                                       internet on the server.
+  Google button gives an error page    GOOGLE_CLIENT_ID / SECRET empty.
+  cURL error 60 (SSL certificate)      Windows without a CA bundle. Fix
+                                       php.ini (curl.cainfo) - do not
+                                       rely on verify=false in production.
+  No OTP email arrives                 MAIL_MAILER=log: look in
+                                       laravel.log. SMTP: check
+                                       MAIL_* values and app password.
+  "Please wait before resending."      You asked twice within 30 s.
+  "OTP has expired..."                 More than 10 minutes passed. Press
+                                       Resend.
+  "Incorrect OTP..."                   Wrong digits, or an older code
+                                       (each resend replaces the code).
+  "Session expired. Please start       The session was lost (cookie
+  again."                              cleared, different host such as
+                                       localhost vs 127.0.0.1, session
+                                       lifetime over). Start again.
+  Sent back to /login from             The google_user / otp_verified
+  /verify-otp or /complete-profile     session keys are missing (see
+                                       section 5).
+  "Your account is inactive..."        An admin set the user's status to
+                                       inactive (Admin > Users).
+  Registration fails on password       Needs 8+ chars with upper, lower,
+                                       number, one of @$!%*#?& and no
+                                       spaces; not equal to email or
+                                       username.
+  "You must be at least 16 years..."   Date of birth is too recent.
+  Avatar not showing                   Run php artisan storage:link.
+  Admin cannot log in                  Run php artisan db:seed (creates
+                                       the seeded admin) or check the
+                                       admins table.
+
+
+=====================================================================
+21. A FULL WORKED EXAMPLE (TIMELINE)
+=====================================================================
+A new visitor, Sita, signs up with Google. Her Google email is
+sita@example.com.
+
+  0:00  She opens /login and clicks "Continue with Google".
+        Browser -> /auth/google/redirect -> Socialite sends her to
+        Google.
+  0:10  She picks her Google account and agrees.
+        Google -> /auth/google/callback?code=...
+  0:11  The callback swaps the code for her details and saves in the
+        session: google_user{ google_id, "Sita Karki",
+        sita@example.com, avatar URL, phone null } and
+        otp_verified=false. It redirects to /verify-otp.
+  0:11  /verify-otp opens and automatically sends an OTP email to
+        sita@example.com (code stored hashed in the session, expires
+        0:11 + 10 min). Screen: "A 6-digit code was sent to
+        sita@example.com" and "Resend code in 30s".
+  0:40  She types the 6 digits.
+        - digits:6 passes, not expired, hash matches -> otp_verified=true.
+        - No user with that email yet -> redirect to /complete-profile.
+  0:41  The page shows her name and email, a suggested username
+        "sita_karki". She fills in the rest: username, phone
+        (9812345678), birthday (older than 16), gender, password
+        "Password1!" twice, ticks the terms, switches "Apply as Seller"
+        ON, and presses save.
+  1:30  register() validates everything -> OK.
+        - Google avatar downloaded and saved as avatars/<uuid>.jpg.
+        - users row created: status active, is_verified true,
+          is_seller false, seller_application_pending true,
+          google_id filled.
+        - All admins get a "seller registered" notification.
+        - google_user / otp_verified removed from the session.
+        - She is logged in (remember me on) and lands on Home:
+          "Profile completed successfully! Welcome to Sajha Auction."
+  Later  An admin approves her seller request; she is now a seller.
+
+Next week Sita opens /login and types her email + password ->
+"Welcome back! You have logged in successfully." (no Google, no OTP
+needed for password login).
+
+If she forgets the password: /forgot-password -> code emailed ->
+/reset-password (code + new password twice) -> "Password reset. Please
+sign in with your new password." -> /login.
+
+
+=====================================================================
+22. TESTS THAT COVER THIS
+=====================================================================
+  tests/Feature/CompleteProfileTest.php
+      A user younger than 16 cannot finish registration
+      (error rule: date_of_birth_en before_or_equal).
+  tests/Feature/PasswordResetTest.php
+      Reset code emails an OTP and stores it in the session; unknown
+      email and inactive account send nothing; a correct code resets the
+      password; a wrong code and an expired code do not; opening
+      /reset-password without a request redirects to /forgot-password.
+  tests/Feature/AdminUserManagementTest.php
+      Inactive users are blocked from logging in and are logged out by
+      the user middleware.
+Run them with:  php artisan test --compact
+(There is no automated test for the Google callback or the OTP page
+itself, because they need Google and real mail.)
+
+
+=====================================================================
+23. SMALL GLOSSARY
+=====================================================================
+  OAuth        A way to sign in with another service (Google) without
+               sharing your password with our site.
+  Socialite    The Laravel package that performs the OAuth steps.
+  Client ID/secret  The "username and password" of OUR app at Google.
+  Redirect URI The exact address Google sends the user back to.
+  Scope        The kind of information we ask Google for (profile, email).
+  OTP          One-Time Password: the 6-digit code emailed to you.
+  Hash         A one-way scrambled version of a secret (bcrypt) that can
+               be checked but not read back.
+  Session      The server's temporary notebook for one browser.
+  Guard        A Laravel "login channel" (here: web for users, admin for
+               admins).
+  Middleware   A gatekeeper that runs before a page and can redirect.
+  Livewire     Lets a page call PHP methods without a full reload.
+  Remember me  A long-lived cookie that keeps you logged in.
+  Enumeration  Guessing which emails are registered from the messages a
+               site shows.
+  TLS / SSL    The encryption and identity check of https connections.
+               "verify=false" turns the identity check off.
+=====================================================================
