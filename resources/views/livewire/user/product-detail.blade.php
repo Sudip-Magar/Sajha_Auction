@@ -5,7 +5,7 @@
     $price = $product->isDirectSell()
         ? $product->sale_price
         : ($product->auction?->current_price ?: $product->starting_bid);
-    $condition = str($product->condition)->replace('-', ' ')->title();
+    $condition = \App\Enums\ProductCondition::labelFor($product->condition);
     $descriptionHtml = HtmlSanitizerService::toSafeHtml($product->description);
     $specificationsHtml = HtmlSanitizerService::toSafeHtml($product->specifications);
 @endphp

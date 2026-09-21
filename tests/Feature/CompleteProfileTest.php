@@ -22,7 +22,7 @@ it('requires users to be at least sixteen years old to complete registration', f
         ->set('phone', '9812345678')
         ->set('date_of_birth_np', '2067-01-01')
         ->set('date_of_birth_en', today()->subYears(16)->addDay()->toDateString())
-        ->set('gender', 'OTHER')
+        ->set('gender', 'other')
         ->set('password', 'Password1!')
         ->set('confirm_password', 'Password1!')
         ->set('agree_terms', true)

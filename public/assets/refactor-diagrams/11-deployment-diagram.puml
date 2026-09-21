@@ -14,7 +14,7 @@ node "Client Browser\nLivewire + Alpine.js + Echo" as Client
 node "Application Host (PHP 8.3, Laravel 13)" as Host {
   node "Web Server\nartisan serve (dev)\nNginx + PHP-FPM\n(prod, assumed)" as Web
   node "Laravel Reverb\nWebSocket :8080" as Reverb
-  node "Queue Worker\nqueue:listen" as Queue
+  node "Queue Worker\nqueue:listen (optional)" as Queue
   node "Scheduler\nfinalize-expired-auctions" as Sched
 }
 
@@ -34,8 +34,8 @@ Web --> DB
 Queue --> DB
 Sched --> DB
 Web --> Reverb : broadcast
-Queue --> Gemini : HTTPS
-Queue --> Smtp : OTP mail
+Web --> Gemini : HTTPS
+Web --> Smtp : SMTP (OTP, mail)
 Web --> Esewa : signed form,\nstatus API
 
 footer No Docker files. Session, cache and queue use the database driver; Redis is not used.

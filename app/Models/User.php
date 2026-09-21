@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\GenderState;
 use App\Enums\StatusState;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -96,6 +97,18 @@ class User extends Authenticatable
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereRaw('LOWER(status) = ?', [StatusState::ACTIVE->value]);
+    }
+
+    protected function gender(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => $value === null || $value === '' ? null : strtolower($value),
+        );
+    }
+
+    public function getGenderLabelAttribute(): ?string
+    {
+        return GenderState::labelFor($this->attributes['gender'] ?? null);
     }
 
     protected function status(): Attribute

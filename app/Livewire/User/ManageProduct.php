@@ -3,6 +3,7 @@
 namespace App\Livewire\User;
 
 use App\Enums\ProductAuctionType;
+use App\Enums\ProductCondition;
 use App\Enums\ProductImageType;
 use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -70,8 +72,6 @@ class ManageProduct extends Component
     public ?string $meetup_location = null;
 
     public ?string $meetup_instructions = null;
-
-    public bool $delivery_available = false;
 
     public ?string $specifications = null;
 
@@ -182,7 +182,6 @@ class ManageProduct extends Component
         $this->location = $this->product->location;
         $this->meetup_location = $this->product->meetup_location;
         $this->meetup_instructions = $this->product->meetup_instructions;
-        $this->delivery_available = $this->product->delivery_available;
         $this->specifications = $this->product->specifications;
 
         if ($this->listing_type === ProductSaleType::AUCTION->value && $this->product->auction) {
@@ -328,7 +327,7 @@ class ManageProduct extends Component
             'description' => 'required|string',
             'sub_category_id' => 'required|exists:sub_categories,id',
             'listing_type' => 'required|in:'.$allowedListingTypes,
-            'condition' => 'required|in:new,like-new,lightly-used,well-used,refurbished,used',
+            'condition' => ['required', Rule::enum(ProductCondition::class)],
             'usage_duration' => 'nullable|string|max:255',
             'purchase_date' => 'nullable|date|before_or_equal:today',
             'retail_price' => 'nullable|numeric|min:0',
@@ -338,7 +337,6 @@ class ManageProduct extends Component
             'location' => 'nullable|string|max:255',
             'meetup_location' => 'required_if:listing_type,direct_seller|nullable|string|max:255',
             'meetup_instructions' => 'nullable|string',
-            'delivery_available' => 'boolean',
             'specifications' => 'nullable|string',
             'newImages.*' => 'image|max:2048',
             'newProofImages.*' => 'nullable|image|max:2048',
@@ -398,7 +396,6 @@ class ManageProduct extends Component
                     'location' => $this->location,
                     'meetup_location' => $this->meetup_location,
                     'meetup_instructions' => $this->meetup_instructions,
-                    'delivery_available' => $this->delivery_available,
                     'listing_type' => $this->listing_type,
                     'status' => 'pending',
                 ];
@@ -536,13 +533,9 @@ class ManageProduct extends Component
                 ['id' => ProductNegotiability::FIXED->value, 'name' => ProductNegotiability::FIXED->label()],
                 ['id' => ProductNegotiability::NEGOTIABLE->value, 'name' => ProductNegotiability::NEGOTIABLE->label()],
             ],
-            'conditionOptions' => [
-                ['id' => 'new', 'name' => 'Brand New'],
-                ['id' => 'like-new', 'name' => 'Like New (Minimal Use)'],
-                ['id' => 'lightly-used', 'name' => 'Lightly Used'],
-                ['id' => 'well-used', 'name' => 'Well Used / Fair'],
-                ['id' => 'refurbished', 'name' => 'Refurbished'],
-            ],
+            'conditionOptions' => collect(ProductCondition::cases())
+                ->map(fn (ProductCondition $condition): array => ['id' => $condition->value, 'name' => $condition->formLabel()])
+                ->all(),
         ]);
     }
 }

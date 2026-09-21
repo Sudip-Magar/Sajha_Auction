@@ -57,7 +57,9 @@ class CompleteProfile extends Component
             $this->redirect(route('home'), navigate: true);
         }
 
-        $this->genderStates = backedEnumAsArray(GenderState::cases());
+        $this->genderStates = collect(GenderState::cases())
+            ->map(fn (GenderState $gender): array => ['id' => $gender->value, 'name' => $gender->label()])
+            ->all();
 
         $googleUser = session('google_user');
         $verified = session('otp_verified');
@@ -81,7 +83,7 @@ class CompleteProfile extends Component
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|numeric|digits:10',
             'date_of_birth_en' => ['required', 'date', Rule::date()->beforeOrEqual(today()->subYears(16)->toDateString())],
-            'gender' => 'required',
+            'gender' => ['required', Rule::enum(GenderState::class)],
             'bio' => 'nullable|string|max:500',
             'avatarFile' => 'nullable|image|max:2048',
             'password' => [
@@ -106,7 +108,7 @@ class CompleteProfile extends Component
                 'date_of_birth_en.date' => 'Invalid Date of Birth',
                 'date_of_birth_en.before_or_equal' => 'You must be at least 16 years old to register.',
                 'gender.required' => 'Gender is required',
-                'gender.in' => 'Invalid Gender',
+                'gender.enum' => 'Invalid Gender',
                 'bio.required' => 'Bio is required',
                 'bio.string' => 'Bio must be a string',
                 'bio.max' => 'Bio must be at most 500 characters',

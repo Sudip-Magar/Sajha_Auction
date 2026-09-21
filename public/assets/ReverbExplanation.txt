@@ -1,0 +1,709 @@
+=====================================================================
+REAL-TIME (LARAVEL REVERB + ECHO + BROADCASTING) - HOW IT WORKS
+Sajha Auction  |  live bids, live chat, live bell notifications
+=====================================================================
+
+TABLE OF CONTENTS
+   1.  What "real-time" means here (big picture)
+   2.  The words explained simply (WebSocket, Reverb, Echo, Pusher ...)
+   3.  The pieces in this project (files)
+   4.  Configuration (.env, config/broadcasting.php, config/reverb.php)
+   5.  Channels: public and private (table)
+   6.  How private channels are authorized (/broadcasting/auth)
+   7.  Events our code broadcasts (table)
+   8.  Notifications: the bell (table of all 14)
+   9.  The browser side: Echo, layout scripts, Livewire listeners
+   10. Full path of a message, four examples
+        (1) live bid  (2) auction ends  (3) chat message  (4) bell
+   11. Why "ShouldBroadcastNow" and the "sync" connection
+   12. What happens when Reverb is NOT running
+   13. Setup steps
+   14. Production notes
+   15. Troubleshooting table
+   16. How to test it
+   17. A worked example with a timeline
+   18. Things to know / possible improvements (honest notes)
+   19. Glossary
+
+
+=====================================================================
+1. WHAT "REAL-TIME" MEANS HERE (BIG PICTURE)
+=====================================================================
+Normally a web page only changes when YOU do something (click, press
+refresh). Real-time means the server can PUSH news to your open page
+by itself. In Sajha Auction this is used for:
+
+   - LIVE BIDDING      When anyone places a bid, every person looking
+                       at that auction sees the new price at once.
+   - AUCTION ENDED     When an auction finishes, every open page shows
+                       the winner / "unsold" result without a refresh.
+   - CHAT              A new chat message appears for the other person
+                       immediately.
+   - BELL NOTIFICATIONS The red dot / list in the navbar (user) or top
+                       bar (admin) updates the moment something
+                       happens (order placed, product approved, ...).
+
+If the real-time server is switched off, the website STILL WORKS. Data
+is saved normally; the pages simply update when you refresh (section
+12).
+
+
+=====================================================================
+2. THE WORDS EXPLAINED SIMPLY
+=====================================================================
+  HTTP request     The normal way a browser talks to a server: ask,
+                   get an answer, connection ends. The server can NOT
+                   speak first.
+
+  WebSocket        A phone line that stays OPEN between browser and
+                   server. Either side can speak at any time. This is
+                   what makes "push" possible.
+
+  Laravel Reverb   A WebSocket SERVER made by Laravel, written in PHP.
+                   You start it with:  php artisan reverb:start
+                   It keeps all the open browser connections and
+                   delivers messages to them. (Port 8080 here.)
+
+  Pusher protocol  A standard "language" for WebSocket messages
+                   (subscribe to a channel, receive an event). Reverb
+                   speaks this language, so the same browser library
+                   that talks to the paid Pusher service also talks to
+                   Reverb. That is why our JavaScript imports
+                   "pusher-js".
+
+  Laravel Echo     The JavaScript library in the browser. It opens the
+                   WebSocket, subscribes to channels and calls our
+                   code when an event arrives.
+
+  Broadcasting     Laravel's word for "send an event to Reverb so it
+                   can push it to browsers".
+
+  Channel          A named "room". A message sent to a room is
+                   received only by the browsers that joined it.
+                     - public channel  : anyone can join.
+                     - private channel : Laravel must approve each join
+                                         (section 6).
+
+  Event            A message with a name and some data, for example
+                   "auction.bid.placed" with the new price.
+
+  Livewire         Our page framework. Echo tells Livewire "something
+                   changed" and Livewire re-draws the part of the page.
+
+
+=====================================================================
+3. THE PIECES IN THIS PROJECT (FILES)
+=====================================================================
+  SERVER SIDE (PHP)
+    config/broadcasting.php        Which broadcaster to use (reverb).
+    config/reverb.php              Settings of the Reverb server itself.
+    bootstrap/app.php              ->withBroadcasting(routes/channels.php,
+                                     ['middleware' => ['web','auth']])
+                                   Registers the route /broadcasting/auth
+                                   and loads the channel rules.
+    routes/channels.php            The 3 channel authorization rules.
+    app/Events/AuctionBidPlaced.php    Live bid event.
+    app/Events/AuctionEnded.php        Auction finished event.
+    app/Events/ChatMessageSent.php     Chat message event.
+    app/Notifications/*.php            14 notification classes (database
+                                       + broadcast).
+    app/Models/Admin.php               receivesBroadcastNotificationsOn()
+                                       -> "App.Models.Admin.{id}".
+    app/Services/AuctionEngineService.php   Sends the bid / ended events.
+    app/Livewire/User/Messages.php,
+    app/Livewire/User/ProductDetail.php     Send chat events.
+
+  BROWSER SIDE (JavaScript)
+    resources/js/echo.js           Creates window.Echo (the connection).
+    resources/js/app.js            Imports echo.js (so every page has it).
+    resources/views/layouts/app.blade.php     Subscribes the user's bell.
+    resources/views/layouts/admin.blade.php   Subscribes the admin's bell.
+    resources/views/livewire/user/messages.blade.php and
+    resources/views/livewire/user/product-detail.blade.php
+                                   Custom Echo code for chat rooms.
+    Livewire components (getListeners)   React to events (section 9).
+
+  PROCESS
+    php artisan reverb:start       The WebSocket server. Part of
+                                   "composer run dev" (named "ws").
+
+
+=====================================================================
+4. CONFIGURATION
+=====================================================================
+4.1  .env KEYS  (values are secrets/local; shown here only by name)
+
+  Key                    Used by           Meaning
+  ---------------------  ----------------  --------------------------
+  BROADCAST_CONNECTION   Laravel           "reverb" = push through
+                                           Reverb. "log" = only write
+                                           to the log (no live push).
+                                           "null" = do nothing
+                                           (used by phpunit tests).
+  REVERB_APP_ID          Server + Laravel  Id of our "app" in Reverb.
+  REVERB_APP_KEY         Server + browser  Public key (safe for the
+                                           browser to know).
+  REVERB_APP_SECRET      Server only       SECRET used to sign
+                                           messages and private-
+                                           channel approvals.
+  REVERB_HOST            Laravel + browser Where clients reach Reverb
+                                           (127.0.0.1 locally; your
+                                           domain in production).
+  REVERB_PORT            same              8080.
+  REVERB_SCHEME          same              http locally, https in
+                                           production.
+  VITE_REVERB_APP_KEY,
+  VITE_REVERB_HOST,
+  VITE_REVERB_PORT,
+  VITE_REVERB_SCHEME     Browser (built)   Copies of the values above
+                                           (they use "${REVERB_...}").
+                                           Vite bakes them into the
+                                           JavaScript file when you run
+                                           "npm run build" / "npm run
+                                           dev".
+  QUEUE_CONNECTION       Laravel           "database" here (see
+                                           section 11).
+
+  Note: .env.example contains BROADCAST_CONNECTION=log and does NOT
+  list the REVERB_* / VITE_REVERB_* keys. A fresh install must add
+  them by hand (the README shows how).
+
+4.2  config/broadcasting.php
+  'default' => env('BROADCAST_CONNECTION', 'null')
+  The 'reverb' connection uses REVERB_APP_KEY, REVERB_APP_ID and
+  options host / port / scheme (useTLS is true when the scheme is
+  https). Laravel uses these to SEND events to Reverb over HTTP.
+
+4.3  config/reverb.php  (the server)
+  - Server listens on host 0.0.0.0, port 8080 (REVERB_SERVER_HOST /
+    REVERB_SERVER_PORT).
+  - The app entry: key, secret, app_id from the REVERB_* keys.
+  - allowed_origins = ['*']   (any website may connect - see section 14).
+  - ping_interval 60, activity_timeout 30 (seconds) - keep-alive checks.
+  - max_request_size 10,000 bytes.
+  - scaling.enabled = false by default (Redis is NOT used; one Reverb
+    server only).
+
+4.4  resources/js/echo.js  (the browser connection)
+    broadcaster: 'reverb'
+    key    : VITE_REVERB_APP_KEY
+    wsHost : VITE_REVERB_HOST (or the page's own hostname)
+    wsPort / wssPort : VITE_REVERB_PORT (default 8080)
+    forceTLS : true only when VITE_REVERB_SCHEME is "https"
+    enabledTransports: ['ws', 'wss']
+  The result is stored in  window.Echo  and every page can use it.
+
+
+=====================================================================
+5. CHANNELS: PUBLIC AND PRIVATE
+=====================================================================
+  Channel name                    Type     Who can join             Used for
+  ------------------------------  -------  -----------------------  -----------------
+  auctions.{auctionId}            PUBLIC   Anyone who connects      Live bid + auction
+                                                                    ended updates
+  App.Models.User.{userId}        PRIVATE  Only that user           Bell notifications,
+                                                                    chat alerts
+  App.Models.Admin.{adminId}      PRIVATE  Only that admin          Admin bell
+                                           (admin guard)            notifications
+  conversations.{conversationId}  PRIVATE  Only the buyer or the    Messages inside
+                                           seller of that chat      one chat
+
+"Private" channels are named "private-..." on the wire; Echo adds the
+"private-" prefix for you when you call Echo.private('name').
+
+Privacy note: the public auction channel carries the bidder's display
+NAME and bid amount (the same information the auction page already
+shows). It carries no email, phone or account data.
+
+
+=====================================================================
+6. HOW PRIVATE CHANNELS ARE AUTHORIZED (/broadcasting/auth)
+=====================================================================
+Anyone can try to subscribe to a private channel name, so Laravel must
+approve each request. This is the sequence:
+
+   1. Echo asks Reverb to subscribe to  private-App.Models.User.5.
+   2. Because the channel is private, the browser first sends a normal
+      HTTP POST to our website:   POST /broadcasting/auth
+      (with the session cookie, so we know who is asking).
+   3. That route is registered in bootstrap/app.php with the
+      middleware ['web', 'auth'], so the user must be logged in.
+   4. Laravel finds the matching rule in routes/channels.php and runs
+      it:
+         'App.Models.User.{id}'        -> user id must equal {id}
+         'App.Models.Admin.{id}'       -> admin id must equal {id}
+                                          (declared with guards: admin)
+         'conversations.{conversation}'-> Conversation::hasParticipant()
+                                          (must be the buyer or seller)
+   5. If the rule returns true, Laravel answers with a SIGNED token
+      (signed with REVERB_APP_SECRET). The browser passes it to
+      Reverb and Reverb lets it join.
+   6. If the rule returns false, Laravel answers 403 and the join is
+      refused. Nobody can listen to someone else's private channel.
+
+Two guards: normal users log in with the "web" guard, admins with the
+"admin" guard. The admin channel rule says guards => ['admin'] so it
+looks for the logged-in ADMIN. See section 18, note 1, about the
+'auth' middleware of the auth route.
+
+
+=====================================================================
+7. EVENTS OUR CODE BROADCASTS
+=====================================================================
+All three implement ShouldBroadcastNow (sent immediately, no queue).
+
+  Event class         Channel(s)                   Event name on the wire     Data sent
+  ------------------  ---------------------------  -------------------------  ---------------------------
+  AuctionBidPlaced    PUBLIC auctions.{id}         auction.bid.placed         auction_id, current_price,
+                                                                              total_bids, min_next_bid,
+                                                                              bid {id, bidder_name,
+                                                                              bid_amount, is_proxy,
+                                                                              created_at}
+  AuctionEnded        PUBLIC auctions.{id}         auction.ended              auction_id, status,
+                                                                              winner_id
+  ChatMessageSent     PRIVATE conversations.{id}   chat.message.sent          message {id,
+                      + PRIVATE App.Models.User    (same event to 3           conversation_id, sender_id,
+                      .{sellerId}                  channels)                  sender_name, body,
+                      + PRIVATE App.Models.User                               created_at}
+                      .{buyerId}
+
+The "event name on the wire" comes from broadcastAs(). Because we set a
+custom name, Echo must listen with a DOT in front:  '.auction.bid.placed'
+(the dot means "use this exact name, do not add the PHP namespace").
+
+Where they are fired:
+  - AuctionBidPlaced : AuctionEngineService::processBid(), inside
+        DB::afterCommit(...) so listeners only hear about it AFTER the
+        bid is safely saved in the database.
+  - AuctionEnded     : AuctionEngineService::announceEnded(), also inside
+        DB::afterCommit(...), from determineWinner() (both "winner"
+        and "unsold" results). Wrapped in try/catch - a Reverb problem
+        is only logged and never breaks the settlement.
+  - ChatMessageSent  : broadcast(new ChatMessageSent($message)) in
+        Messages::sendChatMessage() and ProductDetail::sendChatMessage().
+
+
+=====================================================================
+8. NOTIFICATIONS: THE BELL
+=====================================================================
+Laravel "Notifications" are saved in the database table "notifications"
+(that is the list you see) AND broadcast over WebSocket (that is the
+instant refresh). Every notification class here returns
+   via() = ['database', 'broadcast']
+and implements ShouldBroadcastNow, and toBroadcast() returns a
+BroadcastMessage with ->onConnection('sync') (section 11).
+
+The private channel used is the default one for the person:
+   user  -> App.Models.User.{id}
+   admin -> App.Models.Admin.{id}
+(Admin defines receivesBroadcastNotificationsOn() to return exactly that.)
+
+The 14 notification classes:
+
+  Class                                   Sent to   When
+  --------------------------------------  --------  ---------------------------------
+  SellerRegisteredNotification            Admins    A user asks to become a seller
+  SellerApprovedNotification              User      Admin approves seller access
+  SellerSuspendedNotification             User      Admin suspends seller access
+  NewProductUploadedNotification          Admins    A seller uploads a listing
+  ProductApprovedNotification             Seller    Admin approves the listing
+  AuctionApplicationSubmittedNotification Admins    A user applies for auction access
+  AuctionApplicationApprovedNotification  User      Auction access approved
+  AuctionApplicationRejectedNotification  User      Auction access rejected
+  AccountStatusChangedNotification        User      Admin activates / deactivates
+  NewChatMessageNotification              User      A chat message is received
+  NewOrderReceivedNotification            Seller    An order is placed (also for an
+                                                    auction win)
+  OutbidNotification                      Bidder    Someone else took the lead
+  AuctionWonNotification                  Winner    The auction is won
+  DepositPaidNotification                 Seller    The buyer paid the eSewa deposit
+
+
+=====================================================================
+9. THE BROWSER SIDE
+=====================================================================
+9.1  window.Echo
+   resources/js/app.js imports echo.js on every page, so window.Echo
+   exists everywhere. (Scripts that need it wait and retry every
+   300-500 ms until it exists.)
+
+9.2  The bell subscription (inline script in the layouts)
+   User layout (layouts/app.blade.php), only for logged-in users:
+      window.Echo.private('App.Models.User.' + userId)
+          .notification(() => Livewire.dispatch('userNotificationReceived'))
+   Admin layout (layouts/admin.blade.php):
+      window.Echo.private('App.Models.Admin.' + adminId)
+          .notification(() => Livewire.dispatch('adminNotificationReceived'))
+   They run once (a flag prevents double subscribing), re-run after
+   wire:navigate page changes, and reset the flag if the subscription
+   errors so it can try again.
+   Livewire.dispatch(...) then makes components refresh themselves.
+
+9.3  Livewire listeners (getListeners)
+   Livewire has two special prefixes:
+      "echo:channel,event"            listen to a PUBLIC channel event
+      "echo-notification:channel"     listen for a notification on a
+                                      PRIVATE channel
+   Components and what they listen to:
+
+   Component                         Listens to                         Action
+   --------------------------------  ---------------------------------  --------------------
+   User\AuctionDetail                echo:auctions.{id},.auction.bid    refreshAuctionState
+                                     .placed  (and the plain name)      (reload price + bids)
+                                     echo:auctions.{id},.auction.ended  refreshAuctionState
+                                     (and the plain name)               (show the result)
+   Components\User\Navbar            userNotificationReceived,          $refresh (bell list
+                                     echo-notification:App.Models.User) and unread count
+   Components\User\AuctionNotice     same two                           $refresh
+   User\Dashboard, User\Products,
+   User\Notifications                same two                           $refresh
+   User\JoinAuction                  same two                           refreshApplicationState
+   Components\Admin\Topbar           adminNotificationReceived,         $refresh
+                                     echo-notification:App.Models.Admin
+   Admin\Notifications, Products,
+   SellerRequests, AuctionApplication  same two                         $refresh
+
+   (AuctionDetail listens to both the dotted name and the plain class
+   name; only the dotted one actually matches our custom broadcastAs.)
+
+9.4  Chat (custom JavaScript in messages.blade.php and
+     product-detail.blade.php)
+   - Subscribes to Echo.private('conversations.{id}') for the open
+     chat, and ALSO to Echo.private('App.Models.User.{myId}') so a
+     message for another conversation is noticed too.
+   - Listens to '.chat.message.sent' (and 'ChatMessageSent').
+   - When an event arrives it calls the Livewire method
+     refreshChatFromBroadcast(conversationId), which reloads the
+     messages, marks them read and scrolls down.
+   - When you switch conversation it leaves the old channel
+     (Echo.leave) and joins the new one.
+
+
+=====================================================================
+10. FULL PATH OF A MESSAGE - FOUR EXAMPLES
+=====================================================================
+(1) A LIVE BID
+   Buyer clicks "Place bid" -> AuctionDetail::placeBid()
+     -> AuctionEngineService::processBid() runs inside a database
+        transaction, saves the Bid, updates current_price
+     -> after the transaction COMMITS, DB::afterCommit(...) runs:
+          event(new AuctionBidPlaced(auction, bid))
+     -> Laravel sends it (HTTP, signed with the secret) to Reverb on
+        the public channel "auctions.{id}" with name auction.bid.placed
+     -> Reverb pushes it down every open WebSocket subscribed to that
+        channel (everyone viewing that auction)
+     -> Echo in each browser triggers the Livewire listener
+        "echo:auctions.{id},.auction.bid.placed"
+     -> AuctionDetail::refreshAuctionState() reloads the auction, so the
+        price, bid history and the minimum next bid update on screen.
+   Also: if the leader changed, the previous leader gets an
+   OutbidNotification (see example 4).
+
+(2) AN AUCTION ENDS
+   The end time passes. The countdown in the browser asks the server
+   (finalizeIfEnded()), or the scheduler does it every minute.
+     -> AuctionEngineService::checkAndFinalizeIfExpired() locks the row
+        and calls determineWinner() (winner or "unsold", creates the
+        order, notifies people)
+     -> announceEnded() -> after commit: event(new AuctionEnded(...))
+     -> Reverb -> every browser on "auctions.{id}"
+     -> Livewire listener "echo:auctions.{id},.auction.ended"
+     -> refreshAuctionState(): the "Winning bidder" / "Item unsold" card
+        appears on every open page without a refresh.
+
+(3) A CHAT MESSAGE
+   Seller types and sends -> Messages::sendChatMessage() (or the chat
+   box on the product page)
+     -> the ChatMessage row is saved
+     -> broadcast(new ChatMessageSent($message)) goes to Reverb on THREE
+        private channels: conversations.{id}, App.Models.User.{seller},
+        App.Models.User.{buyer}
+     -> the buyer's browser (subscribed and authorized, section 6)
+        receives "chat.message.sent"
+     -> JavaScript calls refreshChatFromBroadcast(conversationId)
+     -> the new message appears, marked read, scrolled into view.
+   Right after, the recipient also gets a NewChatMessageNotification
+   (the bell, example 4).
+
+(4) A BELL NOTIFICATION  (example: buyer places an order)
+   Checkout::placeOrder() saves the order, then
+     $order->seller->notify(new NewOrderReceivedNotification($order))
+     -> Laravel writes a row in the "notifications" table (database
+        channel)
+     -> and the "broadcast" channel sends it to Reverb on the PRIVATE
+        channel "App.Models.User.{sellerId}" (using the 'sync'
+        connection, section 11)
+     -> the seller's browser (subscribed by the layout script, section
+        9.2) receives it
+     -> Echo runs  Livewire.dispatch('userNotificationReceived')
+     -> Navbar, Dashboard, Notifications page, etc. refresh
+     -> the red dot and the list show the new notification, no reload.
+
+
+=====================================================================
+11. WHY "ShouldBroadcastNow" AND THE "sync" CONNECTION
+=====================================================================
+By default Laravel broadcasts events through the QUEUE: the event is
+put in the queue table and a "queue worker" sends it a moment later.
+That would mean live features do NOT work unless a worker is running,
+and you would still see a delay.
+
+This project avoids that:
+   - The 3 events implement ShouldBroadcastNow: they are sent
+     immediately, in the same request.
+   - The 14 notifications call ->onConnection('sync') inside
+     toBroadcast(): the internal broadcast job runs at once instead of
+     waiting for a worker. (They also implement ShouldBroadcastNow.)
+So real-time needs only Reverb, not the queue worker.
+
+QUEUE_CONNECTION is "database". No feature needs the worker by default
+(OTP e-mails and AI replies are handled inside the web request), but
+the worker is part of composer run dev and is useful if you queue
+anything later:
+   php artisan queue:listen --tries=1 --timeout=0
+
+Because sending is done inside the user's request, a slow or dead
+Reverb server can slow or break that request. Section 12 shows how
+this is handled.
+
+
+=====================================================================
+12. WHAT HAPPENS WHEN REVERB IS NOT RUNNING
+=====================================================================
+   - The website pages, forms and database still work.
+   - Browsers cannot open the WebSocket: no live updates. Everything
+     is correct after a refresh.
+   - Sending an event to a dead Reverb throws an exception
+     (a "Pusher error / connection refused" style BroadcastException).
+     What happens next depends on the code around it:
+
+  Place in the code                         What happens if Reverb is down
+  ----------------------------------------  ---------------------------------
+  Auction bid  (AuctionBidPlaced)           Inside DB::afterCommit; the bid is
+                                            already saved. (Outbid notify is
+                                            in try/catch and only logged.)
+  Auction ended (AuctionEnded)              try/catch: logged only.
+  Auction win notifications                 try/catch: logged only.
+  Checkout new-order notification           try/catch: order stays saved,
+                                            failure is reported to the log.
+  eSewa deposit-paid notification           try/catch: logged only.
+  Chat send (Messages, ProductDetail)       try/catch (BroadcastException):
+                                            the message IS saved; the
+                                            broadcast failure is logged.
+  Admin approve product (ProductDetail)     try/catch (BroadcastException).
+  ManageProduct::save() notify admins       Runs inside the save's try/catch:
+                                            an "error occurred" toast may
+                                            appear.
+  Other admin actions and JoinAuction /     NO try/catch around ->notify():
+  seller-request actions (Products,         the database change is already
+  SellerRequests, Users, UserDetail,        done, but the page action can
+  AuctionApplication[Detail],               fail with an error. Keep Reverb
+  JoinAuction, CompleteProfile, Navbar/     running while using those
+  Settings seller request)                  screens (see section 18).
+
+Tip: with BROADCAST_CONNECTION=log, nothing is pushed to a server, so
+no exception occurs - handy when you do not want to run Reverb.
+
+
+=====================================================================
+13. SETUP STEPS
+=====================================================================
+  1. Put the keys in .env (any random text works locally for the id,
+     key and secret):
+        BROADCAST_CONNECTION=reverb
+        REVERB_APP_ID=sajha-local
+        REVERB_APP_KEY=local-key
+        REVERB_APP_SECRET=local-secret
+        REVERB_HOST=127.0.0.1
+        REVERB_PORT=8080
+        REVERB_SCHEME=http
+        VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+        VITE_REVERB_HOST="${REVERB_HOST}"
+        VITE_REVERB_PORT="${REVERB_PORT}"
+        VITE_REVERB_SCHEME="${REVERB_SCHEME}"
+  2. Rebuild the frontend so the VITE_ values are baked in:
+        npm run build         (or keep "npm run dev" running)
+     IMPORTANT: changing a VITE_ value needs a rebuild/restart.
+  3. Start everything:
+        composer run dev
+     This runs: php artisan serve, queue:listen, reverb:start (named
+     "ws"), pail and vite together. (Or run "php artisan reverb:start"
+     yourself in its own terminal.)
+  4. Also run the scheduler for automatic auction settlement:
+        php artisan schedule:work
+  5. Open the site in two browsers/profiles, open the same auction,
+     and place a bid: the other one updates by itself.
+
+
+=====================================================================
+14. PRODUCTION NOTES
+=====================================================================
+  - Use HTTPS/WSS: set REVERB_SCHEME=https (and VITE_REVERB_SCHEME) so
+    the browser uses wss://. Terminate TLS on your web server or proxy.
+  - Put Reverb behind a reverse proxy (for example Nginx) that forwards
+    WebSocket traffic (Upgrade / Connection headers) from your domain
+    to port 8080, and set REVERB_HOST / REVERB_PORT to the PUBLIC
+    address the browser should use.
+  - Keep the Reverb process alive with a process manager (Supervisor,
+    systemd), like the queue worker.
+  - Restrict allowed_origins in config/reverb.php to your real domain
+    instead of ['*'].
+  - Use real secrets for REVERB_APP_ID / KEY / SECRET. Never expose the
+    SECRET to the browser (only the VITE_ key is public).
+  - More than one Reverb server needs REVERB_SCALING_ENABLED=true with
+    Redis. It is OFF by default; one server is enough here.
+  - Open the firewall port for the WebSocket (or 443 via the proxy).
+  - Raise the OS open-file limit for many simultaneous connections.
+
+
+=====================================================================
+15. TROUBLESHOOTING
+=====================================================================
+  Symptom                              Likely cause and fix
+  -----------------------------------  ------------------------------------
+  "Pusher error ... connection         Reverb is not running or the host /
+   refused" in laravel.log, or an      port is wrong. Start:
+   error when saving something          php artisan reverb:start
+                                        Or set BROADCAST_CONNECTION=log.
+  Pages never update live              1) Reverb not running. 2) Old build:
+  (no error)                           run npm run build after changing
+                                       VITE_ values. 3) Browser console
+                                       shows the WebSocket failing -
+                                       check host/port/scheme.
+  Live bids work but the bell does     The private channel is not being
+  not (or the reverse)                 approved: check the browser Network
+                                       tab for /broadcasting/auth (see
+                                       the next row).
+  /broadcasting/auth returns 403       You are not allowed on that channel
+  or 401                               (not logged in, wrong user, or not
+                                       a chat participant). For admin
+                                       channels see section 18, note 1.
+  Works on http but not on https       Mixed content: the site is https but
+                                       the socket is ws://. Use
+                                       REVERB_SCHEME=https and rebuild.
+  Changed .env but nothing changed     Restart "composer run dev" and, for
+                                       VITE_ keys, rebuild assets.
+  Two updates / duplicate refresh      Harmless: some components listen to
+                                       both the plain and the dotted event
+                                       name.
+  Works locally, not on the server     Proxy is not forwarding WebSocket
+                                       headers, firewall blocks the port,
+                                       or REVERB_HOST still says
+                                       127.0.0.1.
+
+
+=====================================================================
+16. HOW TO TEST IT
+=====================================================================
+  BROWSER (best way to SEE it)
+    1. Open DevTools -> Network -> filter "WS". You should see one
+       connection to ws://127.0.0.1:8080/app/<key> with "101 Switching
+       Protocols". Click it -> Messages: you see subscribe messages and
+       incoming events (auction.bid.placed, chat.message.sent, ...).
+    2. Filter "Fetch/XHR": POST /broadcasting/auth calls should return
+       200 with an "auth" token for private channels.
+    3. Open the same auction in two windows and place a bid.
+
+  SERVER
+    php artisan reverb:start --debug     prints every connection and
+                                         message Reverb handles.
+    storage/logs/laravel.log             shows "broadcast failed"
+                                         warnings.
+
+  AUTOMATIC TESTS
+    php artisan test --compact --filter=AuctionSettlementTest
+       (checks that AuctionEnded is dispatched when an auction settles)
+    The phpunit environment sets BROADCAST_CONNECTION=null, so tests
+    never need a running Reverb server. Use Event::fake([...]) to
+    assert an event was dispatched.
+
+
+=====================================================================
+17. A WORKED EXAMPLE WITH A TIMELINE
+=====================================================================
+Two people, Sita and Ram, both have the same live auction open.
+Ram is subscribed to "auctions.7" (public) and to his private channels.
+
+  10:00:00.000  Sita presses "Place bid" (Rs 32,000).
+  10:00:00.050  processBid() saves the bid inside a transaction.
+  10:00:00.070  Transaction commits. DB::afterCommit runs.
+  10:00:00.080  event(new AuctionBidPlaced) -> Laravel POSTs it (signed)
+                to Reverb: channel auctions.7, name auction.bid.placed.
+  10:00:00.090  Reverb pushes it through Ram's open WebSocket.
+  10:00:00.100  Echo -> Livewire "echo:auctions.7,.auction.bid.placed"
+                -> refreshAuctionState().
+  10:00:00.250  Ram's screen shows Rs 32,000 and Sita's name in the bid
+                history. He did nothing.
+  10:00:00.090  (also) Ram was the previous leader: OutbidNotification
+                is saved and broadcast on private channel
+                App.Models.User.<Ram>. The layout script receives it,
+                dispatches userNotificationReceived, the Navbar
+                refreshes and the bell shows "You've been outbid".
+
+  If Reverb were stopped: Sita's bid is still saved. Ram would see the
+  new price only after refreshing the page.
+
+
+=====================================================================
+18. THINGS TO KNOW / POSSIBLE IMPROVEMENTS (HONEST NOTES)
+=====================================================================
+  1. ADMIN CHANNEL AND THE 'auth' MIDDLEWARE (please verify)
+     bootstrap/app.php registers the auth route with
+     ['web', 'auth']. The "auth" middleware checks the DEFAULT guard
+     ("web"), while admins log in with the "admin" guard, and the
+     admin channel rule is declared with guards => ['admin'].
+     If an admin who is logged in only as admin gets 401/403 on
+     POST /broadcasting/auth for "App.Models.Admin.{id}", the admin
+     bell will not update live (a refresh still shows everything).
+     Check it in DevTools (section 16). A common fix is to allow the
+     admin guard in that route's middleware, e.g. 'auth:web,admin'.
+     (I could not confirm this by an automated test.)
+
+  2. NOT EVERY notify() IS GUARDED (section 12). Only some places have
+     try/catch. Wrapping the rest the same way would make the app fully
+     tolerant of Reverb being down.
+
+  3. #[On('chatMessageBroadcasted')] in Messages.php and
+     ProductDetail.php is never dispatched anywhere; the chat JS calls
+     refreshChatFromBroadcast() directly instead. That listener is
+     unused.
+
+  4. Listeners are registered for both the plain class name and the
+     dotted broadcastAs name (AuctionBidPlaced / .auction.bid.placed,
+     ChatMessageSent / .chat.message.sent). Only the dotted names
+     match today; the plain ones are harmless leftovers.
+
+  5. allowed_origins is ['*'] and .env.example does not list the
+     REVERB_* keys (section 4 and 14).
+
+  6. Automated test coverage of broadcasting is small (auction
+     settlement only). Adding Event::fake tests for bids and chat
+     would help.
+
+
+=====================================================================
+19. GLOSSARY
+=====================================================================
+  Broadcast          Send an event so it reaches browsers in real time.
+  Channel            A named room browsers subscribe to.
+  Public channel     Anyone may join.
+  Private channel    Laravel must approve each join (/broadcasting/auth).
+  Event              A named message with data.
+  broadcastAs()      The event's wire name. A leading dot in Echo
+                     (".auction.ended") means "exactly this name".
+  ShouldBroadcastNow Send immediately, without the queue.
+  onConnection('sync') Run a broadcast job right now, no worker needed.
+  DB::afterCommit    Run code only after the database transaction has
+                     really been saved.
+  Echo               Browser library that listens to channels.
+  Reverb             Laravel's WebSocket server (php artisan reverb:start).
+  Pusher protocol    The message format Reverb and Echo both understand.
+  Guard              A login "door": "web" for users, "admin" for admins.
+  Livewire listener  A component method that runs when an event arrives.
+  echo: / echo-notification:  Livewire prefixes that connect a component
+                     directly to Echo.
+  Queue worker       A background process that runs queued jobs.
+  Scheduler          A process that runs tasks every minute
+                     (php artisan schedule:work).
+  wss://             A WebSocket over TLS (like https for sockets).
+=====================================================================

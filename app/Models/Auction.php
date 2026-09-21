@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 class Auction extends Model
 {
@@ -61,7 +62,7 @@ class Auction extends Model
      * "is this auction still open" check must go through this, not
      * `end_time` directly, or a last-second extension has no real effect.
      */
-    public function getEffectiveEndTimeAttribute(): ?\Illuminate\Support\Carbon
+    public function getEffectiveEndTimeAttribute(): ?Carbon
     {
         return $this->extended_end_time ?? $this->end_time;
     }
@@ -78,6 +79,15 @@ class Auction extends Model
     public function isUpcoming(): bool
     {
         return $this->status === 'pending' || ($this->status === 'active' && $this->start_time > now());
+    }
+
+    /**
+     * True once the winner (or "unsold") has actually been recorded. An auction
+     * whose time is up but that has not been settled yet is ended, not settled.
+     */
+    public function isSettled(): bool
+    {
+        return in_array($this->status, ['ended', 'completed', 'ended_unsold'], true);
     }
 
     public function isEnded(): bool

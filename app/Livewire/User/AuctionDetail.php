@@ -36,6 +36,8 @@ class AuctionDetail extends Component
         return [
             "echo:auctions.{$this->auction->id},AuctionBidPlaced" => 'refreshAuctionState',
             "echo:auctions.{$this->auction->id},.auction.bid.placed" => 'refreshAuctionState',
+            "echo:auctions.{$this->auction->id},AuctionEnded" => 'refreshAuctionState',
+            "echo:auctions.{$this->auction->id},.auction.ended" => 'refreshAuctionState',
         ];
     }
 
@@ -52,6 +54,20 @@ class AuctionDetail extends Component
     public function refreshAuctionState(): void
     {
         $this->refreshAuctionData();
+    }
+
+    /**
+     * Called by the countdown the moment it reaches zero. Settles the auction if
+     * its (possibly extended) deadline has really passed and re-renders the page
+     * with the winner / unsold result. Returns whether a result is now recorded,
+     * so the browser knows when to stop retrying (e.g. its clock runs ahead).
+     */
+    public function finalizeIfEnded(): bool
+    {
+        AuctionEngineService::checkAndFinalizeIfExpired($this->auction);
+        $this->refreshAuctionData();
+
+        return $this->auction->isSettled();
     }
 
     private function refreshAuctionData(): void

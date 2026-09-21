@@ -45,9 +45,11 @@ return [
     'ai' => [
         'provider' => env('AI_PROVIDER', 'gemini'),
         'api_key' => env('AI_API_KEY'),
-        'model' => env('AI_MODEL', 'gemini-3.6-flash'),
+        'model' => env('AI_MODEL', 'gemini-3.5-flash-lite'),
+        // Tried when the main model is overloaded (HTTP 429/5xx) or times out.
+        'fallback_model' => env('AI_FALLBACK_MODEL'),
         'base_url' => env('AI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
-        'timeout' => (int) env('AI_TIMEOUT', 20),
+        'timeout' => (int) env('AI_TIMEOUT', 12),
         'history_limit' => 10,
     ],
 

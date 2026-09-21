@@ -18,6 +18,81 @@
             {{-- Left Side: Main Details --}}
             <div class="lg:col-span-2 space-y-6">
 
+                {{-- Product Information --}}
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
+                    <h2 class="text-xl font-black text-gray-900 mb-6 flex items-center gap-2 dark:text-gray-100">
+                        <x-icon name="o-information-circle" class="w-6 h-6 text-primary" />
+                        Basic Information & Second-Hand Condition
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="md:col-span-2">
+                            <x-input label="Product Name" required wire:model="name" placeholder="e.g. iPhone 13 Pro 128GB - Lightly Used" icon="o-tag" />
+                        </div>
+
+                        <x-select label="Category" required wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
+
+                        <x-select label="Condition" required wire:model.live="condition" :options="$conditionOptions" icon="o-sparkles" />
+
+                        <x-input label="Usage Duration (for second-hand)" wire:model="usage_duration" placeholder="e.g. 6 Months / 1 Year" icon="o-clock" hint="How long the product was used" />
+
+                        <x-input label="Retail / Original Price (Rs.)" wire:model.live="retail_price" type="number" step="0.01" icon="o-banknotes" hint="MSRP / Original Buying Price" />
+
+                        <div>
+                            <label class="label font-bold text-sm">Purchase Date (B.S.)</label>
+                            <input
+                                type="text"
+                                id="purchase_date_np"
+                                wire:model="purchase_date_np"
+                                data-nepali-date="purchase-date"
+                                class="input input-bordered w-full"
+                                placeholder="YYYY-MM-DD"
+                                autocomplete="off"
+                            />
+                            <input type="hidden" wire:model="purchase_date" data-english-date="purchase-date">
+                            <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">When you originally bought the item (used for estimated value)</p>
+                            @error('purchase_date') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+
+                        @if($listing_type === 'direct_seller')
+                            <x-input label="Selling Price (Rs.)" required wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
+
+                            <x-select label="Price Type" required wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
+                        @endif
+
+                        <x-input label="Quantity" required wire:model="quantity" type="number" icon="o-archive-box" />
+
+                        <x-input label="City / Region Location" wire:model="location" placeholder="e.g. Kathmandu, Nepal" icon="o-map-pin" />
+
+                    </div>
+
+                    <div class="mt-6 space-y-4">
+                        <div>
+                            <label class="label font-bold text-sm">Description <span class="text-error">*</span></label>
+                            <div wire:ignore>
+                                <div data-tiptap-editor="description" data-tiptap-placeholder="Describe the product condition, reasons for selling, inclusions/accessories, flaws if any..." class="tiptap-editor">
+                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
+                                    <div data-tiptap-content class="tiptap-content"></div>
+                                </div>
+                                <input type="hidden" wire:model="description" data-tiptap-input="description">
+                            </div>
+                            @error('description') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="label font-bold text-sm">Specifications</label>
+                            <div wire:ignore>
+                                <div data-tiptap-editor="specifications" data-tiptap-placeholder="Brand: Apple, RAM: 8GB, Battery Health: 89%..." class="tiptap-editor">
+                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
+                                    <div data-tiptap-content class="tiptap-content tiptap-content-sm"></div>
+                                </div>
+                                <input type="hidden" wire:model="specifications" data-tiptap-input="specifications">
+                            </div>
+                            @error('specifications') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                </div>
+
                 @if($listing_type === 'auction')
                     {{-- Auction Schedule & Pricing --}}
                     <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
@@ -81,12 +156,15 @@
                                         <p class="text-[11px] text-gray-400 mt-2 dark:text-gray-500">Add a retail price, purchase date and condition below to see an estimated value.</p>
                                     @endif
                                 </div>
-                                <div>
-                                    <x-input label="Reserve Price (Rs.)" wire:model="reserve_price" type="number" step="0.01" icon="o-shield-check" hint="Minimum acceptable price (Algorithm 1)" />
+                                <div class="relative">
+                                    <x-input label="Reserve Price (Rs.)" wire:model="reserve_price" type="number" step="0.01" icon="o-shield-check" hint="The lowest price you are willing to accept" />
+                                    <div class="absolute right-0 top-0">
+                                        <x-info-tip text="The lowest price you're willing to accept. If bidding doesn't reach this, the item won't sell. We suggest one based on your item's retail price and starting bid." />
+                                    </div>
                                     @if($this->recommendedReserve)
                                         <div class="mt-2 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between dark:bg-emerald-950/30 dark:border-emerald-900/60">
                                             <div class="text-[11px] text-emerald-900 font-medium dark:text-emerald-200">
-                                                <span class="font-bold">Algorithm 3 Myerson Recommendation:</span> Rs. {{ number_format($this->recommendedReserve, 2) }}
+                                                <span class="font-bold">Suggested minimum price to accept:</span> Rs. {{ number_format($this->recommendedReserve, 2) }}
                                             </div>
                                             <button type="button" wire:click="applyRecommendedReserve" class="text-[11px] font-black text-emerald-700 hover:text-emerald-900 underline dark:text-emerald-300 dark:hover:text-emerald-100">
                                                 Apply
@@ -94,89 +172,16 @@
                                         </div>
                                     @endif
                                 </div>
-                                <x-input label="Min Bid Increment (Rs.)" required wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Algorithm 2 dynamic step minimum increment" />
+                                <div class="relative">
+                                    <x-input label="Min Bid Increment (Rs.)" required wire:model="min_bid_increment" type="number" step="0.01" icon="o-plus-circle" hint="Recommended minimum bid step based on current price" />
+                                    <div class="absolute right-0 top-0">
+                                        <x-info-tip text="The smallest amount each new bid must increase by. The site already enforces a sensible minimum that grows with the price, but you can raise it." />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 @endif
-
-                {{-- Product Information --}}
-                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 dark:bg-[#181A1F] dark:border-gray-800 dark:shadow-none">
-                    <h2 class="text-xl font-black text-gray-900 mb-6 flex items-center gap-2 dark:text-gray-100">
-                        <x-icon name="o-information-circle" class="w-6 h-6 text-primary" />
-                        Basic Information & Second-Hand Condition
-                    </h2>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="md:col-span-2">
-                            <x-input label="Product Name" required wire:model="name" placeholder="e.g. iPhone 13 Pro 128GB - Lightly Used" icon="o-tag" />
-                        </div>
-
-                        <x-select label="Category" required wire:model="sub_category_id" :options="$subCategories" placeholder="Select Category" icon="o-squares-2x2" />
-
-                        <x-select label="Condition" required wire:model.live="condition" :options="$conditionOptions" icon="o-sparkles" />
-
-                        <x-input label="Usage Duration (for second-hand)" wire:model="usage_duration" placeholder="e.g. 6 Months / 1 Year" icon="o-clock" hint="How long the product was used" />
-
-                        <x-input label="Retail / Original Price (Rs.)" wire:model.live="retail_price" type="number" step="0.01" icon="o-banknotes" hint="MSRP / Original Buying Price" />
-
-                        <div>
-                            <label class="label font-bold text-sm">Purchase Date (B.S.)</label>
-                            <input
-                                type="text"
-                                id="purchase_date_np"
-                                wire:model="purchase_date_np"
-                                data-nepali-date="purchase-date"
-                                class="input input-bordered w-full"
-                                placeholder="YYYY-MM-DD"
-                                autocomplete="off"
-                            />
-                            <input type="hidden" wire:model="purchase_date" data-english-date="purchase-date">
-                            <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">When you originally bought the item (used for estimated value)</p>
-                            @error('purchase_date') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-
-                        @if($listing_type === 'direct_seller')
-                            <x-input label="Selling Price (Rs.)" required wire:model="sale_price" type="number" step="0.01" icon="o-currency-dollar" hint="Your asking price" />
-
-                            <x-select label="Price Type" required wire:model="negotiable" :options="$negotiabilityOptions" icon="o-adjustments-horizontal" />
-                        @endif
-
-                        <x-input label="Quantity" required wire:model="quantity" type="number" icon="o-archive-box" />
-
-                        <x-input label="City / Region Location" wire:model="location" placeholder="e.g. Kathmandu, Nepal" icon="o-map-pin" />
-
-                        <div class="flex items-center pt-4">
-                            <x-checkbox label="Delivery Available" wire:model="delivery_available" />
-                        </div>
-                    </div>
-
-                    <div class="mt-6 space-y-4">
-                        <div>
-                            <label class="label font-bold text-sm">Description <span class="text-error">*</span></label>
-                            <div wire:ignore>
-                                <div data-tiptap-editor="description" data-tiptap-placeholder="Describe the product condition, reasons for selling, inclusions/accessories, flaws if any..." class="tiptap-editor">
-                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
-                                    <div data-tiptap-content class="tiptap-content"></div>
-                                </div>
-                                <input type="hidden" wire:model="description" data-tiptap-input="description">
-                            </div>
-                            @error('description') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div>
-                            <label class="label font-bold text-sm">Specifications</label>
-                            <div wire:ignore>
-                                <div data-tiptap-editor="specifications" data-tiptap-placeholder="Brand: Apple, RAM: 8GB, Battery Health: 89%..." class="tiptap-editor">
-                                    <div data-tiptap-toolbar class="tiptap-toolbar"></div>
-                                    <div data-tiptap-content class="tiptap-content tiptap-content-sm"></div>
-                                </div>
-                                <input type="hidden" wire:model="specifications" data-tiptap-input="specifications">
-                            </div>
-                            @error('specifications') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
-                </div>
 
                 {{-- Meetup Location for Direct Sell --}}
                 @if($listing_type === 'direct_seller')

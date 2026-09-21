@@ -14,7 +14,7 @@
             </div>
             <div>
                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Account Status</p>
-                <p class="text-2xl font-black {{ $user->isActiveStatus() ? 'text-emerald-600' : 'text-rose-600' }}">{{ ucfirst($user->status) }}</p>
+                <p class="text-2xl font-black {{ $user->isActiveStatus() ? 'text-emerald-600' : 'text-rose-600' }}">{{ \App\Enums\StatusState::labelFor($user->status) }}</p>
             </div>
         </div>
 
@@ -90,7 +90,7 @@
 
                         <div class="rounded-xl bg-[#f5f2ea] p-4">
                             <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Gender</p>
-                            <p class="mt-2 text-sm font-black text-gray-900">{{ $user->gender ?? 'Not available' }}</p>
+                            <p class="mt-2 text-sm font-black text-gray-900">{{ $user->gender_label ?? 'Not available' }}</p>
                         </div>
 
                         <div class="rounded-xl bg-[#f5f2ea] p-4">
@@ -167,7 +167,7 @@
                                 </div>
 
                                 <div class="flex items-center gap-2 shrink-0">
-                                    <x-badge :value="ucfirst($product->status)" :class="$product->status === 'active' ? 'badge-success' : 'badge-warning'" class="text-[10px] font-bold uppercase tracking-wider" />
+                                    <x-badge :value="$product->status_label" :class="$product->status === 'active' ? 'badge-success' : 'badge-warning'" class="text-[10px] font-bold uppercase tracking-wider" />
                                     <x-badge :value="$product->is_approved ? 'Approved' : 'Pending'" :class="$product->is_approved ? 'badge-info' : 'badge-warning'" class="text-[10px] font-bold uppercase tracking-wider" />
                                 </div>
                             </div>
@@ -189,7 +189,7 @@
                 <div class="p-4 space-y-3">
                     <div class="rounded-xl bg-[#f5f2ea] p-4">
                         <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Current Status</p>
-                        <p class="mt-2 text-sm font-black text-gray-900">{{ ucfirst($user->status) }}</p>
+                        <p class="mt-2 text-sm font-black text-gray-900">{{ \App\Enums\StatusState::labelFor($user->status) }}</p>
                     </div>
 
                     <div class="rounded-xl bg-[#f5f2ea] p-4">

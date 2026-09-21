@@ -71,7 +71,7 @@
             @endscope
 
             @scope('cell_status', $user)
-                <x-badge :value="ucfirst($user->status)" :class="$user->isActiveStatus() ? 'badge-success' : 'badge-error'" class="font-bold text-[10px] uppercase tracking-wider" />
+                <x-badge :value="\App\Enums\StatusState::labelFor($user->status)" :class="$user->isActiveStatus() ? 'badge-success' : 'badge-error'" class="font-bold text-[10px] uppercase tracking-wider" />
             @endscope
 
             @scope('cell_is_seller', $user)

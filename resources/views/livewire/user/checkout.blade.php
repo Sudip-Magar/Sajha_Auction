@@ -6,7 +6,7 @@
                 Checkout & Handover Details
             </h1>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Complete your order details, specify meetup place or delivery, and choose payment method
+                Confirm your meetup place and time, and pay in cash when you meet the seller
             </p>
         </div>
 
@@ -14,86 +14,51 @@
             {{-- Form Column --}}
             <div class="lg:col-span-7 space-y-6">
 
-                {{-- Handover Method Selection --}}
+                {{-- Handover Method --}}
                 <div class="rounded-3xl border border-gray-200 bg-white p-6 shadow-xs dark:border-gray-800 dark:bg-[#181A1F]">
                     <h2 class="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2 mb-4">
                         <x-icon name="o-map-pin" class="w-5 h-5 text-[#1F6F5F]" />
-                        Select Handover Method
+                        Handover Method
                     </h2>
 
-                    @if($meetupOnly)
-                        <div class="flex items-center gap-3 rounded-2xl border-2 border-[#1F6F5F] bg-emerald-50/40 p-4 dark:bg-emerald-950/20">
-                            <x-icon name="o-map-pin" class="w-7 h-7 shrink-0 text-[#1F6F5F]" />
-                            <div>
-                                <span class="block font-bold text-sm text-gray-900 dark:text-white">In-Person Meetup Only</span>
-                                <span class="text-[11px] text-gray-500">The seller listed this product for meetup only. Delivery is not available.</span>
-                            </div>
+                    <div class="flex items-center gap-3 rounded-2xl border-2 border-[#1F6F5F] bg-emerald-50/40 p-4 dark:bg-emerald-950/20">
+                        <x-icon name="o-map-pin" class="w-7 h-7 shrink-0 text-[#1F6F5F]" />
+                        <div>
+                            <span class="block font-bold text-sm text-gray-900 dark:text-white">In-Person Meetup</span>
+                            <span class="text-[11px] text-gray-500">Meet seller &amp; inspect product physically</span>
                         </div>
-                    @else
-                    <div class="grid grid-cols-2 gap-4">
-                        <label @click="$wire.set('handover_type', 'meetup')"
-                               @class([
-                                   'flex flex-col items-center justify-center p-4 rounded-2xl border-2 cursor-pointer transition-all',
-                                   'border-[#1F6F5F] bg-emerald-50/40 dark:bg-emerald-950/20' => $handover_type === 'meetup',
-                                   'border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800' => $handover_type !== 'meetup'
-                               ])>
-                            <x-icon name="o-map-pin" class="w-7 h-7 text-[#1F6F5F] mb-1" />
-                            <span class="font-bold text-sm text-gray-900 dark:text-white">In-Person Meetup</span>
-                            <span class="text-[11px] text-gray-500 text-center">Meet seller & inspect product physically</span>
-                        </label>
-
-                        <label @click="$wire.set('handover_type', 'delivery')"
-                               @class([
-                                   'flex flex-col items-center justify-center p-4 rounded-2xl border-2 cursor-pointer transition-all',
-                                   'border-[#1F6F5F] bg-emerald-50/40 dark:bg-emerald-950/20' => $handover_type === 'delivery',
-                                   'border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800' => $handover_type !== 'delivery'
-                               ])>
-                            <x-icon name="o-truck" class="w-7 h-7 text-[#1F6F5F] mb-1" />
-                            <span class="font-bold text-sm text-gray-900 dark:text-white">Delivery</span>
-                            <span class="text-[11px] text-gray-500 text-center">Home/Office courier delivery</span>
-                        </label>
                     </div>
-                    @endif
 
-                    @if($handover_type === 'meetup')
-                        <div class="mt-6 p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900 space-y-4">
-                            <h3 class="font-bold text-sm text-emerald-900 dark:text-emerald-300">
-                                Meetup Location & Schedule
-                            </h3>
+                    <div class="mt-6 p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900 space-y-4">
+                        <h3 class="font-bold text-sm text-emerald-900 dark:text-emerald-300">
+                            Meetup Location & Schedule
+                        </h3>
 
-                            <x-input label="Agreed Meetup Location *" wire:model="meetup_location" placeholder="e.g. Koteshwor Chowk / New Road Complex" icon="o-map-pin" />
+                        <x-input label="Agreed Meetup Location *" wire:model="meetup_location" placeholder="e.g. Koteshwor Chowk / New Road Complex" icon="o-map-pin" />
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label for="meetup_date_np" class="fieldset-legend mb-0.5">Preferred Meetup Date (B.S.) (Optional)</label>
-                                    <input
-                                        type="text"
-                                        id="meetup_date_np"
-                                        wire:model="meetup_date_np"
-                                        data-nepali-date="meetup-date"
-                                        class="input w-full"
-                                        placeholder="YYYY-MM-DD"
-                                        autocomplete="off"
-                                    />
-                                    <input type="hidden" wire:model="meetup_date_en" data-english-date="meetup-date">
-                                    @error('meetup_date_en') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                                </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="meetup_date_np" class="fieldset-legend mb-0.5">Preferred Meetup Date (B.S.) *</label>
+                                <input
+                                    type="text"
+                                    id="meetup_date_np"
+                                    wire:model="meetup_date_np"
+                                    data-nepali-date="meetup-date"
+                                    class="input w-full"
+                                    placeholder="YYYY-MM-DD"
+                                    autocomplete="off"
+                                />
+                                <input type="hidden" wire:model="meetup_date_en" data-english-date="meetup-date">
+                                @error('meetup_date_np') <span class="text-red-500 text-xs mt-1">{{ $message }}</span>
+                                @elseif($errors->has('meetup_date_en')) <span class="text-red-500 text-xs mt-1">{{ $errors->first('meetup_date_en') }}</span>
+                                @enderror
+                            </div>
 
-                                <div>
-                                    <x-input label="Preferred Meetup Time (Optional)" wire:model="meetup_time_of_day" type="time" icon="o-clock" />
-                                    @error('meetup_time_of_day') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                                </div>
+                            <div>
+                                <x-input label="Preferred Meetup Time *" wire:model="meetup_time_of_day" type="time" icon="o-clock" />
                             </div>
                         </div>
-                    @else
-                        <div class="mt-6 p-4 rounded-2xl bg-gray-50 border border-gray-100 dark:bg-gray-800 dark:border-gray-700 space-y-4">
-                            <h3 class="font-bold text-sm text-gray-900 dark:text-white">
-                                Delivery Address Details
-                            </h3>
-
-                            <x-textarea label="Full Shipping Address *" wire:model="shipping_address" rows="3" placeholder="House No., Street Name, City, Landmark..." />
-                        </div>
-                    @endif
+                    </div>
                 </div>
 
                 {{-- Contact & Notes --}}
@@ -115,53 +80,11 @@
                         Payment Option
                     </h2>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label @click="$wire.set('payment_method', 'cash_on_meetup')"
-                               @class([
-                                   'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all',
-                                   'border-[#1F6F5F] bg-emerald-50/50 dark:bg-emerald-950/20 font-bold' => $payment_method === 'cash_on_meetup',
-                                   'border-gray-200 dark:border-gray-800' => $payment_method !== 'cash_on_meetup'
-                               ])>
-                            <input type="radio" wire:model="payment_method" value="cash_on_meetup" class="radio radio-primary radio-sm">
-                            <span class="text-sm font-semibold">Cash on Meetup / Handover</span>
-                        </label>
-
-                        @unless($meetupOnly)
-                        <label @click="$wire.set('payment_method', 'cash_on_delivery')"
-                               @class([
-                                   'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all',
-                                   'border-[#1F6F5F] bg-emerald-50/50 dark:bg-emerald-950/20 font-bold' => $payment_method === 'cash_on_delivery',
-                                   'border-gray-200 dark:border-gray-800' => $payment_method !== 'cash_on_delivery'
-                               ])>
-                            <input type="radio" wire:model="payment_method" value="cash_on_delivery" class="radio radio-primary radio-sm">
-                            <span class="text-sm font-semibold">Cash on Delivery</span>
-                        </label>
-
-                        <label @click="$wire.set('payment_method', 'khalti')"
-                               @class([
-                                   'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all',
-                                   'border-[#1F6F5F] bg-emerald-50/50 dark:bg-emerald-950/20 font-bold' => $payment_method === 'khalti',
-                                   'border-gray-200 dark:border-gray-800' => $payment_method !== 'khalti'
-                               ])>
-                            <input type="radio" wire:model="payment_method" value="khalti" class="radio radio-primary radio-sm">
-                            <span class="text-sm font-semibold text-purple-700 dark:text-purple-400">Khalti Digital Wallet</span>
-                        </label>
-
-                        <label @click="$wire.set('payment_method', 'esewa')"
-                               @class([
-                                   'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all',
-                                   'border-[#1F6F5F] bg-emerald-50/50 dark:bg-emerald-950/20 font-bold' => $payment_method === 'esewa',
-                                   'border-gray-200 dark:border-gray-800' => $payment_method !== 'esewa'
-                               ])>
-                            <input type="radio" wire:model="payment_method" value="esewa" class="radio radio-primary radio-sm">
-                            <span class="text-sm font-semibold text-emerald-700 dark:text-emerald-400">eSewa Mobile Wallet</span>
-                        </label>
-                        @endunless
+                    <div class="flex items-center gap-3 rounded-xl border border-[#1F6F5F] bg-emerald-50/50 p-3.5 font-bold dark:bg-emerald-950/20">
+                        <x-icon name="o-check-circle" class="w-5 h-5 shrink-0 text-[#1F6F5F]" />
+                        <span class="text-sm font-semibold">Cash on Meetup / Handover</span>
                     </div>
-
-                    @if($meetupOnly)
-                        <p class="mt-3 text-[11px] text-gray-500">Meetup-only products are paid in cash when you meet the seller and inspect the item.</p>
-                    @endif
+                    <p class="mt-3 text-[11px] text-gray-500">Pay the seller in cash when you meet and inspect the item.</p>
                 </div>
             </div>
 

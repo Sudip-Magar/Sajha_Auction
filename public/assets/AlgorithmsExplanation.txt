@@ -1,0 +1,774 @@
+=====================================================================
+ALGORITHMS AND CALCULATION RULES - HOW EVERYTHING WORKS
+Sajha Auction  |  auction engine, valuation, suggestions, deposits
+=====================================================================
+
+This file explains, in simple language, EVERY calculation rule that is
+really implemented in the project. Numbers in the examples were checked
+against the real code (the proxy-bidding duel in section 6 was run on
+the real engine).
+
+Related files you can read too:
+  public/assets/minBidIncreament.txt
+        A short, friendly explanation of just the "minimum bid
+        increase" (section 3 and 4 here go deeper).
+  public/assets/algorithm/auction_algorithms.md
+        The MATHEMATICAL description (formulas + pseudocode) of
+        Algorithm 1 (winner), 2 (increment + proxy) and 3 (reserve +
+        equilibrium bid). This is what the code was based on.
+  public/assets/algorithm/auction_algorithms_1.md
+        Background reading about other auction types (sealed-bid,
+        Vickrey, Myerson, Bertsekas). Vickrey and Bertsekas are NOT
+        implemented in the website; it is theory only.
+
+TABLE OF CONTENTS
+   1.  The big picture: which algorithms exist and where they live
+   2.  Life of an auction (the states)
+   3.  Dynamic minimum step (bid increment table)
+   4.  Minimum next bid + the checks before a bid is accepted
+   5.  Placing a bid: transaction and row lock (processBid)
+   6.  Proxy (automatic) bidding and the standing price
+   7.  Anti-sniping (auto-extend the deadline)
+   8.  Outbid notification and live broadcast
+   9.  Winner determination ("Algorithm 1")
+  10.  Deposit and order creation after a win
+  11.  When and how an auction is finalized (scheduler, page, countdown)
+  12.  Effective end time and the status helper methods
+  13.  Estimated value and suggested starting price (valuation)
+  14.  Recommended reserve price (Myerson-style suggestion)
+  15.  Suggested bid for a bidder (equilibrium strategy)
+  16.  Order cancellation: refund or forfeit the deposit
+  17.  Known edge cases and honest notes about the code
+  18.  Which tests protect each algorithm
+  19.  Glossary
+
+
+=====================================================================
+1. THE BIG PICTURE: WHICH ALGORITHMS EXIST AND WHERE THEY LIVE
+=====================================================================
+  #   Algorithm / rule                        Main code location
+  --  --------------------------------------  ------------------------------
+  A1  Dynamic minimum step                    AuctionEngineService::
+                                              getStepIncrement()  and
+                                              Auction::getStepIncrement()
+  A2  Minimum next bid + bid checks           Auction::getMinNextBid(),
+                                              AuctionDetail::placeBid(),
+                                              AuctionEngineService::processBid()
+  A3  Safe bid processing (transaction+lock)  AuctionEngineService::processBid()
+  A4  Proxy bidding + standing price          AuctionEngineService::
+                                              processBid() + rankBidderMaxes()
+  A5  Anti-sniping deadline extension         AuctionEngineService::processBid()
+  A6  Outbid notice + live broadcast          processBid() (after commit)
+  A7  Winner determination ("Algorithm 1")    AuctionEngineService::
+                                              determineWinner()
+  A8  Deposit + automatic order               determineWinner()
+  A9  Finalization (who triggers it)          checkAndFinalizeIfExpired(),
+                                              routes/console.php,
+                                              AuctionDetail::finalizeIfEnded(),
+                                              the countdown script
+  A10 Estimated value + suggested start       AuctionValuationService
+  A11 Recommended reserve price               AuctionEngineService::
+                                              calculateOptimalReserve()
+  A12 Suggested bid (equilibrium)             AuctionEngineService::
+                                              calculateEquilibriumBid()
+  A13 Refund/forfeit of the deposit           OrderCancellationService
+
+Only A11 and A12 are ADVISORY (they give suggestions and change nothing
+by themselves). Everything else is enforced by the server.
+
+
+=====================================================================
+2. LIFE OF AN AUCTION (THE STATES)
+=====================================================================
+The stored status of an auction (auctions.status) can be:
+
+   pending       Created by the seller, waiting for admin approval.
+   active        Approved by the admin (Product::approveListing()).
+                 An auction can be upcoming, live, or "time is up but
+                 not settled yet" while still 'active' - these three
+                 are worked out from the clock, not stored.
+   completed     Finished with a winner.
+   ended_unsold  Finished, no bid reached the reserve price.
+
+(The code also accepts a legacy value 'ended' when checking if an
+auction is settled, but nothing in the code ever writes it.)
+
+  seller creates        admin approves             deadline passes
+  --------------> pending -----------> active ----------------------->
+                                                  |
+                       determineWinner() decides: +--> completed
+                                                  +--> ended_unsold
+
+
+=====================================================================
+3. DYNAMIC MINIMUM STEP (BID INCREMENT TABLE)     [A1]
+=====================================================================
+PURPOSE: decide how much a new bid must add on top of the current
+         price. Cheap items use small steps, expensive items big steps.
+
+INPUTS : current standing price p, and the seller's own minimum
+         increment c (auction form field "Min Bid Increment").
+
+TABLE (the price-based step):
+    p < 1,000              -> Rs. 50
+    1,000  <= p < 5,000    -> Rs. 100
+    5,000  <= p < 20,000   -> Rs. 250
+    20,000 <= p < 50,000   -> Rs. 500
+    p >= 50,000            -> Rs. 1,000
+
+FORMULA:   step = MAX( table step , c )
+           The seller can only make the step BIGGER, never smaller.
+
+WORKED EXAMPLES
+    p = 800,     c = 100   -> MAX(50, 100)     = 100
+    p = 999,     c = 30    -> MAX(50, 30)      = 50
+    p = 1,000,   c = 100   -> MAX(100, 100)    = 100
+    p = 8,000,   c = 100   -> MAX(250, 100)    = 250
+    p = 30,000,  c = 300   -> MAX(500, 300)    = 500
+    p = 320,729.22, c = 300-> MAX(1000, 300)   = 1,000
+    p = 8,000,   c = 1,000 -> MAX(250, 1000)   = 1,000
+
+EDGE CASES
+  - The table uses the price BEFORE the new bid. At p = 19,900 the step
+    is still 250 (so the next bid must be at least 20,150); only after
+    the price is 20,000 or more does the step become 500.
+  - The step follows the price during the auction, so it can go up as
+    bidding continues.
+  - The same table exists in TWO places (Auction model and the engine
+    service). They must stay identical (see section 17).
+
+CODE  : app/Services/AuctionEngineService.php  getStepIncrement()
+        app/Models/Auction.php                 getStepIncrement()
+TESTS : AuctionEngineTest ("algorithm 2: calculates dynamic step ...")
+        checks 500->50, 2500->100, 10000->250, 30000->500, 60000->1000.
+
+
+=====================================================================
+4. MINIMUM NEXT BID + THE CHECKS BEFORE A BID IS ACCEPTED    [A2]
+=====================================================================
+FORMULA:   minimum next bid = current price + step (section 3)
+           Even the FIRST bid follows this: the starting bid is the
+           current price at the beginning, so the first bid must be
+           at least  starting bid + step.
+
+CHECKS in AuctionDetail::placeBid() (in this order; the first failing
+check stops everything and shows an error toast):
+   1. You must be logged in.
+   2. Your account must have is_auction_allowed = true.
+   3. You cannot bid on your own product.
+   4. If the deadline has already passed, the auction is settled
+      first and you get "This auction has just ended."
+   5. The auction must be live (started, not ended).
+   6. Manual bid: your amount must be >= minimum next bid.
+      Proxy bid : your MAX must be >= minimum next bid; the visible
+      bid is then set to exactly the minimum next bid.
+Then AuctionEngineService::processBid() repeats the important checks on
+the server, under a lock (section 5). So the browser can never bypass
+them.
+
+HELPER BUTTONS on the bid box
+   - Quick bid buttons (setQuickBid): amount = minimum next bid + a
+     fixed extra amount.
+   - "Proxy" switch (toggleProxyMode): pre-fills your max with your
+     current max (if you already have one) or 1.1 x minimum next bid.
+   - "Apply suggested bid" (applyRecommendedBid): see section 15; only
+     applied if the suggestion is at least the minimum next bid,
+     otherwise a warning is shown.
+
+EXAMPLE: current price 4,000, seller increment 100.
+   step = MAX(100, 100) = 100 -> minimum next bid = 4,100.
+   A bid of 4,050 is rejected: "Your bid must be at least Rs. 4,100.00".
+
+
+=====================================================================
+5. PLACING A BID: TRANSACTION AND ROW LOCK (processBid)   [A3]
+=====================================================================
+PROBLEM: two people may click "Bid" in the same millisecond. Without
+protection both could read the same price and both get accepted.
+
+SOLUTION (in order, all inside ONE database transaction):
+   1. Re-check in the database that the bidder is approved for auctions.
+   2. LOCK the auction row (lockForUpdate). Anybody else who tries to
+      bid on this auction now WAITS until this bid is finished.
+   3. Check the auction is live and the bid is >= current price + step.
+   4. Save the bid, work out the new standing price (section 6),
+      maybe extend the deadline (section 7), update the auction.
+   5. COMMIT. Only after the commit are broadcasts and notifications
+      sent (section 8), so other people never see half-finished data.
+
+MANUAL vs PROXY
+   - Manual bid: you give one amount, for example 4,100. Your
+     "ceiling" is that same 4,100.
+   - Proxy bid: you give a visible bid (the minimum next bid) AND a
+     secret maximum. The website will bid FOR you, only as much as
+     needed, up to your maximum. is_proxy = true and max_proxy_amount
+     is saved. If the max equals the bid it is treated as manual.
+
+STORED FOR EVERY BID (table bids): auction_id, bidder_id, bid_amount,
+max_proxy_amount, is_proxy, ip_address, placed_at (time).
+
+
+=====================================================================
+6. PROXY (AUTOMATIC) BIDDING AND THE STANDING PRICE     [A4]
+=====================================================================
+6.1  Each bidder's "ceiling"
+     For every bidder the engine looks at all their bids and takes the
+     HIGHEST value of:  max_proxy_amount  (if it exists)  otherwise
+     bid_amount.   (function rankBidderMaxes)
+     Bidders are then ranked:
+        1) higher ceiling first
+        2) if equal ceilings: the one who registered that ceiling
+           EARLIER (earliest created_at, then smaller id)
+
+6.2  The new standing price (the price everybody sees)
+     Let m1 = leader's ceiling, m2 = runner-up's ceiling.
+       - Only ONE bidder so far:
+            price = MAX( old price, the bid, starting bid )
+       - Two or more bidders:
+            p* = MIN( m1 , m2 + step(m2) )
+            price = MAX( old price, the new bid amount, p* )
+       where step(m2) is the section 3 table applied to m2.
+     In words: the leader pays just ONE STEP above the runner-up's
+     ceiling, but never more than the leader's own ceiling.
+
+6.2b Automatic bid row
+     If the leader's best bid is a PROXY bid and the new price is
+     higher than the amount just submitted, the engine inserts an
+     extra bid row for the leader at the new price (is_proxy = true).
+     This makes the public bid history honest and keeps the final
+     settlement equal to the price people saw.
+
+6.3  FULL WORKED DUEL  (real run; start 1,000; reserve 1,200; seller
+     increment 100; all prices below 5,000 so the step is 100)
+
+   Step 1  A bids 1,100 with secret max 3,000.
+           Only one bidder -> price = MAX(1000, 1100, 1000) = 1,100.
+   Step 2  B bids 1,200 (manual).   m1 = 3,000 (A), m2 = 1,200 (B)
+           p* = MIN(3000, 1200 + 100) = 1,300
+           price = MAX(1100, 1200, 1300) = 1,300
+           A is the proxy leader and 1,300 > 1,200, so an AUTOMATIC bid
+           of 1,300 is inserted for A.        Price: 1,300, leader A.
+   Step 3  B bids 2,500.            m1 = 3,000, m2 = 2,500
+           p* = MIN(3000, 2500 + 100) = 2,600
+           price = MAX(1300, 2500, 2600) = 2,600
+           Automatic bid of 2,600 for A.      Price: 2,600, leader A.
+   Step 4  B bids 3,000.            m1 = 3,000 (A), m2 = 3,000 (B)
+           p* = MIN(3000, 3000 + 100) = 3,000
+           Price 3,000. (See the edge case below.)
+
+   Bid rows saved by the engine in this run:
+      #3 A 1,100 (max 3,000, proxy)
+      #4 B 1,200
+      #5 A 1,300 (max 3,000, proxy)  <- automatic
+      #6 B 2,500
+      #7 A 2,600 (max 3,000, proxy)  <- automatic
+      #8 B 3,000
+
+   EDGE CASE (real behaviour, please read): in step 4 both bidders have
+   the SAME ceiling (3,000). The ranking says A leads (registered
+   earlier) and no outbid notice is sent to A. But when the auction is
+   settled (section 9) the winner is chosen from the bid ROWS, and the
+   only row with 3,000 belongs to B, so B wins at 3,000. In the real
+   run the result was:
+        WINNER: B, price 3,000.
+   See section 17 for this note.
+
+6.4  A MANUAL bid pays its full amount
+     A leader with a NON-proxy bid does not get the "one step above the
+     runner-up" discount.
+     Example: A has max 3,000 (proxy); B bids 3,500 manually (step 100).
+        m1 = 3,500 (B), m2 = 3,000 (A):  p* = MIN(3500, 3100) = 3,100
+        price = MAX(3000 or current, 3500, 3100) = 3,500
+     B's own bid (3,500) is the price. A is outbid.
+
+6.5  Outbid check for "raise your own ceiling"
+     If A (the leader) raises their own max from 3,000 to 4,000 while
+     leading, the leader does not change, so A is NOT notified as
+     outbid.
+
+CODE  : AuctionEngineService::processBid(), rankBidderMaxes()
+TESTS : AuctionEngineTest - "calculates dynamic step and processes proxy
+        bidding correctly", "a bidder who becomes their own leader still
+        settles at the resolved standing price", "rejects a proxy
+        submission whose visible bid is below the minimum increment".
+
+
+=====================================================================
+7. ANTI-SNIPING (AUTO-EXTEND THE DEADLINE)     [A5]
+=====================================================================
+PROBLEM: someone bids in the very last second so nobody can answer.
+RULE   : if a bid arrives within the last  timer_reset_seconds  of the
+         CURRENT deadline, the deadline moves to
+             now + timer_reset_seconds
+         but only if that is LATER than the current deadline (a
+         deadline never becomes earlier).
+         The seller sets timer_reset_seconds (form default 15).
+         The extended time is stored in  auctions.extended_end_time.
+
+EXAMPLE (window 15 seconds, end time 20:00:00)
+   19:58:00  bid  -> 120 s left, more than 15 -> no change
+   19:59:50  bid  -> 10 s left  (<= 15) -> new deadline 20:00:05
+   20:00:01  bid  -> 4 s left   (<= 15) -> new deadline 20:00:16
+   20:00:10  bid  -> still inside the extended deadline -> extends
+                     again to 20:00:25 (only if it was within 15 s)
+
+On the page the countdown timer is re-created whenever the deadline
+changes (the timer element has a wire:key made from the effective end
+time), so everybody's clock jumps to the new deadline.
+
+CODE  : AuctionEngineService::processBid()
+TESTS : AuctionEngineTest - four "anti-sniping" tests (extends inside
+        the window, does not extend outside, never shrinks an extension,
+        an extended auction is not finalized until the extension is
+        over).
+NOTE  : The auction form also stores timer_start_seconds but the engine
+        does not use it.
+
+
+=====================================================================
+8. OUTBID NOTIFICATION AND LIVE BROADCAST     [A6]
+=====================================================================
+Before saving a new bid the engine remembers WHO was leading. After the
+transaction commits (DB::afterCommit):
+   1. Event AuctionBidPlaced is broadcast on the public channel
+      "auctions.{auction id}" (event name auction.bid.placed). Every
+      open auction page refreshes its price and bid history.
+   2. If the leader changed (previous leader exists, new leader exists,
+      and they are different people), the previous leader receives an
+      OutbidNotification (database + real-time). A failure to notify
+      is only logged; it never breaks the bid.
+
+Broadcasting and notifying AFTER the commit guarantees other people
+always read the final saved data.
+
+TESTS : AuctionEngineTest - "outbid notification: the previous leader
+        is notified ..." and "... raising your own leading proxy bid
+        does not notify yourself".
+
+
+=====================================================================
+9. WINNER DETERMINATION ("ALGORITHM 1")     [A7]
+=====================================================================
+PURPOSE : decide if the item sells, to whom, and for how much.
+INPUTS  : all bids of the auction, the reserve price r (0 if none).
+FIRST-PRICE RULE: the winner pays THEIR OWN visible bid amount, never
+                  a secret proxy ceiling.
+
+STEPS (AuctionEngineService::determineWinner)
+   0. If the auction is not 'active' any more, do nothing and just
+      report the stored result (so it can never be settled twice).
+   1. ADMISSIBLE bids = every bid with bid_amount >= reserve price.
+   2. If there are none  -> status 'ended_unsold', winner empty,
+      winning price 0, reason "No admissible bids met or exceeded the
+      reserve price of Rs. X. Item remains unsold." No order is created
+      and the product's status is NOT changed.
+   3. Otherwise the highest bid_amount among admissible bids wins.
+   4. TIE at the top: the EARLIEST submission wins (smallest created_at,
+      then smaller id).
+   5. Save: winner_id, winning_price, status 'completed',
+      settlement_reason (an explanation text shown on the page).
+   6. Mark the product 'sold' and add a timeline entry.
+   7. Create the order, notify people (section 10).
+   8. Broadcast AuctionEnded (section 11).
+
+EXAMPLE 1 - normal (reserve 10,000)
+     X 12,000 | Y 11,000 | Z 9,000
+     Z is not admissible (9,000 < 10,000). X has the highest bid.
+     -> completed, winner X, price 12,000.
+     Reason: "Highest admissible bid of Rs. 12,000.00 above reserve
+     price of Rs. 10,000.00."
+
+EXAMPLE 2 - tie (reserve 10,000)
+     X 12,000 at 10:00:00 | Y 12,000 at 10:05:00 | Z 9,000
+     X and Y tie at 12,000; X submitted first -> X wins at 12,000.
+     Reason: "... awarded via earliest-timestamp tie-breaking rule
+     among 2 tied top bidders."
+
+EXAMPLE 3 - reserve not met (reserve 5,000)
+     Highest bid is 4,800.
+     -> ended_unsold. No winner, no order, product stays 'active'.
+
+EXAMPLE 4 - no reserve (reserve blank = 0)
+     Any bid is admissible; the highest bid wins.
+
+TESTS : AuctionEngineTest "algorithm 1: determines winner correctly
+        with reserve price and earliest timestamp tie breaking";
+        AuctionSettlementTest "an auction with no admissible bid is
+        announced as unsold ...".
+
+
+=====================================================================
+10. DEPOSIT AND ORDER CREATION AFTER A WIN     [A8]
+=====================================================================
+When there is a winner, determineWinner() also:
+   - computes the DEPOSIT:
+         deposit = round( winning price x ESEWA_DEPOSIT_PERCENTAGE / 100, 2 )
+     (default 10 percent).
+        Example: winning price 500,000 -> deposit 50,000.00
+                 winning price 32,000  -> deposit  3,200.00
+   - creates an Order:
+         buyer = winner, seller = product owner, auction_id set,
+         status 'pending', total_amount = winning price,
+         deposit_amount, deposit_status 'pending',
+         payment_method 'cash_on_meetup', handover 'meetup',
+         meetup location = product's meetup location (or its location)
+   - creates one order item (quantity 1)
+   - notifies the winner (AuctionWonNotification + AuctionWonMail) and
+     the seller (NewOrderReceivedNotification). Each is wrapped so a
+     mail or notification failure is only logged.
+The deposit is paid online through eSewa; the balance is paid in cash
+at the meetup (see public/assets/ESEWA explanation file if present).
+
+TESTS : AuctionEngineTest (order + notifications asserted).
+
+
+=====================================================================
+11. WHEN AND HOW AN AUCTION IS FINALIZED     [A9]
+=====================================================================
+Settlement can be triggered from FOUR places. All of them call the same
+function, checkAndFinalizeIfExpired():
+
+   1. The SCHEDULER (routes/console.php, name 'finalize-expired-auctions')
+      runs EVERY MINUTE: it selects auctions with status 'active' whose
+      end_time is in the past and calls the function for each. It needs
+      "php artisan schedule:work" (or a cron entry) to be running.
+   2. Opening the auction page (mount and render both check).
+   3. Placing a bid (a bid on an already-ended auction is refused after
+      settling it).
+   4. The COUNTDOWN on the page: when it reaches zero it calls
+      AuctionDetail::finalizeIfEnded() so the winner appears without
+      refreshing (see 11.2).
+
+11.1 checkAndFinalizeIfExpired() - the safe version
+     A caller may hold an OUTDATED copy of the auction (a late bid may
+     have extended the deadline; another visitor may already have
+     settled it). So it does:
+        BEGIN TRANSACTION
+          reload the auction row from the database WITH A LOCK
+          if status is not 'active'                -> return false
+          if there is no deadline                  -> return false
+          if effective end time is still in future -> return false
+          determineWinner(that locked row)         -> return true
+        COMMIT
+     Result: two visitors settling at the same moment create only ONE
+     order; and an outdated copy can never settle an auction whose
+     deadline was just extended.
+     After settling, the result is announced: event AuctionEnded on
+     channel "auctions.{id}" (name auction.ended) after the commit, so
+     every open page refreshes and shows the result.
+
+11.2 The countdown script (in auction-detail.blade.php)
+     - Each second it recomputes: upcoming / live / ended, and the text
+       "23h 55m 7s".
+     - When it reaches zero it stops the timer and calls settle():
+         up to 15 tries, 2 seconds apart, calling finalizeIfEnded() on
+         the server until the server says the result is recorded.
+       (Retrying covers a browser clock that is ahead of the server.)
+     - finalizeIfEnded() calls checkAndFinalizeIfExpired(), reloads the
+       auction data and returns true only when the auction is settled.
+     - Until the result exists the page shows "Bidding has closed -
+       working out the winner" (NOT "Item unsold").
+     - The timer is destroyed and re-created when the deadline changes.
+
+TESTS : AuctionSettlementTest - "the countdown can settle an auction the
+        moment its time is up ...", "two viewers settling the same
+        auction create only one order", "a stale copy is not settled
+        after a late bid extended the deadline", "time being up is not
+        the same as being settled".
+
+
+=====================================================================
+12. EFFECTIVE END TIME AND THE STATUS HELPER METHODS
+=====================================================================
+In app/Models/Auction.php:
+   effective_end_time   = extended_end_time if it exists, otherwise
+                          end_time. EVERY "is it still open?" check uses
+                          this value, otherwise an anti-sniping
+                          extension would be ignored.
+   isLive()      status 'active' AND start_time <= now AND
+                 effective_end_time >= now
+   isUpcoming()  status 'pending', or status 'active' with a start time
+                 in the future
+   isEnded()     status is ended/completed/ended_unsold, OR the
+                 effective end time has passed
+   isSettled()   status is ended/completed/ended_unsold ONLY (the result
+                 is really recorded)
+   getStepIncrement(), getMinNextBid()  see sections 3 and 4.
+Note: isEnded() can be true while isSettled() is still false (time is
+up but nobody has settled it yet) - that is the "working out the
+winner" moment.
+
+
+=====================================================================
+13. ESTIMATED VALUE AND SUGGESTED STARTING PRICE (VALUATION)  [A10]
+=====================================================================
+PURPOSE : help the seller choose a fair starting price. It is only a
+          REFERENCE. It never forces any price, and it never changes
+          the seller's "retail (original) price".
+
+INPUTS  : original price (retail_price), purchase date, condition.
+          Anything missing -> the result is EMPTY (null); the code never
+          invents a value. A purchase date in the future is also
+          rejected.
+
+STEP 1 - age in whole months = months between purchase date and today.
+
+STEP 2 - depreciation rate by age
+      age < 6 months     -> 10 percent
+      6  to 11 months    -> 18 percent
+      12 to 23 months    -> 30 percent
+      24 to 35 months    -> 45 percent
+      36 to 47 months    -> 60 percent
+      48 to 59 months    -> 70 percent
+      60 months or more  -> 75 percent
+
+STEP 3 - condition factor
+      new, like-new          -> x 1.05
+      lightly-used, refurbished -> x 1.00
+      well-used, used        -> x 0.90
+      poor, heavily-used     -> x 0.80
+      any other value        -> x 1.00
+
+FORMULAS
+      estimated value = original price x (1 - depreciation) x factor
+      suggested starting price = estimated value x 0.80  (80 percent)
+      (both rounded to 2 decimals)
+
+WORKED EXAMPLES
+   A) Original 200,000, bought 12 months ago, lightly-used:
+        age 12 -> 30 percent; 200,000 x 0.70 = 140,000; x 1.00
+        estimated 140,000.00   suggested start 112,000.00
+   B) Original 200,000, bought 3 years ago (36 months), lightly-used:
+        age 36 -> 60 percent; 200,000 x 0.40 = 80,000; x 1.00
+        estimated 80,000.00    suggested start 64,000.00
+   C) Same item but well-used: 80,000 x 0.90 = 72,000.00
+        suggested start 57,600.00
+   D) Real screenshot: original 424,245, bought under 6 months ago,
+        like-new: 424,245 x 0.90 = 381,820.50; x 1.05 = 400,911.53
+        suggested start = 400,911.53 x 0.80 = 320,729.22
+   E) Missing purchase date or original price -> no estimate shown.
+
+WHERE USED: the seller's auction form shows "Estimated Value" and
+"Suggested Starting Price" with an Apply button (ManageProduct
+getEstimatedValueProperty / getSuggestedStartingPriceProperty /
+applySuggestedStartingPrice). The product model also exposes them as
+estimated_value / suggested_starting_price. The purchase date must be
+today or earlier (validation: before_or_equal:today).
+
+Important: real BIDS may go higher than both the original price and the
+estimated value (that is normal in an auction).
+
+CODE  : app/Services/AuctionValuationService.php
+TESTS : AuctionValuationServiceTest (30 percent, +5 percent, 60 percent,
+        10 percent brackets, poor condition, null when inputs are
+        missing, future date rejected, bids may exceed the estimate,
+        retail price is never overwritten).
+
+
+=====================================================================
+14. RECOMMENDED RESERVE PRICE (MYERSON-STYLE SUGGESTION)   [A11]
+=====================================================================
+PURPOSE : suggest a reserve price (the lowest price the seller accepts).
+          ADVISORY ONLY: the seller may ignore it or type any number.
+IDEA    : in auction theory (Myerson), a well-chosen reserve price can
+          increase the seller's expected income even though sometimes the
+          item stays unsold. The project uses a SIMPLE version of this
+          idea, not the full mathematical solution.
+
+INPUTS  : seller valuation V (the form uses the seller's RETAIL /
+          ORIGINAL price) and the starting bid S.
+
+FORMULA (calculateOptimalReserve):
+      if V <= 0 and S <= 0  -> no suggestion
+      base = MAX(V, S)        low = MIN(V, S)
+      r*   = (base + low) / 2         (the average of V and S)
+      suggested reserve = MAX(r*, S)   (never below the starting bid),
+      rounded to 2 decimals.
+
+EXAMPLES
+   V = 65,000, S = 20,000 -> average 42,500 -> MAX(42,500, 20,000)
+        = 42,500.00
+   V = 10,000, S = 15,000 -> average 12,500 -> MAX(12,500, 15,000)
+        = 15,000.00   (floor is the starting bid)
+   V empty (0), S = 20,000 -> average 10,000 -> MAX(10,000, 20,000)
+        = 20,000.00
+   Real screenshot: V = 424,245, S = 320,729.22 -> average
+        = 372,487.11 (the number shown in the form).
+   V = 0 and S = 0 -> nothing is shown.
+
+The form shows "Suggested minimum price to accept: Rs. X [Apply]".
+How the reserve is used later: section 9 (only bids at or above it can
+win; otherwise the auction ends unsold).
+
+CODE  : AuctionEngineService::calculateOptimalReserve(); form part in
+        ManageProduct::getRecommendedReserveProperty() and
+        applyRecommendedReserve().
+TESTS : AuctionEngineTest "algorithm 3: calculates optimal reserve and
+        equilibrium bidding strategy".
+
+
+=====================================================================
+15. SUGGESTED BID FOR A BIDDER (EQUILIBRIUM STRATEGY)   [A12]
+=====================================================================
+PURPOSE : on the live auction page there is a "Suggested bid guide".
+          The bidder types "what the item is worth to me" (private
+          valuation v) and the page suggests a cautious bid.
+          ADVISORY ONLY: nothing is placed automatically.
+IDEA    : in a first-price auction (winner pays their own bid) it is
+          not smart to bid your full valuation; theory says to "shade"
+          your bid. For n bidders with similar, evenly spread values the
+          equilibrium bid is beta(v) = ((n - 1) / n) x v.
+
+FORMULA (calculateEquilibriumBid):
+      n = MAX(2, number of different bidders so far)
+      suggested bid = ((n - 1) / n) x v      (rounded to 2 decimals)
+      v <= 0 -> 0 (no suggestion)
+      The page counts distinct bidders who have already bid; with 0 or
+      1 it uses n = 2.
+
+EXAMPLES  (v = 50,000)
+      n = 2 -> 1/2 x 50,000 = 25,000.00
+      n = 3 -> 2/3 x 50,000 = 33,333.33
+      n = 5 -> 4/5 x 50,000 = 40,000.00
+      n = 10 -> 9/10 x 50,000 = 45,000.00
+More competition -> the suggestion moves closer to your true value.
+
+"Apply suggested bid": if the suggestion is lower than the minimum next
+bid the page refuses to use it and shows a warning with the minimum.
+
+CODE  : AuctionEngineService::calculateEquilibriumBid(); page logic in
+        AuctionDetail::calculateEquilibriumRecommendation(),
+        updatedPrivateValuation(), applyRecommendedBid().
+TESTS : AuctionEngineTest "algorithm 3: ...".
+NOTE  : the theory assumes an idealised market; real people differ, so
+        treat it only as a hint.
+
+
+=====================================================================
+16. ORDER CANCELLATION: REFUND OR FORFEIT THE DEPOSIT    [A13]
+=====================================================================
+PURPOSE : decide what happens to an auction deposit when the order is
+          cancelled. The deposit exists to discourage a winner from
+          walking away.
+
+RULE (OrderCancellationService::cancel), only when the deposit was
+already PAID (deposit_status = 'paid'):
+      Cancelled by the SELLER                   -> refund_owed
+      Buyer cancels: "defect or not as listed"  -> refund_owed
+      Buyer cancels: "changed my mind" or other -> forfeited
+If the deposit was never paid, deposit_status is left as it is.
+"refund_owed" means the money must be returned to the buyer MANUALLY
+outside the website (no eSewa refund API is connected).
+
+Buyer reasons available: defect_mismatch, changed_mind, other.
+The cancellation also stores the reason category and an optional note,
+and adds a timeline entry.
+
+EXTRA for auction orders: when an auction-win order is cancelled and its
+product is still 'sold', the product becomes 'active' again (relisted).
+The finished auction record stays 'completed' as history; the seller can
+start a new auction.
+
+EXAMPLES
+   Deposit paid 3,200; seller cancels             -> refund_owed
+   Deposit paid 3,200; buyer: item had a defect   -> refund_owed
+   Deposit paid 3,200; buyer: changed mind        -> forfeited
+   Deposit still 'pending'; buyer cancels         -> stays 'pending'
+
+CODE  : app/Services/OrderCancellationService.php
+TESTS : OrderStatusAuthorizationTest.
+
+
+=====================================================================
+17. KNOWN EDGE CASES AND HONEST NOTES ABOUT THE CODE
+=====================================================================
+1) TIE ON THE PROXY CEILING (verified by running the code)
+   If the highest ceiling is shared by two bidders, the ranking says the
+   EARLIER one leads (and that person is not sent an outbid notice), but
+   settlement picks the highest visible bid_amount row. A later bidder
+   who typed exactly that amount as a manual bid holds the only row at
+   that amount and therefore WINS. Example in section 6.3 (B wins with
+   3,000 although A's ceiling of 3,000 was registered first).
+   This is why "which ceiling is earlier" and "who wins" can differ.
+
+2) The minimum-step table is written twice (Auction::getStepIncrement()
+   and AuctionEngineService::getStepIncrement()). They are identical
+   now; if you change one, change the other.
+
+3) "Optimal reserve" is a simplified average, not the full Myerson
+   solution. It also treats the seller's ORIGINAL price as the seller's
+   valuation, not the estimated (depreciated) value.
+
+4) timer_start_seconds is saved by the auction form but not used by the
+   engine.
+
+5) Status 'ended' is accepted by isEnded()/isSettled() but is never
+   written.
+
+6) The scheduler selects auctions using end_time (the original
+   deadline). That is safe because extended_end_time is always later
+   than end_time and checkAndFinalizeIfExpired() re-checks the real
+   effective deadline under a lock.
+
+7) An unsold auction leaves the product 'active' (it is not changed).
+
+8) The winner's price is always a visible bid amount (first-price
+   settlement); proxy ceilings are never charged directly.
+
+
+=====================================================================
+18. WHICH TESTS PROTECT EACH ALGORITHM
+=====================================================================
+Run them with:   php artisan test --compact
+Or one file:     php artisan test --compact --filter=AuctionEngineTest
+
+  tests/Feature/AuctionEngineTest.php
+      A1/A4  step table, proxy bidding, own-leader settlement,
+             rejection below the increment
+      A5     four anti-sniping tests
+      A6     two outbid-notification tests
+      A7/A8  winner with reserve + tie-break, order + notifications
+      A11/12 reserve and equilibrium bid formulas
+  tests/Feature/AuctionValuationServiceTest.php
+      A10    depreciation brackets, condition factors, null inputs,
+             future purchase date rejected, retail price untouched,
+             bids may exceed estimates
+  tests/Feature/AuctionSettlementTest.php
+      A9     countdown settles + shows winner, unsold announcement,
+             settled vs ended, single order for two viewers, stale copy
+             not settled after an extension
+  tests/Feature/OrderStatusAuthorizationTest.php
+      A13    cancellation rules
+
+
+=====================================================================
+19. GLOSSARY
+=====================================================================
+  Standing price      The current price everybody sees.
+  Step / increment    The minimum amount a new bid must add.
+  Proxy bid           A bid where you also give a secret maximum; the
+                      site raises your bid automatically for you.
+  Ceiling             A bidder's highest number (max or plain bid).
+  Reserve price       Secret minimum: only bids at or above it can win.
+  Starting bid        The price the auction starts from.
+  Admissible bid      A bid that reaches the reserve price.
+  First-price         The winner pays their own bid.
+  Anti-sniping        Moving the deadline later when a bid arrives in
+                      the last seconds.
+  Effective end time  extended_end_time if set, otherwise end_time.
+  Settle / finalize   Record the winner (or "unsold") and create the
+                      order.
+  Lock (row lock)     Makes other requests wait so two bids or two
+                      settlements cannot collide.
+  Transaction         Several database changes that succeed or fail
+                      together.
+  afterCommit         Run this only after the database transaction has
+                      been saved.
+  Broadcast / Reverb  Sending a live update to every open page.
+  Deposit             A percentage (default 10) of the winning price paid
+                      online through eSewa to secure the win.
+  Depreciation        Loss of value with age.
+  Equilibrium bid     The bid game theory says is sensible in a first-
+                      price auction.
+  Advisory            A suggestion only; the user decides.
+=====================================================================

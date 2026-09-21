@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\HandoverType;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -87,13 +90,16 @@ class Order extends Model
 
     public function getStatusLabelAttribute(): string
     {
-        return match ($this->status) {
-            'pending' => 'Pending Confirmation',
-            'confirmed' => 'Order Confirmed',
-            'meetup_scheduled' => 'Meetup Scheduled',
-            'completed' => 'Completed & Handed Over',
-            'cancelled' => 'Cancelled',
-            default => str($this->status)->title(),
-        };
+        return OrderStatus::labelFor($this->status);
+    }
+
+    public function getHandoverLabelAttribute(): string
+    {
+        return HandoverType::labelFor($this->handover_type);
+    }
+
+    public function getPaymentMethodLabelAttribute(): string
+    {
+        return PaymentMethod::labelFor($this->payment_method);
     }
 }

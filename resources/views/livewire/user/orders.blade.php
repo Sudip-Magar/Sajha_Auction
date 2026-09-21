@@ -132,21 +132,28 @@
                             <div>
                                 <p class="font-bold text-emerald-950 dark:text-emerald-300 flex items-center gap-1.5">
                                     <x-icon name="o-map-pin" class="w-4 h-4 text-emerald-600" />
-                                    Handover Mode: {{ strtoupper($order->handover_type) }}
+                                    Handover: {{ $order->handover_label }}
                                 </p>
 
                                 @if($order->handover_type === 'meetup')
                                     <p class="mt-1 text-emerald-800 dark:text-emerald-400">
                                         <span class="font-semibold">Meetup Location:</span> {{ $order->meetup_location ?: 'To be agreed between buyer and seller' }}
                                     </p>
-                                    @if($order->meetup_time)
-                                        <p class="text-emerald-800 dark:text-emerald-400">
-                                            <span class="font-semibold">Scheduled Time:</span> {{ $order->meetup_time->format('M d, Y @ h:i A') }}
+                                    <p class="text-emerald-800 dark:text-emerald-400">
+                                        <span class="font-semibold">Meetup Date:</span>
+                                        @if($order->meetup_time)
+                                            {{ $order->meetup_time->format('M d, Y') }}
                                             @if($order->meetup_time_np)
-                                                ({{ $order->meetup_time_np }} B.S.)
+                                                ({{ str($order->meetup_time_np)->before(' ') }} B.S.)
                                             @endif
-                                        </p>
-                                    @endif
+                                        @else
+                                            Not scheduled yet
+                                        @endif
+                                    </p>
+                                    <p class="text-emerald-800 dark:text-emerald-400">
+                                        <span class="font-semibold">Meetup Time:</span>
+                                        {{ $order->meetup_time ? $order->meetup_time->format('h:i A') : 'Not scheduled yet' }}
+                                    </p>
                                 @else
                                     <p class="mt-1 text-emerald-800 dark:text-emerald-400">
                                         <span class="font-semibold">Shipping Address:</span> {{ $order->shipping_address }}
@@ -156,7 +163,7 @@
 
                             <div>
                                 <p class="font-bold text-emerald-950 dark:text-emerald-300">
-                                    Payment: {{ str($order->payment_method)->replace('_', ' ')->title() }} ({{ str($order->payment_status)->title() }})
+                                    Payment: {{ $order->payment_method_label }} ({{ str($order->payment_status)->title() }})
                                 </p>
                                 <p class="mt-1 font-black text-sm text-emerald-950 dark:text-emerald-200">
                                     Total: Rs {{ number_format($order->total_amount) }}

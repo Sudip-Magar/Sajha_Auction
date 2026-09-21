@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\AuctionBidPlaced;
+use App\Events\AuctionEnded;
 use App\Mail\AuctionWonMail;
 use App\Models\Auction;
 use App\Models\Bid;
@@ -266,6 +267,8 @@ class AuctionEngineService
                 'settlement_reason' => $reason,
             ]);
 
+            static::announceEnded($auction);
+
             return [
                 'has_winner' => false,
                 'winner_id' => null,
@@ -362,6 +365,8 @@ class AuctionEngineService
             }
         }
 
+        static::announceEnded($auction);
+
         return [
             'has_winner' => true,
             'winner' => $winningBid->bidder,
@@ -377,13 +382,43 @@ class AuctionEngineService
      */
     public static function checkAndFinalizeIfExpired(Auction $auction): bool
     {
-        if ($auction->status === 'active' && $auction->effective_end_time && $auction->effective_end_time <= now()) {
-            static::determineWinner($auction);
+        // The caller's copy may be stale (a late bid can extend the deadline, or
+        // another viewer may already have settled the auction), so the decision
+        // is made on the locked, current database row.
+        $settled = DB::transaction(function () use ($auction): bool {
+            $current = Auction::query()->whereKey($auction->id)->lockForUpdate()->first();
+
+            if (! $current || $current->status !== 'active' || ! $current->effective_end_time || $current->effective_end_time > now()) {
+                return false;
+            }
+
+            static::determineWinner($current);
 
             return true;
+        });
+
+        if ($settled) {
+            $auction->refresh();
         }
 
-        return false;
+        return $settled;
+    }
+
+    /**
+     * Tell every open auction page (Reverb channel auctions.{id}) that the result is in.
+     */
+    private static function announceEnded(Auction $auction): void
+    {
+        DB::afterCommit(function () use ($auction): void {
+            try {
+                event(new AuctionEnded($auction->fresh()));
+            } catch (\Throwable $exception) {
+                Log::warning('Auction ended broadcast could not be delivered.', [
+                    'auction_id' => $auction->id,
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
+        });
     }
 
     /**
