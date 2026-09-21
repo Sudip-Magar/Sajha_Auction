@@ -12,7 +12,7 @@ class DepositPaidNotification extends Notification implements ShouldBroadcastNow
 {
     use Queueable;
 
-    public function __construct(protected Order $order) {}
+    public function __construct(protected Order $order, protected ?float $amount = null) {}
 
     /**
      * @return array<int, string>
@@ -25,7 +25,9 @@ class DepositPaidNotification extends Notification implements ShouldBroadcastNow
     public function toDatabase(object $notifiable): array
     {
         return [
-            'message' => "Deposit of Rs. {$this->order->deposit_amount} paid via eSewa for order #{$this->order->order_number}.",
+            'message' => 'Rs. '.number_format($this->amount ?? (float) $this->order->deposit_amount, 2)." paid via eSewa for order #{$this->order->order_number}.".($this->order->remainingAmount() > 0
+                ? ' Cash due at handover: Rs. '.number_format($this->order->remainingAmount(), 2).'.'
+                : ' Paid in full; no cash is due at handover.'),
             'order_id' => $this->order->id,
             'type' => 'deposit_paid',
         ];

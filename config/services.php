@@ -61,6 +61,9 @@ return [
         'form_url' => env('ESEWA_FORM_URL', 'https://rc-epay.esewa.com.np/api/epay/main/v2/form'),
         'status_url' => env('ESEWA_STATUS_URL', 'https://rc.esewa.com.np/api/epay/transaction/status/'),
         'deposit_percentage' => (float) env('ESEWA_DEPOSIT_PERCENTAGE', 10),
+        'forfeit_seller_share_percentage' => (float) env('ESEWA_FORFEIT_SELLER_SHARE', 20),
+        'seller_penalty_percentage' => (float) env('ESEWA_SELLER_PENALTY_PERCENTAGE', 50),
+        'debt_overdue_days' => (int) env('SELLER_DEBT_OVERDUE_DAYS', 30),
     ],
 
 ];

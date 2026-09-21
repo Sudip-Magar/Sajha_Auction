@@ -292,9 +292,28 @@ class AuctionEngineService
         ])->first();
         $isTie = $tiedTopBids->count() > 1;
 
-        $reason = $isTie
+        // Proxy leader check: the bidder shown as leader while bidding (highest
+        // ceiling, earliest registered) must also be the one who wins. With equal
+        // ceilings the other bidder's visible bid can carry the same amount as
+        // the leader's ceiling, so the row-based rule above alone could pick the
+        // wrong person. The price paid stays the top visible amount.
+        $leader = static::rankBidderMaxes(
+            $auction->bids()->reorder()->orderBy('created_at')->orderBy('id')->get()
+        )[0] ?? null;
+
+        $leaderOverrides = $leader !== null
+            && $leader['bidder_id'] !== $winningBid->bidder_id
+            && $leader['max'] >= $maxBidAmount;
+
+        if ($leaderOverrides) {
+            $winningBid = $leader['bid'];
+        }
+
+        $reason = $leaderOverrides
+            ? 'Winning bid of Rs. '.number_format($maxBidAmount, 2).' awarded to the bidder whose automatic bidding limit was registered first (equal limits are decided by who registered theirs earlier).'
+            : ($isTie
             ? 'Winning bid of Rs. '.number_format($maxBidAmount, 2).' awarded via earliest-timestamp tie-breaking rule among '.$tiedTopBids->count().' tied top bidders.'
-            : 'Highest admissible bid of Rs. '.number_format($maxBidAmount, 2).' above reserve price of Rs. '.number_format($reservePrice, 2).'.';
+            : 'Highest admissible bid of Rs. '.number_format($maxBidAmount, 2).' above reserve price of Rs. '.number_format($reservePrice, 2).'.');
 
         $auction->update([
             'winner_id' => $winningBid->bidder_id,

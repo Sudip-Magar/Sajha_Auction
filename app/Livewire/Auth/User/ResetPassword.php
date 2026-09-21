@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
@@ -104,6 +105,16 @@ class ResetPassword extends Component
             return;
         }
 
+        $attemptsKey = 'password-reset:'.session()->getId();
+
+        if (RateLimiter::tooManyAttempts($attemptsKey, 5)) {
+            session()->forget('password_reset');
+            $this->error('Too many incorrect attempts. Please request a new code.', position: 'toast-bottom');
+            $this->redirect(route('password.forgot'), navigate: true);
+
+            return;
+        }
+
         if (now()->isAfter($state['otp_expires_at'])) {
             $this->error('This code has expired. Please request a new one.', position: 'toast-bottom');
 
@@ -111,6 +122,7 @@ class ResetPassword extends Component
         }
 
         if (! Hash::check($this->otp, $state['otp_code'])) {
+            RateLimiter::hit($attemptsKey, 600);
             $this->error('Incorrect code. Please try again.', position: 'toast-bottom');
 
             return;
@@ -124,6 +136,8 @@ class ResetPassword extends Component
 
             return;
         }
+
+        RateLimiter::clear($attemptsKey);
 
         $user->update(['password' => $this->password]);
 

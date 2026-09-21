@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\PaymentTransaction;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -16,18 +17,48 @@ use Illuminate\Support\Str;
 class EsewaPaymentService
 {
     /**
-     * Build the signed form fields eSewa's payment page expects, and persist
-     * a fresh transaction_uuid on the order so the callback can be matched
-     * back to it.
+     * Validate a buyer-chosen online payment. The first payments must reach
+     * the minimum deposit (the configured percentage of the winning bid); the
+     * maximum is always what is still owed on the order.
+     *
+     * @return array{min: float, max: float}
+     */
+    public function allowedRange(Order $order): array
+    {
+        $max = $order->remainingAmount();
+        $stillToReachMinimum = round($order->minimumDeposit() - $order->paidOnline(), 2);
+
+        return [
+            'min' => min($max, $stillToReachMinimum > 0 ? $stillToReachMinimum : 1.0),
+            'max' => $max,
+        ];
+    }
+
+    /**
+     * Build the signed form fields eSewa's payment page expects. Each click
+     * logs its own pending transaction (keyed by a fresh transaction_uuid) so
+     * the callback can be matched back to exactly this payment.
      *
      * @return array<string, string>
      */
-    public function buildPaymentForm(Order $order): array
+    public function buildPaymentForm(Order $order, ?float $chosenAmount = null): array
     {
         $transactionUuid = (string) Str::uuid();
         $order->update(['deposit_transaction_uuid' => $transactionUuid]);
 
-        $amount = number_format((float) $order->deposit_amount, 2, '.', '');
+        $chosenAmount ??= $this->allowedRange($order)['min'];
+
+        PaymentTransaction::create([
+            'order_id' => $order->id,
+            'type' => PaymentTransaction::TYPE_DEPOSIT_PAID,
+            'amount' => $chosenAmount,
+            'payment_method' => 'esewa',
+            'status' => 'pending',
+            'reference' => $transactionUuid,
+            'party' => 'admin',
+        ]);
+
+        $amount = number_format($chosenAmount, 2, '.', '');
 
         $fields = [
             'amount' => $amount,
@@ -85,12 +116,12 @@ class EsewaPaymentService
      * Independent server-to-server confirmation, per eSewa's recommended
      * flow, rather than trusting the browser-redirected callback alone.
      */
-    public function checkStatus(Order $order): ?string
+    public function checkStatus(string $transactionUuid, float $amount): ?string
     {
         $response = Http::get(config('services.esewa.status_url'), [
             'product_code' => config('services.esewa.product_code'),
-            'total_amount' => number_format((float) $order->deposit_amount, 2, '.', ''),
-            'transaction_uuid' => $order->deposit_transaction_uuid,
+            'total_amount' => number_format($amount, 2, '.', ''),
+            'transaction_uuid' => $transactionUuid,
         ]);
 
         if (! $response->ok()) {

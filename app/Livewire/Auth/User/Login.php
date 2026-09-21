@@ -5,6 +5,7 @@ namespace App\Livewire\Auth\User;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -17,6 +18,7 @@ class Login extends Component
     public $email = '';
 
     public string $password = '';
+
     public bool $rememberMe = false;
 
     public function mount()
@@ -37,9 +39,18 @@ class Login extends Component
             'password' => 'required',
         ]);
 
+        $throttleKey = 'user-login:'.strtolower($this->email).'|'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $this->error('Too many sign-in attempts. Please try again in '.RateLimiter::availableIn($throttleKey).' seconds.', position: 'toast-bottom');
+
+            return;
+        }
+
         $user = User::where('email', $this->email)->first();
 
         if (! $user || ! Hash::check($this->password, $user->password)) {
+            RateLimiter::hit($throttleKey, 60);
             $this->error('Invalid credentials. Please check your email and password.', position: 'toast-bottom');
 
             return;
@@ -51,7 +62,9 @@ class Login extends Component
             return;
         }
 
-        Auth::login($user,  remember: (bool)$this->rememberMe);
+        RateLimiter::clear($throttleKey);
+
+        Auth::login($user, remember: (bool) $this->rememberMe);
 
         session([
             'google_user' => [

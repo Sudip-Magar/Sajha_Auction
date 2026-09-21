@@ -6,6 +6,7 @@ use App\Mail\OtpMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
@@ -71,6 +72,8 @@ class VerifyOtp extends Component
             return;
         }
 
+        RateLimiter::clear('otp-verify:'.session()->getId());
+
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         session([
@@ -93,6 +96,15 @@ class VerifyOtp extends Component
     {
         $this->validate(['otp' => 'required|digits:6']);
 
+        $attemptsKey = 'otp-verify:'.session()->getId();
+
+        if (RateLimiter::tooManyAttempts($attemptsKey, 5)) {
+            session()->forget(['otp_code', 'otp_expires_at']);
+            $this->setError('Too many incorrect attempts. Please request a new code.');
+
+            return;
+        }
+
         $storedOtp = session('otp_code');
         $expiry = session('otp_expires_at');
         $googleUser = session('google_user');
@@ -110,11 +122,13 @@ class VerifyOtp extends Component
         }
 
         if (! \Hash::check($this->otp, $storedOtp)) {
+            RateLimiter::hit($attemptsKey, 600);
             $this->setError('Incorrect OTP. Please try again.');
 
             return;
         }
 
+        RateLimiter::clear($attemptsKey);
         session(['otp_verified' => true]);
         session()->forget(['otp_code', 'otp_expires_at']);
 

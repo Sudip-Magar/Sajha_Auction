@@ -145,3 +145,31 @@ test('a stale copy is not settled after a late bid extended the deadline', funct
     expect(AuctionEngineService::checkAndFinalizeIfExpired($stale))->toBeFalse()
         ->and($auction->fresh()->status)->toBe('active');
 });
+
+test('when two bidders have the same proxy ceiling the one who registered it first wins, matching the live leader', function () {
+    Mail::fake();
+    Notification::fake();
+
+    $auction = makeLiveAuction(3600, reserve: 1000);
+    $auction->update(['current_price' => 2000]);
+    $auction->traditionalAuction->update(['starting_bid' => 2000, 'min_bid_increment' => 100]);
+
+    $early = User::factory()->create(['name' => 'Early Eli', 'is_auction_allowed' => true]);
+    $late = User::factory()->create(['name' => 'Late Lata', 'is_auction_allowed' => true]);
+
+    // Eli sets a secret ceiling of 3,000 first; Lata later bids exactly 3,000 openly.
+    AuctionEngineService::processBid($auction->fresh(), $early, 2100, 3000);
+    AuctionEngineService::processBid($auction->fresh(), $late, 3000);
+
+    $live = $auction->fresh();
+    expect((float) $live->current_price)->toBe(3000.0);
+
+    $this->travel(2)->hours();
+
+    $result = AuctionEngineService::determineWinner($auction->fresh());
+
+    // Eli's ceiling was registered first, so he is the leader Lata sees live and he must win.
+    expect($result['winner_id'])->toBe($early->id)
+        ->and($result['winning_price'])->toBe(3000.0)
+        ->and(Order::first()->buyer_id)->toBe($early->id);
+});

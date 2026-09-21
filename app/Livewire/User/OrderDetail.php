@@ -4,6 +4,7 @@ namespace App\Livewire\User;
 
 use App\Models\Order;
 use App\Services\OrderCancellationService;
+use App\Services\OrderPaymentService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -19,7 +20,7 @@ class OrderDetail extends Component
 
     public bool $showCancelForm = false;
 
-    public string $cancelReasonCategory = 'defect_mismatch';
+    public string $cancelReasonCategory = 'changed_mind';
 
     public string $cancelNote = '';
 
@@ -80,6 +81,18 @@ class OrderDetail extends Component
             return;
         }
 
+        if ($isBuyer && ! array_key_exists($this->cancelReasonCategory, OrderCancellationService::BUYER_REASONS)) {
+            $this->error('Please choose a reason for cancelling.');
+
+            return;
+        }
+
+        if (in_array($this->order->status, ['cancelled', 'completed'], true)) {
+            $this->error('This order can no longer be cancelled.');
+
+            return;
+        }
+
         OrderCancellationService::cancel(
             $this->order,
             $user,
@@ -118,28 +131,17 @@ class OrderDetail extends Component
             return;
         }
 
-        $oldStatus = $this->order->status;
-        $this->order->update(['status' => $status]);
+        if (in_array($this->order->status, ['cancelled', 'completed'], true)) {
+            $this->error('This order can no longer be changed.');
+
+            return;
+        }
 
         if ($status === 'completed') {
-            $this->order->update(['payment_status' => 'paid']);
-
-            foreach ($this->order->items as $item) {
-                if ($item->product) {
-                    $item->product->decrement('quantity', min($item->quantity, $item->product->quantity));
-                    if ($item->product->quantity <= 0) {
-                        $item->product->update(['status' => 'sold']);
-                    }
-
-                    $item->product->logTimeline(
-                        'completed',
-                        "Product Handed Over & Sold (#{$this->order->order_number})",
-                        "Order successfully completed by buyer {$this->order->buyer?->name} and seller {$this->order->seller?->name}.",
-                        $user
-                    );
-                }
-            }
+            OrderPaymentService::complete($this->order, $user);
         } elseif ($status === 'confirmed') {
+            $this->order->update(['status' => 'confirmed']);
+
             foreach ($this->order->items as $item) {
                 $item->product?->logTimeline(
                     'meetup_scheduled',
