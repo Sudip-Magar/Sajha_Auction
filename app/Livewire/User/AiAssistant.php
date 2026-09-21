@@ -23,6 +23,9 @@ class AiAssistant extends Component
 
     private const MESSAGES_PER_MINUTE = 10;
 
+    // How long to wait for a queue worker before the chat generates the reply itself.
+    private const STALL_SECONDS = 6;
+
     #[Locked]
     public string $mode = 'page';
 
@@ -66,16 +69,107 @@ class AiAssistant extends Component
 
         RateLimiter::hit($rateKey, 60);
 
-        $userMessage = AiChatMessage::create([
+        AiChatMessage::create([
             'user_id' => Auth::id(),
             'session_id' => Auth::check() ? null : session()->getId(),
             'role' => 'user',
             'body' => trim($this->message),
         ]);
 
+        // The page now shows the question and the typing dots; the browser then
+        // immediately asks for the answer through answerPending() (wire:init).
         $this->message = '';
 
-        GenerateAiAssistantReply::dispatch($userMessage->id);
+        $this->dispatch('ai-chat-updated');
+    }
+
+    /**
+     * The drawer loads the conversation the first time it is opened.
+     */
+    public function updatedOpened(): void
+    {
+        $this->dispatch('ai-chat-updated');
+    }
+
+    /**
+     * Produce the reply for the newest unanswered question right away, in its own
+     * request. Called by the browser the moment the typing indicator appears, so
+     * there is no queue delay and no fixed waiting time before the answer starts.
+     */
+    public function answerPending(): void
+    {
+        $last = $this->ownerQuery()->latest('id')->first();
+
+        if ($last?->role === 'user') {
+            $this->answerNow($last->id);
+        }
+
+        $this->dispatch('ai-chat-updated');
+    }
+
+    /**
+     * Safety net, polled while a reply is pending. Normally answerPending() has
+     * already produced the reply; if it did not (for example the browser was
+     * closed and reopened), generate it here. The job is locked and idempotent,
+     * so it can never answer twice.
+     */
+    public function checkReply(): void
+    {
+        $last = $this->ownerQuery()->latest('id')->first();
+
+        if ($last?->role !== 'user' || $last->created_at->gt(now()->subSeconds(self::STALL_SECONDS))) {
+            return;
+        }
+
+        $this->answerNow($last->id);
+
+        $this->dispatch('ai-chat-updated');
+    }
+
+    /**
+     * "Try again" after the assistant took too long: answer the last question now.
+     */
+    public function retryReply(): void
+    {
+        $last = $this->ownerQuery()->latest('id')->first();
+
+        // After a failed answer, drop the error and answer the question again.
+        if ($last?->role === 'assistant' && $last->is_error) {
+            $question = $this->ownerQuery()->where('role', 'user')->where('id', '<', $last->id)->latest('id')->first();
+
+            if (! $question) {
+                return;
+            }
+
+            $last->delete();
+            $last = $question;
+        }
+
+        if ($last?->role !== 'user') {
+            return;
+        }
+
+        $rateKey = 'ai-assistant:'.(Auth::id() ?? session()->getId()).':'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($rateKey, self::MESSAGES_PER_MINUTE)) {
+            $this->addError('message', 'You are sending messages too quickly. Please wait a moment and try again.');
+
+            return;
+        }
+
+        RateLimiter::hit($rateKey, 60);
+
+        $this->answerNow($last->id);
+
+        $this->dispatch('ai-chat-updated');
+    }
+
+    /**
+     * Run the reply job right here in this request, without going through the queue.
+     */
+    private function answerNow(int $messageId): void
+    {
+        app()->call([new GenerateAiAssistantReply($messageId), 'handle']);
     }
 
     private function ownerQuery()

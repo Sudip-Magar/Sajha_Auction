@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\ProductCondition;
 use App\Enums\ProductNegotiability;
 use App\Models\Category;
 use App\Models\Product;
@@ -41,11 +42,9 @@ class SearchProduct extends Component
      */
     public function conditions(): array
     {
-        return [
-            'new' => 'New',
-            'like-new' => 'Like New',
-            'used' => 'Used',
-        ];
+        return collect(ProductCondition::cases())
+            ->mapWithKeys(fn (ProductCondition $condition): array => [$condition->value => $condition->label()])
+            ->all();
     }
 
     public function updatedSearch(): void

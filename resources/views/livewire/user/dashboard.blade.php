@@ -50,7 +50,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <x-badge :value="$product->is_approved ? 'Approved' : 'Pending'" :class="$product->is_approved ? 'badge-success' : 'badge-warning'" />
-                            <x-badge :value="ucfirst($product->status)" class="badge-ghost" />
+                            <x-badge :value="$product->status_label" class="badge-ghost" />
                         </div>
                     </div>
                 @endforeach

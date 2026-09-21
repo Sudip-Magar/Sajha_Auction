@@ -4,8 +4,8 @@ namespace App\Enums;
 
 enum DocumentImageType: string
 {
-    case CITIZENSHIPFRONT = 'citizenship Front';
-    case CITIZENSHIPBACK = 'citizenship Back';
+    case CITIZENSHIPFRONT = 'citizenship_front';
+    case CITIZENSHIPBACK = 'citizenship_back';
     case PASSPORT = 'passport';
     case DRIVING_LICENSE = 'driving_license';
     case NATIONAL_ID = 'national_id';

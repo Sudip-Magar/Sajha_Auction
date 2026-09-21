@@ -10,7 +10,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -21,9 +20,11 @@ class Checkout extends Component
 {
     use Toast;
 
-    public ?int $directProductId = null;
+    private const HANDOVER_TYPE = 'meetup';
 
-    public string $handover_type = 'meetup';
+    private const PAYMENT_METHOD = 'cash_on_meetup';
+
+    public ?int $directProductId = null;
 
     public string $meetup_location = '';
 
@@ -32,10 +33,6 @@ class Checkout extends Component
     public string $meetup_date_en = '';
 
     public string $meetup_time_of_day = '';
-
-    public string $shipping_address = '';
-
-    public string $payment_method = 'cash_on_meetup';
 
     public string $buyer_phone = '';
 
@@ -74,19 +71,6 @@ class Checkout extends Component
         }
     }
 
-    /**
-     * A checkout is meetup-only when any product in it was listed without delivery.
-     */
-    #[Computed]
-    public function meetupOnly(): bool
-    {
-        $products = $this->directProductId
-            ? Product::whereKey($this->directProductId)->get()
-            : (Auth::user()?->cartItems()->with('product')->get()->pluck('product')->filter() ?? collect());
-
-        return $products->contains(fn (Product $product) => ! $product->delivery_available);
-    }
-
     public function placeOrder(): void
     {
         $user = Auth::user();
@@ -94,35 +78,20 @@ class Checkout extends Component
             return;
         }
 
-        if ($this->meetupOnly && ($this->handover_type !== 'meetup' || $this->payment_method !== 'cash_on_meetup')) {
-            $this->error('This product is meetup-only. It can only be bought via in-person meetup with cash on handover.');
-
-            return;
-        }
-
-        $rules = [
-            'handover_type' => 'required|in:meetup,delivery',
-            'payment_method' => 'required|in:cash_on_meetup,cash_on_delivery,khalti,esewa,wallet',
+        $this->validate([
             'buyer_phone' => 'required|string|max:20',
             'notes' => 'nullable|string',
-        ];
-
-        if ($this->handover_type === 'meetup') {
-            $rules['meetup_location'] = 'required|string|max:255';
-            $rules['meetup_date_en'] = 'nullable|required_with:meetup_time_of_day|date|after_or_equal:today';
-            $rules['meetup_date_np'] = 'nullable|string|max:20';
-            $rules['meetup_time_of_day'] = 'nullable|required_with:meetup_date_en|date_format:H:i';
-        } else {
-            $rules['shipping_address'] = 'required|string|max:500';
-        }
-
-        $this->validate($rules, [
-            'meetup_date_en.required_with' => 'Please pick a meetup date along with the time.',
+            'meetup_location' => 'required|string|max:255',
+            'meetup_date_np' => 'required|string|max:20',
+            'meetup_date_en' => 'required|date|after_or_equal:today',
+            'meetup_time_of_day' => 'required|date_format:H:i',
+        ], [
+            'meetup_date_np.required' => 'Please pick a meetup date.',
+            'meetup_date_en.required' => 'Please pick a valid meetup date.',
             'meetup_date_en.after_or_equal' => 'The meetup date cannot be in the past.',
-            'meetup_time_of_day.required_with' => 'Please pick a meetup time along with the date.',
+            'meetup_time_of_day.required' => 'Please pick a meetup time.',
+            'meetup_time_of_day.date_format' => 'Please pick a valid meetup time.',
         ]);
-
-        $hasMeetupSchedule = $this->handover_type === 'meetup' && $this->meetup_date_en && $this->meetup_time_of_day;
 
         // Fetch checkout items
         if ($this->directProductId) {
@@ -163,7 +132,7 @@ class Checkout extends Component
         try {
             $createdOrders = [];
 
-            DB::transaction(function () use ($user, $checkoutGroups, $hasMeetupSchedule, &$createdOrders): void {
+            DB::transaction(function () use ($user, $checkoutGroups, &$createdOrders): void {
                 foreach ($checkoutGroups as $group) {
                     $sellerId = $group['seller_id'];
                     $itemsData = $group['items'];
@@ -177,13 +146,12 @@ class Checkout extends Component
                         'seller_id' => $sellerId,
                         'status' => 'pending',
                         'total_amount' => $totalAmount,
-                        'payment_method' => $this->payment_method,
+                        'payment_method' => self::PAYMENT_METHOD,
                         'payment_status' => 'pending',
-                        'handover_type' => $this->handover_type,
-                        'meetup_location' => $this->handover_type === 'meetup' ? $this->meetup_location : null,
-                        'meetup_time' => $hasMeetupSchedule ? Carbon::parse("{$this->meetup_date_en} {$this->meetup_time_of_day}") : null,
-                        'meetup_time_np' => $hasMeetupSchedule && $this->meetup_date_np ? "{$this->meetup_date_np} {$this->meetup_time_of_day}" : null,
-                        'shipping_address' => $this->handover_type === 'delivery' ? $this->shipping_address : null,
+                        'handover_type' => self::HANDOVER_TYPE,
+                        'meetup_location' => $this->meetup_location,
+                        'meetup_time' => Carbon::parse("{$this->meetup_date_en} {$this->meetup_time_of_day}"),
+                        'meetup_time_np' => "{$this->meetup_date_np} {$this->meetup_time_of_day}",
                         'buyer_phone' => $this->buyer_phone,
                         'notes' => $this->notes,
                     ]);
@@ -205,7 +173,7 @@ class Checkout extends Component
                         $product->logTimeline(
                             'ordered',
                             "Order Placed (#{$order->order_number})",
-                            "Order for {$qty} unit(s) placed by buyer {$user->name}. Handover mode: ".strtoupper($this->handover_type).'.',
+                            "Order for {$qty} unit(s) placed by buyer {$user->name}. Handover: in-person meetup, cash on handover.",
                             $user
                         );
 
@@ -227,7 +195,6 @@ class Checkout extends Component
                 }
             }
 
-            $this->dispatch('cartUpdated');
             $this->success('Order placed successfully! The seller has been notified.');
             $this->redirect(route('user.orders'), navigate: true);
 
@@ -264,7 +231,6 @@ class Checkout extends Component
         $totalAmount = $items->sum('subtotal');
 
         return view('livewire.user.checkout', [
-            'meetupOnly' => $this->meetupOnly,
             'checkoutItems' => $items,
             'totalAmount' => $totalAmount,
         ]);

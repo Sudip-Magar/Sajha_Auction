@@ -1,0 +1,187 @@
+=====================================================================
+MINIMUM BID INCREASE - HOW IT WORKS IN SAJHA AUCTION
+=====================================================================
+
+1. WHAT IS IT?
+---------------------------------------------------------------------
+On the live auction page you see a box like this:
+
+    MINIMUM BID INCREASE
+    + Rs. 1,000.00
+
+It answers one question:
+
+    "How much MORE than the current price must my next bid be?"
+
+Example:
+    Current standing price : Rs. 320,729.22
+    Minimum bid increase   : Rs. 1,000.00
+    -------------------------------------------------
+    Lowest bid you may place = 320,729.22 + 1,000.00 = Rs. 321,729.22
+
+If you try to bid less than that, the site rejects the bid with the
+message "Your bid must be at least Rs. ...".
+
+
+2. IS IT ALWAYS 1,000?
+---------------------------------------------------------------------
+NO. It is calculated. It only shows 1,000 when the price is high.
+
+The number is NOT typed in by anyone for each bid. The site works it
+out automatically from two things:
+
+    (A) A price-based step   (built into the site, same for everyone)
+    (B) The seller's own minimum increment (the seller types this when
+        listing the auction; the default in the form is Rs. 100)
+
+The final number is the BIGGER of the two:
+
+    minimum bid increase = the larger of (A) and (B)
+
+
+3. PART (A): THE PRICE-BASED STEP
+---------------------------------------------------------------------
+The site looks at the CURRENT STANDING PRICE and picks a step from this
+table:
+
+    +----------------------------------+-------------------+
+    | Current standing price           | Price-based step  |
+    +----------------------------------+-------------------+
+    | less than Rs. 1,000              | Rs. 50            |
+    | Rs. 1,000  to  Rs. 4,999         | Rs. 100           |
+    | Rs. 5,000  to  Rs. 19,999        | Rs. 250           |
+    | Rs. 20,000 to  Rs. 49,999        | Rs. 500           |
+    | Rs. 50,000 or more               | Rs. 1,000         |
+    +----------------------------------+-------------------+
+
+Why does the site do this?
+    - A cheap item (Rs. 800) should not need a Rs. 1,000 jump.
+    - An expensive item (Rs. 300,000) should not be won by people
+      bidding Rs. 10 higher each time. Auctions would drag on forever.
+    So the step grows as the price grows.
+
+So, 1,000 is simply the LARGEST step in the table. Any auction whose
+price is Rs. 50,000 or more gets it.
+
+
+4. PART (B): THE SELLER'S MINIMUM INCREMENT
+---------------------------------------------------------------------
+When a seller creates an auction, there is a field:
+
+    "Min Bid Increment (Rs.)"
+
+The seller can type any amount there. The site then compares it with
+the price-based step and keeps the LARGER one.
+
+IMPORTANT: the seller can only make the step BIGGER. The seller can
+never make it smaller than the table above.
+
+
+5. THE RULE, WITH EXAMPLES
+---------------------------------------------------------------------
+
+    minimum bid increase = MAX( price-based step , seller's increment )
+
+    Example 1
+        Current price      : Rs. 8,000
+        Price-based step   : Rs. 250       (price is in 5,000-19,999)
+        Seller's increment : Rs. 100
+        Result             : MAX(250, 100)   = Rs. 250
+
+    Example 2
+        Current price      : Rs. 30,000
+        Price-based step   : Rs. 500       (price is in 20,000-49,999)
+        Seller's increment : Rs. 300
+        Result             : MAX(500, 300)   = Rs. 500
+
+    Example 3  (this is your screenshot)
+        Current price      : Rs. 320,729.22
+        Price-based step   : Rs. 1,000     (price is 50,000 or more)
+        Seller's increment : Rs. 300
+        Result             : MAX(1000, 300)  = Rs. 1,000
+
+        The seller typed 300, but 300 is smaller than 1,000, so the
+        seller's 300 is ignored. This is why the listing form shows 300
+        while the live auction shows 1,000.
+
+    Example 4  (seller wants a bigger step)
+        Current price      : Rs. 8,000
+        Price-based step   : Rs. 250
+        Seller's increment : Rs. 1,000
+        Result             : MAX(250, 1000)  = Rs. 1,000
+
+        A seller can force a bigger step at any price.
+
+
+6. THE NUMBER CHANGES DURING THE AUCTION
+---------------------------------------------------------------------
+The step is recalculated from the CURRENT price every time the page is
+loaded or a bid is placed. So it can go up as bidding continues.
+
+Walk-through (seller increment = Rs. 100):
+
+    Starting bid (current price) . Rs. 4,500   -> step Rs. 100
+        first bid must be at least 4,500 + 100 = Rs. 4,600
+    Someone bids Rs. 4,900 ....... price 4,900 -> step Rs. 100
+        next bid must be at least Rs. 5,000
+    Someone bids Rs. 5,000 ....... price 5,000 -> step Rs. 250
+        (price just reached the 5,000 line, so the step went up)
+        next bid must be at least Rs. 5,250
+    ... bidding continues ...
+    Price reaches Rs. 20,000 ..... step becomes Rs. 500
+    Price reaches Rs. 50,000 ..... step becomes Rs. 1,000 and stays there
+
+Note: the step is chosen using the price BEFORE the new bid. So if the
+price is Rs. 19,900 the step is still 250 and the next bid must be at
+least Rs. 20,150. After that bid the price is above 20,000, so the
+following step is 500.
+
+
+7. THE FIRST BID
+---------------------------------------------------------------------
+When an auction has no bids yet, the "current price" is the seller's
+STARTING BID. The first bid must still be at least:
+
+    starting bid + step
+
+So you cannot bid exactly the starting price. Example: starting bid
+Rs. 20,000, step Rs. 500 -> the first bid must be at least Rs. 20,500.
+
+
+8. PROXY (AUTOMATIC) BIDDING
+---------------------------------------------------------------------
+If a bidder sets a secret maximum (proxy bid), the site bids for them.
+The step is used here too:
+
+    price paid = the lower of
+                 (leader's maximum)  and
+                 (runner-up's maximum + step for the runner-up's amount)
+
+So the leader always pays just ONE STEP above the second-highest bidder,
+never more than their own maximum.
+
+
+9. WHERE THE SITE CHECKS THIS
+---------------------------------------------------------------------
+- Display : the box "Minimum bid increase" on the live auction page
+            (resources/views/livewire/user/auction-detail.blade.php).
+- Calculate: Auction::getStepIncrement()  (app/Models/Auction.php) and
+             AuctionEngineService::getStepIncrement()
+             (app/Services/AuctionEngineService.php). Both use the same
+             table and the same MAX rule.
+- Enforce : when a bid is placed, AuctionEngineService::processBid()
+            re-checks that the bid is at least current price + step.
+            The check happens on the server, so it cannot be bypassed
+            from the browser.
+
+
+10. QUICK SUMMARY
+---------------------------------------------------------------------
+- It is CALCULATED, not fixed.
+- It depends on the current price (table in section 3).
+- It is never smaller than what the seller typed in "Min Bid Increment".
+- It is the BIGGER of those two numbers.
+- At Rs. 50,000 and above the price-based step is Rs. 1,000, so many
+  expensive auctions show +Rs. 1,000.
+- A seller's small number (like 300) has no effect once the price-based
+  step is bigger.

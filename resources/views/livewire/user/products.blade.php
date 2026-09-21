@@ -106,7 +106,7 @@
                 @endscope
 
                 @scope('cell_status', $product)
-                    <x-badge :value="ucfirst($product->status)" @class([
+                    <x-badge :value="$product->status_label" @class([
                         'font-bold text-[10px] uppercase',
                         'badge-success text-white' => $product->status === 'active',
                         'badge-warning text-white' => $product->status === 'pending',

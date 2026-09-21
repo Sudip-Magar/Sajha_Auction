@@ -101,27 +101,34 @@
                         Handover & Location
                     </h3>
                     <p class="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                        Mode: {{ strtoupper($order->handover_type) }}
+                        Handover: {{ $order->handover_label }}
                     </p>
                     @if($order->handover_type === 'meetup')
                         <p class="text-xs text-emerald-800 dark:text-emerald-300 mt-1">
                             <span class="font-semibold">Meetup Location:</span> {{ $order->meetup_location ?: 'Seller Location' }}
                         </p>
-                        @if($order->meetup_time)
-                            <p class="text-xs text-emerald-800 dark:text-emerald-300">
-                                <span class="font-semibold">Time:</span> {{ $order->meetup_time->format('M d, Y @ h:i A') }}
+                        <p class="text-xs text-emerald-800 dark:text-emerald-300">
+                            <span class="font-semibold">Meetup Date:</span>
+                            @if($order->meetup_time)
+                                {{ $order->meetup_time->format('M d, Y') }}
                                 @if($order->meetup_time_np)
-                                    ({{ $order->meetup_time_np }} B.S.)
+                                    ({{ str($order->meetup_time_np)->before(' ') }} B.S.)
                                 @endif
-                            </p>
-                        @endif
+                            @else
+                                Not scheduled yet
+                            @endif
+                        </p>
+                        <p class="text-xs text-emerald-800 dark:text-emerald-300">
+                            <span class="font-semibold">Meetup Time:</span>
+                            {{ $order->meetup_time ? $order->meetup_time->format('h:i A') : 'Not scheduled yet' }}
+                        </p>
                     @else
                         <p class="text-xs text-emerald-800 dark:text-emerald-300 mt-1">
                             <span class="font-semibold">Address:</span> {{ $order->shipping_address }}
                         </p>
                     @endif
                     <p class="text-xs font-bold text-emerald-900 dark:text-emerald-200 mt-2">
-                        Payment: {{ str($order->payment_method)->replace('_', ' ')->title() }} ({{ str($order->payment_status)->title() }})
+                        Payment: {{ $order->payment_method_label }} ({{ str($order->payment_status)->title() }})
                     </p>
                 </div>
             </div>
@@ -221,7 +228,7 @@
                                             @endif
                                         </h4>
                                         <p class="text-xs text-gray-500">
-                                            Condition: {{ str($prod?->condition ?? 'Used')->replace('-', ' ')->title() }} | Qty: {{ $item->quantity }} × Rs {{ number_format($item->price) }}
+                                            Condition: {{ \App\Enums\ProductCondition::labelFor($prod?->condition ?? 'used') }} | Qty: {{ $item->quantity }} × Rs {{ number_format($item->price) }}
                                         </p>
                                     </div>
                                 </div>

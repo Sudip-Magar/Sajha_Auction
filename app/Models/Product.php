@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use App\Enums\ProductAuctionType;
+use App\Enums\ProductCondition;
 use App\Enums\ProductImageType;
 use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
+use App\Enums\ProductStatus;
 use App\Services\AuctionValuationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,7 +42,6 @@ class Product extends Model
         'location',
         'meetup_location',
         'meetup_instructions',
-        'delivery_available',
         'expires_at',
         'status',
     ];
@@ -53,7 +54,6 @@ class Product extends Model
         'is_featured' => 'boolean',
         'is_trending' => 'boolean',
         'views_count' => 'integer',
-        'delivery_available' => 'boolean',
         'expires_at' => 'datetime',
         'specifications' => 'string',
     ];
@@ -96,11 +96,6 @@ class Product extends Model
     public function auction(): HasOne
     {
         return $this->hasOne(Auction::class);
-    }
-
-    public function bookmarkedByUsers(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class, 'bookmarks')->withTimestamps();
     }
 
     public function wishlistedByUsers(): BelongsToMany
@@ -176,6 +171,16 @@ class Product extends Model
             'Product Approved',
             'Product listing approved by admin and published live on the marketplace.'
         );
+    }
+
+    public function getConditionLabelAttribute(): string
+    {
+        return ProductCondition::labelFor($this->condition);
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return ProductStatus::labelFor($this->status);
     }
 
     public function getImageAttribute(): ?string

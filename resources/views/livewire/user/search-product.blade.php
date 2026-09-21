@@ -1,5 +1,5 @@
 @php
-    $conditionLabel = fn ($condition) => str($condition)->replace('-', ' ')->title();
+    $conditionLabel = fn ($condition) => \App\Enums\ProductCondition::labelFor($condition);
     $priceFor = function ($product) {
         if ($product->listing_type->value === 'auction' && $product->auction) {
             return $product->auction->current_price ?: $product->starting_bid;

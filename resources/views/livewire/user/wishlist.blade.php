@@ -71,7 +71,7 @@
 
                                     @if($product->condition)
                                         <span class="rounded-lg bg-black/70 backdrop-blur-xs px-2 py-1 text-[10px] font-bold text-white">
-                                            {{ str($product->condition)->replace('-', ' ')->title() }}
+                                            {{ $product->condition_label }}
                                         </span>
                                     @endif
                                 </div>

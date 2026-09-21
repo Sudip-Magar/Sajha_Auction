@@ -19,7 +19,7 @@ class AdminSeeder extends Seeder
             'phone' => '9761834027',
             'role' => 'admin',
             'position' => 'admin',
-            'gender' => 'MALE',
+            'gender' => 'male',
             'date_of_joining' => now(),
             'password' => Hash::make('password'),
             'address' => 'Kathmandu',

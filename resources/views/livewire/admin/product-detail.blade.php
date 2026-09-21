@@ -46,7 +46,7 @@
             </div>
             <div>
                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</p>
-                <p class="text-2xl font-black text-gray-900">{{ ucfirst($product->status) }}</p>
+                <p class="text-2xl font-black text-gray-900">{{ $product->status_label }}</p>
             </div>
         </div>
 
@@ -143,7 +143,7 @@
                             <p class="mt-2 text-4xl leading-none font-black text-gray-900">{{ $product->name }}</p>
                         </div>
                         <div class="flex flex-wrap gap-2 items-start pt-2">
-                            <x-badge :value="'Condition: ' . strtoupper($product->condition)" class="badge-neutral font-bold text-xs px-3 py-2" />
+                            <x-badge :value="'Condition: ' . $product->condition_label" class="badge-neutral font-bold text-xs px-3 py-2" />
                             <x-badge :value="'MSRP: Rs. ' . number_format($product->retail_price)" class="badge-outline font-bold text-xs px-3 py-2" />
                         </div>
                     </div>

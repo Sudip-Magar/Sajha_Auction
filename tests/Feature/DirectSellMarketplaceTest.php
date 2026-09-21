@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\CartItem;
+use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\SubCategory;
 use App\Models\User;
 use App\Models\Wishlist;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,6 +17,13 @@ class DirectSellMarketplaceTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function subCategoryId(): int
+    {
+        $category = Category::create(['name' => 'Electronics', 'slug' => 'electronics', 'status' => 'active', 'sort_order' => 1]);
+
+        return SubCategory::create(['category_id' => $category->id, 'name' => 'Audio', 'slug' => 'audio', 'status' => 'active', 'sort_order' => 1])->id;
+    }
+
     public function test_user_can_add_product_to_wishlist_and_remove_it(): void
     {
         $user = User::factory()->create();
@@ -22,6 +31,7 @@ class DirectSellMarketplaceTest extends TestCase
 
         $product = Product::create([
             'seller_id' => $seller->id,
+            'sub_category_id' => $this->subCategoryId(),
             'name' => 'Second Hand iPhone 12',
             'description' => 'Great condition',
             'condition' => 'like-new',
@@ -66,6 +76,7 @@ class DirectSellMarketplaceTest extends TestCase
 
         $product = Product::create([
             'seller_id' => $seller->id,
+            'sub_category_id' => $this->subCategoryId(),
             'name' => 'Used Sony Headphones',
             'description' => 'Noise canceling, light use',
             'condition' => 'lightly-used',
@@ -87,9 +98,10 @@ class DirectSellMarketplaceTest extends TestCase
         $this->actingAs($buyer);
 
         Livewire::test('user.checkout')
-            ->set('handover_type', 'meetup')
             ->set('meetup_location', 'New Road Complex, Kathmandu')
-            ->set('payment_method', 'cash_on_meetup')
+            ->set('meetup_date_np', '2083-12-30')
+            ->set('meetup_date_en', now()->addDays(3)->toDateString())
+            ->set('meetup_time_of_day', '14:30')
             ->set('buyer_phone', '9800000000')
             ->call('placeOrder')
             ->assertRedirect(route('user.orders'));

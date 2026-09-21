@@ -89,14 +89,52 @@ body {
     color: #E5E7EB;
 }
 
+/*
+ * Hide the native up/down spinner arrows on every number input site-wide.
+ * (.no-spinner is kept for the few inputs that already use it.)
+ */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button,
 .no-spinner::-webkit-inner-spin-button {
     -webkit-appearance: none;
+    appearance: none;
     margin: 0;
 }
 
+input[type="number"],
 .no-spinner {
     -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/*
+ * Tailwind's preflight resets buttons to cursor: default; restore the pointer
+ * on everything clickable (but not on disabled controls).
+ */
+@layer base {
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    [wire\:click]:not(:disabled),
+    [x-on\:click]:not(:disabled),
+    [\@click]:not(:disabled),
+    summary,
+    label[for],
+    select:not(:disabled),
+    input[type="checkbox"]:not(:disabled),
+    input[type="radio"]:not(:disabled),
+    input[type="submit"]:not(:disabled),
+    input[type="button"]:not(:disabled),
+    a[href],
+    .btn:not(.btn-disabled):not(:disabled) {
+        cursor: pointer;
+    }
+
+    button:disabled,
+    .btn:disabled,
+    .btn-disabled {
+        cursor: not-allowed;
+    }
 }
 
 .tiptap-editor {

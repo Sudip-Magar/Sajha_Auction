@@ -185,8 +185,16 @@
                 <span>New to bidding? Ask the AI guide how it works</span>
             </button>
 
-            {{-- Auction result (if ended) --}}
-            @if($auction->isEnded())
+            {{-- Auction result (once settled) --}}
+            @if($auction->isEnded() && ! $auction->isSettled())
+                <div class="flex items-center gap-3 rounded-3xl border-2 border-sky-300 bg-sky-50 p-6 text-sky-900 shadow-sm dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200" wire:key="auction-finalizing">
+                    <span class="h-3 w-3 shrink-0 animate-pulse rounded-full bg-sky-500"></span>
+                    <div>
+                        <p class="text-sm font-black">Bidding has closed</p>
+                        <p class="text-xs font-semibold">Working out the winner. This page will update automatically.</p>
+                    </div>
+                </div>
+            @elseif($auction->isSettled())
                 <div class="bg-white dark:bg-[#181A1F] rounded-3xl border-2 {{ $auction->winner_id ? 'border-emerald-500' : 'border-amber-500' }} p-6 shadow-sm">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="p-3 {{ $auction->winner_id ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }} rounded-2xl">
@@ -432,10 +440,30 @@
                 isLive: false,
                 displayText: '',
                 timer: null,
+                settling: false,
 
                 init() {
                     this.update();
                     this.timer = setInterval(() => this.update(), 1000);
+                },
+
+                destroy() {
+                    clearInterval(this.timer);
+                },
+
+                // The countdown only knows the clock; the server decides the winner.
+                // Ask it (and retry for a while) until the result is recorded.
+                settle() {
+                    if (this.settling) return;
+                    this.settling = true;
+                    let tries = 0;
+                    const attempt = async () => {
+                        tries++;
+                        let settled = false;
+                        try { settled = await this.$wire.finalizeIfEnded(); } catch (e) {}
+                        if (!settled && tries < 15) setTimeout(attempt, 2000);
+                    };
+                    attempt();
                 },
 
                 update() {
@@ -448,7 +476,10 @@
 
                     if (diff <= 0) {
                         this.displayText = this.isUpcoming ? 'Starting...' : 'Auction Ended';
-                        if (!this.isUpcoming) clearInterval(this.timer);
+                        if (!this.isUpcoming) {
+                            clearInterval(this.timer);
+                            this.settle();
+                        }
                         return;
                     }
 

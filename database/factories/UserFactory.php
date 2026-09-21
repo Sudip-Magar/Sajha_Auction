@@ -31,7 +31,7 @@ class UserFactory extends Factory
             'username' => fake()->unique()->userName(),
             'phone' => '98'.fake()->numerify('########'),
             'date_of_birth_en' => fake()->date('Y-m-d', '-18 years'),
-            'gender' => fake()->randomElement(['MALE', 'FEMALE', 'OTHER']),
+            'gender' => fake()->randomElement(['male', 'female', 'other']),
             'is_seller' => false,
             'seller_application_pending' => false,
             'password' => static::$password ??= Hash::make('password'),

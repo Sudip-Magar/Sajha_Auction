@@ -2,11 +2,13 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\AiUnavailableException;
 use App\Models\AiChatMessage;
 use App\Services\AiAssistantPromptService;
 use App\Services\AiClientService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -15,6 +17,8 @@ class GenerateAiAssistantReply implements ShouldQueue
     use Queueable;
 
     public const FALLBACK_MESSAGE = 'Sorry, I could not reach the assistant right now. Please try again in a moment, or check the FAQs and How It Works pages for answers.';
+
+    public const BUSY_MESSAGE = 'The AI service is very busy right now. Please press Try again in a moment.';
 
     public int $tries = 1;
 
@@ -26,11 +30,23 @@ class GenerateAiAssistantReply implements ShouldQueue
     {
         $message = AiChatMessage::find($this->messageId);
 
-        if (! $message || $message->role !== 'user' || $this->alreadyAnswered($message)) {
+        if (! $message || $message->role !== 'user') {
+            return;
+        }
+
+        // The queue worker and the chat's own fallback may race for the same
+        // message; only one of them is allowed to generate the reply.
+        $lock = Cache::lock('ai-reply:'.$this->messageId, 90);
+
+        if (! $lock->get()) {
             return;
         }
 
         try {
+            if ($this->alreadyAnswered($message)) {
+                return;
+            }
+
             $history = AiChatMessage::query()
                 ->sameOwnerAs($message)
                 ->where('id', '<=', $message->id)
@@ -43,12 +59,32 @@ class GenerateAiAssistantReply implements ShouldQueue
                 ->values()
                 ->all();
 
-            $reply = $client->generate($prompt->systemPrompt(), $history);
+            $systemPrompt = $prompt->systemPrompt();
+
+            // A first question with no earlier context (for example the suggestion
+            // chips) has the same answer for everyone, so remember it for a while.
+            // The key includes the prompt, so a change to the platform rules
+            // automatically invalidates old answers.
+            $cacheKey = count($history) === 1 && mb_strlen($message->body) <= 200
+                ? 'ai-answer:'.md5($systemPrompt.'|'.mb_strtolower(trim($message->body)))
+                : null;
+
+            $reply = $cacheKey ? Cache::get($cacheKey) : null;
+
+            if ($reply === null) {
+                $reply = $client->generate($systemPrompt, $history);
+
+                if ($cacheKey) {
+                    Cache::put($cacheKey, $reply, now()->addHours(12));
+                }
+            }
 
             $this->storeReply($message, $reply, false);
         } catch (Throwable $exception) {
             $this->logFailure($exception);
-            $this->storeReply($message, self::FALLBACK_MESSAGE, true);
+            $this->storeReply($message, $exception instanceof AiUnavailableException && $exception->isBusy() ? self::BUSY_MESSAGE : self::FALLBACK_MESSAGE, true);
+        } finally {
+            $lock->release();
         }
     }
 
