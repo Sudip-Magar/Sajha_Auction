@@ -3,6 +3,7 @@
 namespace App\Livewire\User;
 
 use App\Models\Order;
+use App\Services\OrderPaymentService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -45,28 +46,23 @@ class Orders extends Component
             })
             ->firstOrFail();
 
-        $oldStatus = $order->status;
-        $order->update(['status' => $status]);
+        if ((int) $order->seller_id !== (int) $user->id) {
+            $this->error('Only the seller can update this order.');
+
+            return;
+        }
+
+        if (in_array($order->status, ['cancelled', 'completed'], true)) {
+            $this->error('This order can no longer be changed.');
+
+            return;
+        }
 
         if ($status === 'completed') {
-            $order->update(['payment_status' => 'paid']);
-
-            foreach ($order->items as $item) {
-                if ($item->product) {
-                    $item->product->decrement('quantity', min($item->quantity, $item->product->quantity));
-                    if ($item->product->quantity <= 0) {
-                        $item->product->update(['status' => 'sold']);
-                    }
-
-                    $item->product->logTimeline(
-                        'completed',
-                        "Product Handed Over & Sold (#{$order->order_number})",
-                        "Order successfully completed by buyer {$order->buyer?->name} and seller {$order->seller?->name}.",
-                        $user
-                    );
-                }
-            }
+            OrderPaymentService::complete($order, $user);
         } elseif ($status === 'confirmed') {
+            $order->update(['status' => 'confirmed']);
+
             foreach ($order->items as $item) {
                 $item->product?->logTimeline(
                     'meetup_scheduled',

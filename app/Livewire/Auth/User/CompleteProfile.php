@@ -129,7 +129,7 @@ class CompleteProfile extends Component
             $avatarPath = $this->avatarFile->store('avatars', 'public');
         } elseif ($this->googleAvatar) {
             try {
-                $response = Http::withOptions(['verify' => false])->get($this->googleAvatar);
+                $response = Http::withOptions(['verify' => ! app()->isLocal()])->get($this->googleAvatar);
                 if ($response->successful()) {
                     $fileName = 'avatars/'.Str::uuid().'.jpg';
                     Storage::disk('public')->put($fileName, $response->body());

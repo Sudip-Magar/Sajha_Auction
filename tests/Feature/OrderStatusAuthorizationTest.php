@@ -103,19 +103,32 @@ test('either party can cancel an order, with a reason', function () {
 
     Livewire::actingAs($buyer)
         ->test(OrderDetail::class, ['order' => $order])
-        ->set('cancelReasonCategory', 'defect_mismatch')
+        ->set('cancelReasonCategory', 'item_damaged')
         ->call('confirmCancel');
 
     expect($order->fresh())
         ->status->toBe('cancelled')
-        ->cancellation_reason_category->toBe('defect_mismatch');
+        ->cancellation_reason_category->toBe('item_damaged');
 });
 
-test('a cancelled auction-deposit order refunds on defect but forfeits on changed mind', function () {
+function payOnline(Order $order, float $amount): void
+{
+    $order->update(['deposit_status' => 'paid']);
+    $order->transactions()->create([
+        'type' => 'deposit_paid',
+        'amount' => $amount,
+        'payment_method' => 'esewa',
+        'status' => 'completed',
+        'party' => 'admin',
+    ]);
+}
+
+test('a buyer who changes their mind forfeits the deposit; a damaged-item complaint waits for the admin', function () {
     $seller = User::factory()->create();
     $buyer = User::factory()->create();
     $order = makeOrderTestOrder($buyer, $seller, 'pending');
-    $order->update(['deposit_status' => 'paid', 'deposit_amount' => 5000]);
+    $order->update(['deposit_amount' => 5000]);
+    payOnline($order, 5000);
 
     Livewire::actingAs($buyer)
         ->test(OrderDetail::class, ['order' => $order])
@@ -125,21 +138,26 @@ test('a cancelled auction-deposit order refunds on defect but forfeits on change
     expect($order->fresh()->deposit_status)->toBe('forfeited');
 
     $order2 = makeOrderTestOrder($buyer, $seller, 'pending');
-    $order2->update(['deposit_status' => 'paid', 'deposit_amount' => 5000]);
+    $order2->update(['deposit_amount' => 5000]);
+    payOnline($order2, 5000);
 
     Livewire::actingAs($buyer)
         ->test(OrderDetail::class, ['order' => $order2])
-        ->set('cancelReasonCategory', 'defect_mismatch')
+        ->set('cancelReasonCategory', 'item_damaged')
         ->call('confirmCancel');
 
-    expect($order2->fresh()->deposit_status)->toBe('refund_owed');
+    expect($order2->fresh())
+        ->status->toBe('cancelled')
+        ->complaint_status->toBe('under_review')
+        ->deposit_status->toBe('paid');
 });
 
 test('a seller cancelling an auction-deposit order always leaves the deposit refund-owed', function () {
     $seller = User::factory()->create();
     $buyer = User::factory()->create();
     $order = makeOrderTestOrder($buyer, $seller, 'pending');
-    $order->update(['deposit_status' => 'paid', 'deposit_amount' => 5000]);
+    $order->update(['deposit_amount' => 5000]);
+    payOnline($order, 5000);
 
     Livewire::actingAs($seller)
         ->test(OrderDetail::class, ['order' => $order])
@@ -171,7 +189,7 @@ test('cancelling an auction-win order relists the product instead of leaving it 
 
     Livewire::actingAs($buyer)
         ->test(OrderDetail::class, ['order' => $order])
-        ->set('cancelReasonCategory', 'defect_mismatch')
+        ->set('cancelReasonCategory', 'item_damaged')
         ->call('confirmCancel');
 
     expect($product->fresh()->status)->toBe('active')

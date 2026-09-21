@@ -1,0 +1,463 @@
+=====================================================================
+SAJHA AUCTION - WHAT CHANGED, WHY, AND HOW IT HELPS
+=====================================================================
+
+This file explains the recent changes to the project in plain language:
+what was changed, why it was changed, and how it helps the project.
+
+It is split into two parts:
+
+  PART A - Work that is finished and tested.
+  PART B - Work that is still in progress (so you know what is NOT done yet).
+
+Status at the time of writing:
+  - Automated tests: 116 passing, 2 failing. The 2 failures existed
+    BEFORE this work (see section A9) and are not caused by it.
+  - Nothing is committed to git yet.
+  - The new database migration has NOT been run on your real MySQL
+    database. It was only tested on a temporary in-memory database.
+    You must run "php artisan migrate" yourself when you are ready.
+
+
+=====================================================================
+PART A - FINISHED WORK
+=====================================================================
+
+
+---------------------------------------------------------------------
+A1. THE BIG PICTURE: A REAL PAYMENT LEDGER
+---------------------------------------------------------------------
+
+WHAT WAS THERE BEFORE
+  An order only had a few fields: total_amount, deposit_amount and a
+  deposit_status word (pending / paid / refund_owed / forfeited). There
+  was no record of WHEN money moved, HOW MUCH, or WHY. If a buyer paid a
+  deposit, the app just flipped a word to "paid". Nothing was written
+  down that you could add up or audit.
+
+WHAT I CHANGED
+  I added a "payment_transactions" table. Every money event on an order
+  is now its own row: type, amount, method (eSewa or cash), status
+  (pending / completed / failed), who the money goes to (admin / seller /
+  buyer), and a note.
+
+  The transaction types are:
+    deposit_paid         buyer paid online through eSewa
+    balance_paid_cash    buyer paid the rest in cash at the meetup
+    refund_issued        money owed back to the buyer
+    deposit_forfeited    deposit kept because the buyer backed out
+    payout_sent          the admin actually sent money out
+    debt_recorded        a seller now owes money
+    debt_recovered       a seller's debt was paid down
+
+  Totals are now CALCULATED by adding up these rows: total price, paid
+  online, paid in cash, remaining, refunded. The order no longer stores
+  "how much was paid" as a number that can drift out of sync.
+
+  Files: database/migrations/2026_09_22_000000_create_payment_transactions_table.php
+         app/Models/PaymentTransaction.php
+         app/Models/Order.php (new helper methods: paidOnline(),
+           paidCash(), totalPaid(), remainingAmount(), minimumDeposit(),
+           acceptsOnlinePayment())
+
+WHY
+  Because this app handles real money flows (deposits, refunds, seller
+  penalties), you need a history you can trust. If a buyer or seller
+  disputes an amount, you can now look at the exact list of events.
+
+HOW IT HELPS THE PROJECT
+  - Audit trail: every rupee that moves is recorded once and never
+    silently overwritten.
+  - The order page and admin page can show honest totals.
+  - Existing orders that were already paid are protected: the migration
+    automatically creates one "deposit_paid" row for each of them, so
+    their totals stay correct after the update.
+
+
+---------------------------------------------------------------------
+A2. FLEXIBLE ESEWA DEPOSIT (BUYER CHOOSES THE AMOUNT)
+---------------------------------------------------------------------
+
+WHAT WAS THERE BEFORE
+  The buyer could only pay one fixed deposit (10% of the winning bid).
+
+WHAT I CHANGED
+  The buyer can now choose how much to pay online:
+    - MINIMUM = the deposit percentage of the winning bid. The percentage
+      comes from the setting services.esewa.deposit_percentage (10 by
+      default). If the buyer types less, the request is rejected and the
+      message shows the exact minimum in rupees.
+    - MAXIMUM = the full amount still owed on the order.
+  Each eSewa payment is saved as its own transaction row. The amount
+  still to pay in cash at handover is recalculated after every payment.
+  If the buyer pays the whole order online, the cash due at handover is
+  zero.
+
+  Safety checks I added in the eSewa callback:
+    - The signed callback amount must equal the amount we asked eSewa to
+      charge. If it does not match, the payment is marked failed and
+      nothing is credited.
+    - eSewa's status API is still checked a second time before money is
+      credited (this was already there and is kept).
+    - A payment can only be credited once (matched by its unique
+      transaction id), so a repeated callback cannot double-count.
+    - Payments that were started BEFORE this update (only stored on the
+      order) are still accepted through a fallback path.
+
+  Files: app/Http/Controllers/EsewaPaymentController.php
+         app/Services/EsewaPaymentService.php (new allowedRange(), and
+           buildPaymentForm() now takes an amount)
+         app/Notifications/DepositPaidNotification.php (now shows the
+           amount paid and the cash still due)
+
+WHY
+  Buyers may want to pay more than the minimum (to reduce the cash they
+  carry), and the platform wants a clear minimum to discourage
+  non-serious winners.
+
+HOW IT HELPS THE PROJECT
+  - Less cash at meetups when buyers pay more online.
+  - The seller is told exactly how much was paid and what cash to expect.
+  - Tampering with the amount (changing it in the browser) is caught.
+
+
+---------------------------------------------------------------------
+A3. TWO KINDS OF BUYER CANCELLATION
+---------------------------------------------------------------------
+
+WHAT WAS THERE BEFORE
+  A buyer could cancel with one of three reasons. "Defect / did not
+  match" refunded the deposit automatically; "changed my mind" forfeited
+  it. Nobody checked whether the defect claim was true, so any buyer
+  could claim a "defect" to get a refund.
+
+WHAT I CHANGED
+  Reasons are now in two groups.
+
+  GROUP 1 - "I changed my mind" and "Other":
+    - Only the MINIMUM deposit is forfeited (not any extra the buyer
+      paid).
+    - The forfeited amount is split: 80% to the platform (admin) and 20%
+      to the seller. These are two separate ledger rows so each share
+      can be tracked. Rounding is handled so the two shares always add
+      up exactly to the forfeited amount.
+    - Anything the buyer paid ABOVE the minimum is refunded in full.
+
+  GROUP 2 - "Item is damaged", "Item is not as described / not good
+  quality", "Documents missing":
+    - This is treated as a COMPLAINT against the seller, not as an
+      instant refund.
+    - The order becomes "cancelled - complaint under review". No money
+      moves yet.
+    - An admin decides:
+        UPHELD  -> the buyer is refunded everything they paid online,
+                   and the platform pays the buyer a compensation equal
+                   to 50% of the product price. The seller owes that
+                   50% back to the platform as a recorded debt.
+        REJECTED -> the complaint is treated like a "changed my mind"
+                   cancellation (80/20 forfeit rule above).
+
+  If the SELLER cancels: the buyer gets a full refund and the seller has
+  no penalty. (This was my assumption; you did not object to it.)
+
+  The percentages (20% seller share, 50% penalty) are settings in
+  config/services.php and can be changed through .env values
+  ESEWA_FORFEIT_SELLER_SHARE and ESEWA_SELLER_PENALTY_PERCENTAGE.
+
+  Files: app/Services/OrderCancellationService.php (rewritten)
+         app/Livewire/User/OrderDetail.php (validates the reason)
+
+WHY
+  - "Admin confirms first" stops buyers from faking a defect just to get
+    a free refund, and stops sellers from being punished without proof.
+  - The 80/20 split gives the seller something for the time and lost
+    opportunity when a winner backs out.
+  - The 50% penalty is a deterrent against sellers who list bad items.
+
+HOW IT HELPS THE PROJECT
+  - Fairer for both sides: buyers are protected from bad items, sellers
+    are protected from false claims.
+  - The admin stays in control of real money decisions.
+  - Every decision leaves ledger rows and a product timeline entry.
+
+
+---------------------------------------------------------------------
+A4. SELLER DEBT AND AUTOMATIC RECOVERY
+---------------------------------------------------------------------
+
+WHAT I ADDED
+  A "seller_debts" table and a service (SellerDebtService).
+
+  When the admin upholds a complaint, a debt of 50% of the product price
+  is recorded against the seller (debt_recorded).
+
+  Recovery rule: BEFORE the platform pays a seller any money it holds
+  (currently the seller's 20% share of a forfeited deposit), it first
+  deducts what the seller owes, oldest debt first:
+    - If the payout is bigger than the debt: the debt is cleared and the
+      seller receives the difference.
+    - If the payout is smaller than the debt: the seller receives
+      nothing this time, and the remaining debt carries over to the next
+      payout. Such a payout is marked "settled" (nothing to transfer).
+  Each deduction is logged as "debt_recovered" on the order the debt came
+  from.
+  The deduction runs inside a database transaction with row locking, so
+  two payouts happening at the same moment cannot deduct the same debt
+  twice.
+
+  IMPORTANT LIMIT (please read):
+    Only money the platform HOLDS can be deducted. Cash the seller
+    collects directly from the buyer at a meetup never passes through the
+    platform, so the app cannot take from it. That is why deduction only
+    applies to eSewa money held by the admin.
+
+  For second-hand orders (no online payment) a complaint gives no online
+  refund; the admin advances the 50% compensation and it is recorded as
+  seller debt. (Again my stated assumption; you did not object.)
+
+  Files: database migration (seller_debts table)
+         app/Models/SellerDebt.php
+         app/Services/SellerDebtService.php
+
+WHY
+  The platform advances money to the buyer when a complaint is upheld.
+  Without a debt record, the platform would simply lose that money.
+
+HOW IT HELPS THE PROJECT
+  - The platform is not out of pocket when a seller sells a bad item.
+  - Sellers have a real financial reason to describe items honestly.
+
+
+---------------------------------------------------------------------
+A5. PAYOUT FLOW (NO AUTOMATIC MONEY SENDING)
+---------------------------------------------------------------------
+
+WHAT I ADDED
+  A "payout_requests" table and OrderPaymentService.
+
+  Whenever money must be sent to a person (a refund to a buyer, or the
+  seller's 20% share), a payout request is created with status
+  "awaiting_details". The person then submits where to send it:
+  eSewa name and phone, and optionally a QR image. Status becomes
+  "pending". After the ADMIN has really sent the money through eSewa
+  (by hand, outside the app), the admin marks it "sent" and a
+  "payout_sent" ledger row is written.
+
+  Only the correct recipient can submit their details, and a payout can
+  only be marked sent after details exist.
+
+  This app does NOT send money automatically. eSewa's sandbox and this
+  project do not include a disbursement API, so the admin does the
+  transfer and the app keeps the record.
+
+WHY
+  You asked for a manual admin step. It is safer for a student project
+  and keeps a human in control of real money.
+
+HOW IT HELPS THE PROJECT
+  - Nobody has to chase people on chat for eSewa numbers; the details
+    are stored against the order.
+  - The admin can see exactly who is waiting for money and how much.
+
+
+---------------------------------------------------------------------
+A6. COMPLETING AN ORDER NOW RECORDS THE CASH PAYMENT
+---------------------------------------------------------------------
+
+WHAT WAS THERE BEFORE
+  The "mark completed" code was copy-pasted in two places (the order
+  detail page and the orders list). Completing only set payment_status
+  to "paid".
+
+WHAT I CHANGED
+  Both pages now call one shared function (OrderPaymentService::
+  complete). It records the remaining balance as a "balance_paid_cash"
+  row, decreases stock, marks the product sold if none is left, and adds
+  the product timeline entry.
+
+HOW IT HELPS
+  - One place to fix or improve instead of two copies that could
+    disagree.
+  - The ledger now shows online AND cash payments.
+
+
+---------------------------------------------------------------------
+A7. A SECURITY BUG FOUND AND FIXED ON THE ORDERS LIST
+---------------------------------------------------------------------
+
+WHAT WAS WRONG
+  On the "My Orders" list page, the "update order status" action found
+  the order for either the buyer OR the seller, but never checked who was
+  asking. That meant a BUYER could mark their own order "completed".
+  Completing an order reduces stock and marks the product sold, so a
+  buyer should never be able to do it. (The order detail page already
+  blocked this; the list page did not.)
+
+WHAT I CHANGED
+  The list page now only lets the SELLER update the status, and it
+  refuses to change an order that is already cancelled or completed.
+  The order detail page got the same "already cancelled/completed"
+  guard.
+
+HOW IT HELPS
+  Buyers can no longer skip the seller's confirmation, and a cancelled
+  order cannot be "revived" by clicking a button.
+
+
+---------------------------------------------------------------------
+A8. EARLIER FIXES IN THE SAME SESSION (SECURITY AND CORRECTNESS)
+---------------------------------------------------------------------
+
+These were done before the payment work, in the same working session.
+They are included so this file describes everything that is currently
+uncommitted.
+
+1. HTTPS certificate checking (Google sign-in).
+   The Google login code told the HTTP client to skip TLS certificate
+   verification everywhere. That is unsafe on a real server (someone
+   could impersonate Google). Now verification is only skipped on a
+   local development machine (Windows dev setups often lack a CA
+   bundle) and is ON in production.
+   Files: GoogleAuthController.php, CompleteProfile.php
+
+2. Admin login.
+   - An admin whose status is not "active" could still sign in. They
+     cannot now.
+   - Sign-in attempts are limited to 5 wrong tries per email + IP address
+     per minute.
+   File: app/Livewire/Auth/Admin/Login.php
+
+3. User login is also limited to 5 wrong tries per minute.
+   File: app/Livewire/Auth/User/Login.php
+
+4. One-time codes (OTP) can no longer be guessed by brute force.
+   After 5 wrong codes the stored code is thrown away and the person
+   must ask for a new one. Same protection on the password-reset code.
+   Files: VerifyOtp.php, ResetPassword.php
+
+5. Paying a deposit on an already cancelled order is blocked
+   (Order::needsDeposit() now returns false for cancelled orders).
+
+6. Admin notification channel.
+   The real-time notification endpoint accepted only the "web" guard, so
+   admins could not authenticate to it. It now accepts either guard
+   (each channel still checks its own guard).
+   File: bootstrap/app.php
+
+7. AUCTION TIE FIX (settlement correctness).
+   When two bidders set the SAME secret proxy maximum, the live page
+   showed the earlier bidder as leading, but the final winner was chosen
+   differently. Now the bidder who registered the maximum first wins, so
+   the winner matches what people saw live.
+   File: app/Services/AuctionEngineService.php
+   Test: tests/Feature/AuctionSettlementTest.php
+
+8. Tests added for the above:
+   tests/Feature/SecurityHardeningTest.php (new)
+
+
+---------------------------------------------------------------------
+A9. TESTS
+---------------------------------------------------------------------
+
+New tests: tests/Feature/OrderPaymentLedgerTest.php - 11 tests covering:
+  - totals derived from the ledger, cash balance recorded on completion
+  - a fully-online-paid order needs no cash
+  - the min/max online payment range
+  - amounts below the minimum are rejected with the exact minimum shown
+  - Group 1 cancellation: 80/20 split and refund of extra
+  - Group 2 complaint: no money moves until admin decides
+  - upheld complaint: full refund + 50% debt + buyer payout
+  - rejected complaint falls back to the 80/20 rule
+  - debt deducted from the seller's forfeit share (fully and partly)
+  - payout details submitted by the right person, admin marks sent
+
+Two old tests were REWRITTEN (not deleted) because they described the
+old behaviour (the old single "defect" reason and a deposit set by
+directly editing a field). They now test the new rules.
+
+Two tests still fail. They failed BEFORE this work and are not related:
+  1. AdminUserManagementTest "manage user status seller access and
+     auction access" - the test is out of date: toggling auction
+     access also turns on seller access in the app.
+  2. AuctionApplicationTest "notifies admins when a user submits an
+     auction application" - a temporaryUrl call on a fake upload in the
+     test environment.
+
+
+=====================================================================
+PART B - NOT DONE YET (STILL IN PROGRESS)
+=====================================================================
+
+I do not want this file to claim more than is true. These parts are
+NOT finished:
+
+B1. Order detail page (buyer / seller / admin views)
+    - The amount box for choosing the online payment.
+    - The new cancellation reason choices and the "complaint under
+      review" message.
+    - The payout-details pop-up for buyer and seller.
+    - The money breakdown and the list of transactions.
+    - Auction orders: the winner choosing a meetup date/time.
+    NOTE: until this is built, the OLD order page still shows the old
+    single-reason cancel choices, and the buyer cannot yet type an amount
+    on screen (the amount rule works in the backend if the link carries
+    ?amount=).
+
+B2. Admin screens
+    - Admin order detail with timeline.
+    - Admin complaint review (uphold / reject).
+    - Admin "mark payout as sent".
+    - Seller debt balance on the admin user page and the seller
+      dashboard.
+
+B3. Automation and admin action
+    - Daily 09:00 (Asia/Kathmandu) check for stale orders (meetup date
+      more than 3 days past and not completed/cancelled) with one admin
+      notification per order.
+    - 30-day overdue-debt notification to the admin.
+    - The admin action on a stale order (revoke seller access, cancel
+      not-yet-started auctions, unpublish idle listings) with an exact
+      preview and a final confirmation BEFORE anything changes.
+
+B4. Content updates
+    - AI assistant prompt (AiAssistantPromptService).
+    - New public /terms page (and repoint the links; keep the old PDF as
+      an archive).
+    - ESewaExplanation.txt, aboutSystem.txt, AIChatExplanation.txt, and
+      small updates to AlgorithmsExplanation.txt, GoogleAuthExplanation.txt
+      and ReverbExplanation.txt where today's changes affect them.
+    - Then this file should be updated so Part B moves into Part A.
+
+
+=====================================================================
+THINGS YOU MUST DO / KNOW
+=====================================================================
+
+1. Run "php artisan migrate" on your real database when ready. It will
+   apply two migrations:
+     - 2026_09_21_000000_standardize_enum_values (was already pending)
+     - 2026_09_22_000000_create_payment_transactions_table (new)
+   Take a database backup first because the second one also writes the
+   backfill rows for orders that already have paid deposits.
+
+2. New optional settings in .env (defaults shown):
+     ESEWA_DEPOSIT_PERCENTAGE=10
+     ESEWA_FORFEIT_SELLER_SHARE=20
+     ESEWA_SELLER_PENALTY_PERCENTAGE=50
+     SELLER_DEBT_OVERDUE_DAYS=30
+
+3. eSewa in this project is the SANDBOX. Nobody's real money moves.
+   Before going live you need real merchant credentials, and the payout
+   step is still a manual admin transfer.
+
+4. During testing I once printed your real AI API key in my output by
+   accident. If that session output was shared or saved anywhere, rotate
+   the key.
+
+5. Nothing is committed. Review with "git status" and "git diff" before
+   you commit.
+
+=====================================================================
+END
+=====================================================================

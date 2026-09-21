@@ -33,12 +33,16 @@ class Order extends Model
         'notes',
         'cancellation_reason_category',
         'cancellation_note',
+        'complaint_status',
+        'complaint_resolution_note',
+        'stale_notified_at',
     ];
 
     protected $casts = [
         'total_amount' => 'float',
         'deposit_amount' => 'float',
         'meetup_time' => 'datetime',
+        'stale_notified_at' => 'datetime',
     ];
 
     protected static function boot(): void
@@ -71,9 +75,74 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(PaymentTransaction::class)->orderBy('id');
+    }
+
+    public function payoutRequests(): HasMany
+    {
+        return $this->hasMany(PayoutRequest::class);
+    }
+
+    public function sellerDebts(): HasMany
+    {
+        return $this->hasMany(SellerDebt::class, 'related_order_id');
+    }
+
+    /**
+     * Sum of completed transactions of the given type(s) for this order.
+     */
+    public function transactionTotal(string ...$types): float
+    {
+        return round((float) $this->transactions()
+            ->where('status', 'completed')
+            ->whereIn('type', $types)
+            ->sum('amount'), 2);
+    }
+
+    /** Money the buyer has paid online (held by the admin). */
+    public function paidOnline(): float
+    {
+        return $this->transactionTotal(PaymentTransaction::TYPE_DEPOSIT_PAID);
+    }
+
+    /** Cash the buyer has handed over at the meetup. */
+    public function paidCash(): float
+    {
+        return $this->transactionTotal(PaymentTransaction::TYPE_BALANCE_PAID_CASH);
+    }
+
+    public function totalPaid(): float
+    {
+        return round($this->paidOnline() + $this->paidCash(), 2);
+    }
+
+    /** What is still due; the cash due at handover while the order is open. */
+    public function remainingAmount(): float
+    {
+        return max(0.0, round((float) $this->total_amount - $this->totalPaid(), 2));
+    }
+
+    /** The smallest online payment allowed: the configured deposit percentage of the winning bid. */
+    public function minimumDeposit(): float
+    {
+        return $this->deposit_amount > 0
+            ? (float) $this->deposit_amount
+            : round((float) $this->total_amount * (float) config('services.esewa.deposit_percentage', 10) / 100, 2);
+    }
+
+    /** Whether the buyer may still make an online eSewa payment on this order. */
+    public function acceptsOnlinePayment(): bool
+    {
+        return in_array($this->deposit_status, ['pending', 'paid'], true)
+            && ! in_array($this->status, ['cancelled', 'completed'], true)
+            && $this->remainingAmount() > 0;
+    }
+
     public function needsDeposit(): bool
     {
-        return $this->deposit_status === 'pending';
+        return $this->deposit_status === 'pending' && $this->status !== 'cancelled';
     }
 
     public function getStatusBadgeAttribute(): string

@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use GuzzleHttp\Client;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\AbstractProvider;
 
 class GoogleAuthController extends Controller
 {
@@ -17,14 +18,15 @@ class GoogleAuthController extends Controller
     public function callback()
     {
         try {
-            $guzzleClient = new \GuzzleHttp\Client(['verify' => false]);
-            
-            /** @var \Laravel\Socialite\Two\AbstractProvider $driver */
+            $guzzleClient = new Client(['verify' => ! app()->isLocal()]);
+
+            /** @var AbstractProvider $driver */
             $driver = Socialite::driver('google');
-            
+
             $googleUser = $driver->setHttpClient($guzzleClient)->user();
         } catch (\Exception $e) {
-            \Log::error('Google Auth Error: ' . $e->getMessage());
+            \Log::error('Google Auth Error: '.$e->getMessage());
+
             return redirect()->route('user.login')->with('error', 'Google authentication failed.');
         }
 
@@ -43,5 +45,4 @@ class GoogleAuthController extends Controller
 
         return redirect()->route('verify.otp');
     }
-
 }

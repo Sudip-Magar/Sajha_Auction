@@ -3,6 +3,7 @@
 namespace App\Livewire\Auth\Admin;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -30,11 +31,22 @@ class Login extends Component
             'password' => 'required',
         ]);
 
-        if (! Auth::guard('admin')->attempt(['email' => $this->email, 'password' => $this->password], remember: true)) {
+        $throttleKey = 'admin-login:'.strtolower($this->email).'|'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $this->error('Too many sign-in attempts. Please try again in '.RateLimiter::availableIn($throttleKey).' seconds.', position: 'toast-bottom');
+
+            return;
+        }
+
+        if (! Auth::guard('admin')->attempt(['email' => $this->email, 'password' => $this->password, 'status' => 'active'], remember: true)) {
+            RateLimiter::hit($throttleKey, 60);
             $this->error('Invalid credentials. Please check your email and password.', position: 'toast-bottom');
 
             return;
         }
+
+        RateLimiter::clear($throttleKey);
 
         session([
             'admin_user' => [
