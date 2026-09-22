@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Admin;
 
+use App\Enums\StatusState;
 use App\Models\Category;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -35,20 +37,23 @@ class CategorySetup extends Component
 
     public string $color = '#000000';
 
-    public string $status = 'active';
+    public StatusState $status = StatusState::ACTIVE;
 
     public int $sort_order = 0;
 
-    protected $rules = [
-        'name' => 'required|string|max:255',
-        'slug' => 'required|string|max:255|unique:categories,slug',
-        'description' => 'nullable|string',
-        'image' => 'nullable|image|max:1024',
-        'icon' => 'nullable|string',
-        'color' => 'nullable|string',
-        'status' => 'required|in:active,inactive',
-        'sort_order' => 'required|integer',
-    ];
+    protected function rules(): array
+    {
+        return [
+            'name' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:categories,slug',
+            'description' => 'nullable|string',
+            'image' => 'nullable|image|max:1024',
+            'icon' => 'nullable|string',
+            'color' => 'nullable|string',
+            'status' => ['required', Rule::enum(StatusState::class)],
+            'sort_order' => 'required|integer',
+        ];
+    }
 
     public function updatedName($value)
     {
@@ -83,7 +88,7 @@ class CategorySetup extends Component
             'image' => $this->image ? 'image|max:1024' : 'nullable',
             'icon' => 'nullable|string',
             'color' => 'nullable|string',
-            'status' => 'required|in:active,inactive',
+            'status' => ['required', Rule::enum(StatusState::class)],
             'sort_order' => 'required|integer',
         ]);
 
@@ -128,7 +133,7 @@ class CategorySetup extends Component
 
     public function toggleStatus(Category $category)
     {
-        $category->status = $category->status === 'active' ? 'inactive' : 'active';
+        $category->status = $category->status === StatusState::ACTIVE ? StatusState::INACTIVE : StatusState::ACTIVE;
         $category->save();
         $this->success('Status updated.');
     }
@@ -142,7 +147,7 @@ class CategorySetup extends Component
         $this->image = null;
         $this->icon = '';
         $this->color = '#000000';
-        $this->status = 'active';
+        $this->status = StatusState::ACTIVE;
         $this->sort_order = 0;
     }
 

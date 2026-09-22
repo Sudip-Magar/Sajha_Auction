@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\OrderPaymentStatus;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\Product;
@@ -147,7 +148,7 @@ class Checkout extends Component
                         'status' => 'pending',
                         'total_amount' => $totalAmount,
                         'payment_method' => self::PAYMENT_METHOD,
-                        'payment_status' => 'pending',
+                        'payment_status' => OrderPaymentStatus::PENDING,
                         'handover_type' => self::HANDOVER_TYPE,
                         'meetup_location' => $this->meetup_location,
                         'meetup_time' => Carbon::parse("{$this->meetup_date_en} {$this->meetup_time_of_day}"),

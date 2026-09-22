@@ -81,7 +81,7 @@
                             </div>
                             <div x-data="{ open: false }" class="relative">
                                 <button type="button" @click="open = !open" @click.outside="open = false" class="flex h-5 w-5 items-center justify-center rounded-full border border-indigo-300 text-xs font-black text-indigo-100 hover:bg-indigo-500/30" aria-label="How the suggested bid works">?</button>
-                                <div x-cloak x-show="open" x-transition class="absolute left-0 top-7 z-20 w-72 rounded-xl border border-indigo-400/40 bg-slate-950 p-3 text-xs leading-relaxed text-indigo-100 shadow-xl">
+                                <div x-cloak x-show="open" x-transition class="absolute left-1/2 top-7 z-20 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-indigo-400/40 bg-slate-950 p-3 text-xs leading-relaxed text-indigo-100 shadow-xl">
                                     Enter the highest amount the item is worth to you. The guide suggests a cautious bid using the number of active bidders. It is only a suggestion—you stay in control of the final amount.
                                 </div>
                             </div>
@@ -158,7 +158,8 @@
             <div
                 wire:key="auction-timer-{{ $auction->id }}-{{ $auction->effective_end_time?->timestamp }}"
                 x-data="auctionTimer('{{ $auction->start_time }}', '{{ $auction->effective_end_time }}')"
-                class="bg-gradient-to-r from-[#1F6F5F] to-[#0F9F6E] rounded-3xl p-6 text-white shadow-xl"
+                :class="isUpcoming ? 'bg-gradient-to-r from-amber-500 to-amber-600' : (isLive ? 'bg-gradient-to-r from-[#1F6F5F] to-[#0F9F6E]' : 'bg-gradient-to-r from-rose-600 to-rose-700')"
+                class="rounded-3xl p-6 text-white shadow-xl transition-colors"
             >
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] font-black uppercase tracking-widest text-white/70" x-text="isUpcoming ? 'Auction Starts In' : 'Auction Time Remaining'"></span>
@@ -168,7 +169,7 @@
                     </div>
                 </div>
                 <p class="text-3xl sm:text-4xl font-black tracking-tighter" x-text="displayText"></p>
-                <div class="mt-3 flex items-center justify-between text-xs text-white/80 font-bold border-t border-white/15 pt-3">
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-white/80 font-bold border-t border-white/15 pt-3">
                     <span>Start: {{ $auction->start_time ? $auction->start_time->format('M d, Y h:i A') : 'N/A' }}</span>
                     <span>
                         End: {{ $auction->end_time ? $auction->end_time->format('M d, Y h:i A') : 'N/A' }}
@@ -207,7 +208,7 @@
                             </div>
                             <div x-data="{ open: false }" class="relative">
                                 <button type="button" @click="open = !open" @click.outside="open = false" class="flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-xs font-black text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="How the auction result is chosen">?</button>
-                                <div x-cloak x-show="open" x-transition class="absolute left-0 top-7 z-20 w-72 rounded-xl border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                <div x-cloak x-show="open" x-transition class="absolute left-1/2 top-7 z-20 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                                     The highest valid bid wins if it meets the seller's reserve price. If equal highest bids are placed, the earlier one wins.
                                 </div>
                             </div>
@@ -247,17 +248,17 @@
             <div class="bg-white dark:bg-[#181A1F] rounded-3xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
 
                 {{-- Price Stats Grid --}}
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Current Standing Price</p>
-                        <p class="text-2xl font-black text-[#0C8FE8]">Rs. {{ number_format($auction->current_price, 2) }}</p>
+                        <p class="text-xl sm:text-2xl font-black text-[#0C8FE8]">Rs. {{ number_format($auction->current_price, 2) }}</p>
                     </div>
                     <div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
                         <div class="flex items-center gap-1">
                             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Minimum bid increase</p>
                             <div x-data="{ open: false }" class="relative mb-1">
                                 <button type="button" @click="open = !open" @click.outside="open = false" class="flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[10px] font-black text-gray-500 hover:bg-gray-200 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="What minimum bid increase means">?</button>
-                                <div x-cloak x-show="open" x-transition class="absolute right-0 top-6 z-20 w-64 rounded-xl border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                <div x-cloak x-show="open" x-transition class="absolute left-1/2 top-6 z-20 w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                                     Each new bid must be at least this much higher than the current price. The amount increases for higher-priced items to keep the auction moving.
                                 </div>
                             </div>
@@ -329,7 +330,7 @@
                                     <span>Automatic bidding</span>
                                     <div x-data="{ open: false }" class="relative">
                                         <button type="button" @click="open = !open" @click.outside="open = false" class="flex h-4 w-4 items-center justify-center rounded-full border border-sky-500 text-[10px] font-black text-sky-700 hover:bg-sky-100 dark:text-sky-200 dark:hover:bg-sky-900" aria-label="How automatic bidding works">?</button>
-                                        <div x-cloak x-show="open" x-transition class="absolute left-0 top-6 z-20 w-72 rounded-xl border border-sky-200 bg-white p-3 text-xs leading-relaxed text-sky-900 shadow-xl dark:border-sky-800 dark:bg-gray-900 dark:text-sky-100">
+                                        <div x-cloak x-show="open" x-transition class="absolute left-1/2 top-6 z-20 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-sky-200 bg-white p-3 text-xs leading-relaxed text-sky-900 shadow-xl dark:border-sky-800 dark:bg-gray-900 dark:text-sky-100">
                                             Set the most you are willing to pay. Your maximum stays private. If someone bids against you, the system raises your bid by only the minimum required amount, stopping at your limit.
                                         </div>
                                     </div>

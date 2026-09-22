@@ -12,7 +12,7 @@
             </div>
 
             {{-- Tabs --}}
-            <div class="mt-4 sm:mt-0 flex rounded-2xl bg-gray-200/60 p-1 dark:bg-gray-800">
+            <div class="mt-4 sm:mt-0 flex flex-wrap gap-1 rounded-2xl bg-gray-200/60 p-1 dark:bg-gray-800">
                 <button type="button"
                         wire:click="$set('tab', 'purchases')"
                         @class([
@@ -20,7 +20,7 @@
                             'bg-white text-gray-900 shadow-sm dark:bg-[#181A1F] dark:text-white' => $tab === 'purchases',
                             'text-gray-600 hover:text-gray-900 dark:text-gray-400' => $tab !== 'purchases'
                         ])>
-                    My Purchases ({{ $purchases->count() }})
+                    My Purchases ({{ $purchases->total() }})
                 </button>
                 <button type="button"
                         wire:click="$set('tab', 'sales')"
@@ -29,7 +29,7 @@
                             'bg-white text-gray-900 shadow-sm dark:bg-[#181A1F] dark:text-white' => $tab === 'sales',
                             'text-gray-600 hover:text-gray-900 dark:text-gray-400' => $tab !== 'sales'
                         ])>
-                    My Sales / Incoming Orders ({{ $sales->count() }})
+                    My Sales / Incoming Orders ({{ $sales->total() }})
                 </button>
             </div>
         </div>
@@ -63,7 +63,7 @@
                         {{-- Header Info --}}
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
                             <div>
-                                <div class="flex items-center gap-3">
+                                <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
                                     <span class="font-black text-base text-gray-900 dark:text-white">
                                         Order #{{ $order->order_number }}
                                     </span>
@@ -163,17 +163,17 @@
 
                             <div>
                                 <p class="font-bold text-emerald-950 dark:text-emerald-300">
-                                    Payment: {{ $order->payment_method_label }} ({{ str($order->payment_status)->title() }})
+                                    Payment: {{ $order->payment_method_label }} ({{ $order->payment_status?->label() ?? 'Pending' }})
                                 </p>
                                 <p class="mt-1 font-black text-sm text-emerald-950 dark:text-emerald-200">
                                     Total: Rs {{ number_format($order->total_amount) }}
                                 </p>
-                                @if($order->deposit_status !== 'not_required')
+                                @if($order->deposit_status !== \App\Enums\OrderDepositStatus::NOT_REQUIRED)
                                     @php
                                         $depositBadge = match($order->deposit_status) {
-                                            'paid' => ['Deposit Paid', 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300'],
-                                            'refund_owed' => ['Refund Owed', 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300'],
-                                            'forfeited' => ['Deposit Forfeited', 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300'],
+                                            \App\Enums\OrderDepositStatus::PAID => ['Deposit Paid', 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300'],
+                                            \App\Enums\OrderDepositStatus::REFUND_OWED => ['Refund Owed', 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300'],
+                                            \App\Enums\OrderDepositStatus::FORFEITED => ['Deposit Forfeited', 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300'],
                                             default => ['Deposit Pending', 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'],
                                         };
                                     @endphp
@@ -205,9 +205,9 @@
                                        class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
                                         Cancel Order
                                     </a>
-                                @elseif($order->status === 'confirmed' || $order->status === 'meetup_scheduled')
+                                @elseif(($order->status === 'confirmed' || $order->status === 'meetup_scheduled') && $tab === 'sales')
                                     <button type="button"
-                                            wire:click="updateOrderStatus({{ $order->id }}, 'completed')"
+                                            wire:click="requestMarkCompleted({{ $order->id }})"
                                             class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
                                         Mark Completed & Handed Over
                                     </button>
@@ -217,6 +217,21 @@
                     </div>
                 @endforeach
             </div>
+
+            <div class="mt-6">
+                {{ $currentOrders->links() }}
+            </div>
         @endif
     </div>
+
+    {{-- Mark Completed Confirmation --}}
+    <x-modal wire:model="showCompleteConfirm" title="Confirm Handover" separator class="backdrop-blur-sm">
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+            This finalizes the order: stock is updated, the product is marked sold, and any remaining balance is recorded as paid in cash. This cannot be undone. Are you sure the item has been handed over?
+        </p>
+        <x-slot:actions>
+            <x-button label="Cancel" wire:click="$set('showCompleteConfirm', false)" class="rounded-xl" />
+            <x-button label="Confirm" wire:click="confirmMarkCompleted" class="btn-primary rounded-xl" spinner="confirmMarkCompleted" />
+        </x-slot:actions>
+    </x-modal>
 </div>

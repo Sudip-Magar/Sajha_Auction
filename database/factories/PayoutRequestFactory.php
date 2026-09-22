@@ -2,6 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Enums\PayoutPurpose;
+use App\Enums\PayoutRecipientRole;
+use App\Enums\PayoutStatus;
 use App\Models\PayoutRequest;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -16,11 +19,11 @@ class PayoutRequestFactory extends Factory
     public function definition(): array
     {
         return [
-            'recipient_role' => 'seller',
-            'purpose' => PayoutRequest::PURPOSE_SELLER_FORFEIT_SHARE,
+            'recipient_role' => PayoutRecipientRole::SELLER,
+            'purpose' => PayoutPurpose::SELLER_FORFEIT_SHARE,
             'amount' => 200,
             'debt_deducted' => 0,
-            'payout_status' => PayoutRequest::STATUS_AWAITING_DETAILS,
+            'payout_status' => PayoutStatus::AWAITING_DETAILS,
         ];
     }
 }

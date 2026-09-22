@@ -50,6 +50,22 @@
                                 
                                 <x-textarea label="Bio" wire:model="bio" placeholder="Tell us a little bit about yourself..." rows="4" hint="Maximum 500 characters" />
 
+                                {{-- Damage Penalty Notice --}}
+                                @if($this->pendingDamagePenalty)
+                                    @php($penalty = $this->pendingDamagePenalty)
+                                    <div class="bg-rose-50 border border-rose-200 rounded-2xl p-5 mt-6 dark:bg-rose-950/20 dark:border-rose-900">
+                                        <h4 class="text-sm font-bold text-rose-900 dark:text-rose-300 mb-1">Damage Penalty Due</h4>
+                                        <p class="text-xs text-rose-700 dark:text-rose-400 mb-3">
+                                            An item you sold on order #{{ $penalty->order->order_number }} was found damaged. Pay Rs. {{ number_format($penalty->amount, 2) }} by
+                                            {{ $penalty->due_at->format('M d, Y @ h:i A') }}, or your access will be permanently revoked and legal action will be taken.
+                                            Your seller and auction access is already suspended until this is paid and an admin restores it.
+                                        </p>
+                                        <a href="{{ route('payment.esewa.penalty-initiate', $penalty) }}">
+                                            <x-button label="Pay Penalty via eSewa" icon="o-credit-card" class="btn-sm bg-rose-600 hover:bg-rose-700 text-white" />
+                                        </a>
+                                    </div>
+                                @endif
+
                                 {{-- Seller Access Card --}}
                                 <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mt-6 dark:bg-gray-800/50 dark:border-gray-800">
                                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -96,6 +112,33 @@
                                         @endif
                                     </div>
                                 </div>
+
+                                {{-- Auction Verification Documents (read-only) --}}
+                                @if($this->documentImages->isNotEmpty())
+                                    <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 mt-4 dark:bg-gray-800/50 dark:border-gray-800">
+                                        <h4 class="text-sm font-bold text-gray-900 mb-1 dark:text-gray-100">Auction Verification Documents</h4>
+                                        <p class="text-xs text-gray-500 mb-4 dark:text-gray-400">
+                                            @if(auth()->user()->is_auction_allowed)
+                                                Approved and locked — these can no longer be changed. Contact support if a document needs correcting.
+                                            @else
+                                                Submitted through the Join Auction page. View-only here.
+                                            @endif
+                                        </p>
+                                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            @foreach($this->documentImages as $document)
+                                                <a href="{{ Storage::url($document->image) }}" target="_blank" class="block group">
+                                                    <div class="aspect-square rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                                                        <img src="{{ Storage::url($document->image) }}" class="w-full h-full object-cover group-hover:opacity-80 transition-opacity">
+                                                    </div>
+                                                    <p class="text-[11px] font-semibold text-gray-700 mt-1 dark:text-gray-300">{{ $document->type->label() }}</p>
+                                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $document->is_approved ? 'text-emerald-600 dark:text-emerald-400' : ($document->is_rejected ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400') }}">
+                                                        {{ $document->is_approved ? 'Approved' : ($document->is_rejected ? 'Rejected' : 'Pending') }}
+                                                    </span>
+                                                </a>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         </div>
 

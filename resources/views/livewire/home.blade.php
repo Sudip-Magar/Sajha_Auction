@@ -75,7 +75,7 @@
                 @mouseleave="start()"
                 class="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-gray-200 dark:bg-[#181A1F] dark:ring-gray-800"
             >
-                <div class="relative aspect-16/7 min-h-52.5 overflow-hidden sm:aspect-16/5">
+                <div class="relative min-h-65 overflow-hidden sm:aspect-16/5 sm:min-h-70">
                     @foreach($bannerSlides as $index => $slide)
                         <div
                             x-show="current === {{ $index }}"
@@ -137,11 +137,11 @@
 
                 <div id="trending-carousel" class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
                     @forelse($trendingProducts as $product)
-                        <div class="group relative min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-gray-900 sm:min-w-47.5 lg:min-w-45">
+                        <div class="group relative min-w-40 snap-start overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-gray-900 sm:min-w-47.5 lg:min-w-50">
                             <a href="{{ $targetUrl($product) }}" wire:navigate class="block">
-                                <div class="aspect-4/3 relative bg-gray-100 dark:bg-gray-800">
+                                <div class="relative h-30 w-full bg-gray-100 dark:bg-gray-800 sm:h-36 lg:h-33.75">
                                     @if($product->image)
-                                        <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="h-full w-full object-cover transition group-hover:scale-105">
+                                        <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="absolute inset-0 h-full w-full object-cover transition group-hover:scale-105">
                                     @else
                                         <div class="flex h-full items-center justify-center"><x-icon name="o-photo" class="h-9 w-9 text-gray-300" /></div>
                                     @endif
@@ -300,7 +300,7 @@
                                 <div class="min-w-0 pr-8">
                                     <div class="flex items-start justify-between gap-4">
                                         <div class="flex flex-col gap-1">
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex flex-wrap items-center gap-2">
                                                 @if($product->isAuction())
                                                     <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
                                                         <span x-show="isLive" class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>

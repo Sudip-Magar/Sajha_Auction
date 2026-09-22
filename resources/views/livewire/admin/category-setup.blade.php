@@ -23,7 +23,7 @@
             </div>
             <div>
                 <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Active</p>
-                <p class="text-2xl font-black text-gray-900">{{ \App\Models\Category::where('status', 'active')->count() }}</p>
+                <p class="text-2xl font-black text-gray-900">{{ \App\Models\Category::where('status', \App\Enums\StatusState::ACTIVE)->count() }}</p>
             </div>
         </div>
         <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -80,14 +80,14 @@
                 <div class="flex items-center gap-2">
                     <div @class([
                         'w-2 h-2 rounded-full',
-                        'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' => $category->status === 'active',
-                        'bg-gray-300' => $category->status !== 'active',
+                        'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' => $category->status === \App\Enums\StatusState::ACTIVE,
+                        'bg-gray-300' => $category->status !== \App\Enums\StatusState::ACTIVE,
                     ])></div>
                     <span @class([
                         'text-xs font-black uppercase tracking-tighter',
-                        'text-green-600' => $category->status === 'active',
-                        'text-gray-400' => $category->status !== 'active',
-                    ])>{{ $category->status }}</span>
+                        'text-green-600' => $category->status === \App\Enums\StatusState::ACTIVE,
+                        'text-gray-400' => $category->status !== \App\Enums\StatusState::ACTIVE,
+                    ])>{{ $category->status->label() }}</span>
                 </div>
             @endscope
 
@@ -98,7 +98,7 @@
             @scope('actions', $category)
                 <div class="flex items-center gap-1 justify-end">
                     <x-button icon="o-pencil" class="btn-sm btn-ghost hover:bg-blue-50 hover:text-blue-600 rounded-xl" wire:click="editCategory({{ $category->id }})" />
-                    <x-button icon="o-power" class="btn-sm btn-ghost rounded-xl {{ $category->status === 'active' ? 'hover:bg-red-50 hover:text-red-600 text-gray-300' : 'hover:bg-green-50 hover:text-green-600 text-green-400' }}" wire:click="toggleStatus({{ $category->id }})" />
+                    <x-button icon="o-power" class="btn-sm btn-ghost rounded-xl {{ $category->status === \App\Enums\StatusState::ACTIVE ? 'hover:bg-red-50 hover:text-red-600 text-gray-300' : 'hover:bg-green-50 hover:text-green-600 text-green-400' }}" wire:click="toggleStatus({{ $category->id }})" />
                     <x-button icon="o-trash" class="btn-sm btn-ghost hover:bg-red-50 hover:text-red-600 text-gray-300 rounded-xl" wire:confirm="Are you sure?" wire:click="deleteCategory({{ $category->id }})" />
                 </div>
             @endscope
@@ -125,7 +125,7 @@
             <div class="divider text-[10px] font-black uppercase text-gray-400 tracking-widest">Media & Status</div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                <x-select label="Visibility Status" wire:model="status" :options="[['id' => 'active', 'name' => 'Active / Visible'], ['id' => 'inactive', 'name' => 'Hidden / Disabled']]" icon="o-eye" />
+                <x-select label="Visibility Status" wire:model="status" :options="[['id' => \App\Enums\StatusState::ACTIVE->value, 'name' => 'Active / Visible'], ['id' => \App\Enums\StatusState::INACTIVE->value, 'name' => 'Hidden / Disabled']]" icon="o-eye" />
                 <x-file label="Category Banner/Thumbnail" wire:model="image" accept="image/*" />
 
                 @if($image || ($editingCategory && $editingCategory->image))

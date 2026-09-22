@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\StatusState;
 use App\Livewire\Admin\SubCategorySetup;
 use App\Models\Admin;
 use App\Models\Category;
@@ -66,7 +67,7 @@ it('allows admins to create update toggle and delete sub categories', function (
     Livewire::test(SubCategorySetup::class)
         ->call('toggleStatus', $subCategory);
 
-    expect($subCategory->refresh()->status)->toBe('inactive');
+    expect($subCategory->refresh()->status)->toBe(StatusState::INACTIVE);
 
     Livewire::test(SubCategorySetup::class)
         ->call('deleteSubCategory', $subCategory);

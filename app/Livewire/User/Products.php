@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\ProductApprovalStatus;
 use App\Models\Admin;
 use App\Models\Product;
 use App\Notifications\SellerRegisteredNotification;
@@ -72,7 +73,7 @@ class Products extends Component
             abort(403);
         }
 
-        if ($product->is_approved) {
+        if ($product->approval_status === ProductApprovalStatus::APPROVED) {
             $this->error('Approved products cannot be deleted. Please contact administration.');
 
             return;

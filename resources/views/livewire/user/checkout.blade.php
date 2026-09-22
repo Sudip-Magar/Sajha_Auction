@@ -90,7 +90,7 @@
 
             {{-- Summary Sidebar --}}
             <div class="lg:col-span-5">
-                <div class="sticky top-24 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#181A1F]">
+                <div class="lg:sticky lg:top-24 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#181A1F]">
                     <h2 class="text-xl font-black text-gray-900 dark:text-white border-b border-gray-100 pb-4 dark:border-gray-800">
                         Items in this Order
                     </h2>

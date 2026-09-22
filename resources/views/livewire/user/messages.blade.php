@@ -18,7 +18,7 @@
                 <div class="p-4 border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/50 flex items-center justify-between">
                     <span class="text-xs font-black uppercase tracking-wider text-gray-500">Recent Chats</span>
                     <span class="rounded-full bg-[#1F6F5F]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#1F6F5F] dark:text-[#7CE0C5]">
-                        {{ $conversations->count() }} Conversations
+                        {{ $conversations->total() }} Conversations
                     </span>
                 </div>
 
@@ -86,6 +86,12 @@
                         </div>
                     @endforelse
                 </div>
+
+                @if($conversations->hasPages())
+                    <div class="border-t border-gray-100 p-2 dark:border-gray-800">
+                        {{ $conversations->links() }}
+                    </div>
+                @endif
             </aside>
 
             {{-- Main Chat Window --}}

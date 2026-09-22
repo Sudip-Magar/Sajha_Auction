@@ -35,7 +35,7 @@
             </div>
 
             <!-- Desktop Navigation -->
-            <div class="hidden md:flex items-center space-x-8">
+            <div class="hidden lg:flex items-center space-x-8">
                 <a
                     href="{{ route('home') }}"
                     wire:navigate
@@ -109,7 +109,7 @@
             </div>
 
             <!-- Right Side Actions -->
-            <div class="hidden md:flex items-center space-x-3">
+            <div class="hidden lg:flex items-center space-x-3">
                 <button
                     type="button"
                     @click="toggleTheme"
@@ -234,7 +234,7 @@
                     <div class="relative" @click.away="userDropdownOpen = false">
                         <button @click="userDropdownOpen = !userDropdownOpen"
                                 class="flex items-center space-x-3 p-1.5 rounded-xl cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300 focus:outline-none">
-                            <div class="text-right mr-2 hidden lg:block">
+                            <div class="text-right mr-2 hidden xl:block">
                                 <p class="text-sm font-bold text-gray-900 leading-none dark:text-white">{{ auth()->user()->name }}</p>
                                 <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">User</p>
                             </div>
@@ -292,41 +292,57 @@
                                     <x-icon name="o-archive-box" class="w-4 h-4"/>
                                     <span>My Orders & Sales</span>
                                 </a>
-                                @if ($isSeller)
-                                    <a href="{{ route('user.products') }}" wire:navigate
-                                       class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                                        <x-icon name="o-cube" class="w-4 h-4"/>
-                                        <span>My Products</span>
+                                @if ($pendingPenaltyId)
+                                    <a href="{{ route('user.penalties') }}" wire:navigate
+                                       class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 transition-all">
+                                        <x-icon name="o-exclamation-triangle" class="w-4 h-4"/>
+                                        <span>Pay Damage Penalty (Rs. {{ number_format($pendingPenaltyAmount, 2) }})</span>
                                     </a>
-                                @elseif ($sellerApplicationPending)
-                                    <div class="flex cursor-not-allowed items-center space-x-3 px-4 py-2.5 text-sm font-medium text-amber-600 bg-amber-50">
-                                        <x-icon name="o-clock" class="w-4 h-4 text-amber-600"/>
-                                        <span>Seller Request Pending</span>
-                                    </div>
                                 @else
-                                    <button type="button"
-                                            wire:click="requestSellerAccess"
-                                            wire:loading.attr="disabled"
-                                            wire:target="requestSellerAccess"
-                                            class="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
-                                        <x-icon name="o-user-plus" class="w-4 h-4 text-emerald-600"/>
-                                        <span wire:loading.remove wire:target="requestSellerAccess">Apply as Seller</span>
-                                        <span wire:loading wire:target="requestSellerAccess">Sending Request...</span>
-                                    </button>
-                                @endif
+                                    @if ($hasPenaltyOrWarningHistory)
+                                        <a href="{{ route('user.penalties') }}" wire:navigate
+                                           class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                            <x-icon name="o-exclamation-triangle" class="w-4 h-4"/>
+                                            <span>Penalties & Warnings</span>
+                                        </a>
+                                    @endif
 
-                                @if($isAuctioner)
-                                    <a href="{{ route('user.products') }}" wire:navigate
-                                       class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                                        <x-icon name="o-gift" class="w-4 h-4"/>
-                                        <span>My Auctions</span>
-                                    </a>
-                                @else
-                                    <a href="{{route('user.join-auction')}}"
-                                       class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                                        <x-icon name="o-hand-raised" class="w-4 h-4"/>
-                                        <span>Join Auction</span>
-                                    </a>
+                                    @if ($isSeller)
+                                        <a href="{{ route('user.products') }}" wire:navigate
+                                           class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                            <x-icon name="o-cube" class="w-4 h-4"/>
+                                            <span>My Products</span>
+                                        </a>
+                                    @elseif ($sellerApplicationPending)
+                                        <div class="flex cursor-not-allowed items-center space-x-3 px-4 py-2.5 text-sm font-medium text-amber-600 bg-amber-50">
+                                            <x-icon name="o-clock" class="w-4 h-4 text-amber-600"/>
+                                            <span>Seller Request Pending</span>
+                                        </div>
+                                    @else
+                                        <button type="button"
+                                                wire:click="requestSellerAccess"
+                                                wire:loading.attr="disabled"
+                                                wire:target="requestSellerAccess"
+                                                class="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <x-icon name="o-user-plus" class="w-4 h-4 text-emerald-600"/>
+                                            <span wire:loading.remove wire:target="requestSellerAccess">Apply as Seller</span>
+                                            <span wire:loading wire:target="requestSellerAccess">Sending Request...</span>
+                                        </button>
+                                    @endif
+
+                                    @if($isAuctioner)
+                                        <a href="{{ route('user.products') }}" wire:navigate
+                                           class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                            <x-icon name="o-gift" class="w-4 h-4"/>
+                                            <span>My Auctions</span>
+                                        </a>
+                                    @else
+                                        <a href="{{route('user.join-auction')}}"
+                                           class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                            <x-icon name="o-hand-raised" class="w-4 h-4"/>
+                                            <span>Join Auction</span>
+                                        </a>
+                                    @endif
                                 @endif
                             <div class="h-px bg-gray-50 my-1"></div>
                             <button wire:click="logout"
@@ -340,24 +356,29 @@
             </div>
 
             <!-- Mobile Menu Button -->
-            <div class="md:hidden flex items-center gap-2">
+            <div class="lg:hidden flex items-center gap-2">
                 @auth
-                    <a href="{{ route('user.wishlist') }}" wire:navigate class="p-2 text-rose-500 relative">
-                        <x-icon name="o-heart" class="w-6 h-6" />
-                        @if(($wishlistCount ?? 0) > 0)
-                            <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white">
-                                {{ $wishlistCount }}
-                            </span>
-                        @endif
-                    </a>
-                    <a href="{{ route('user.cart') }}" wire:navigate class="p-2 text-[#1F6F5F] relative">
-                        <x-icon name="o-shopping-cart" class="w-6 h-6" />
-                        @if(($cartCount ?? 0) > 0)
-                            <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#1F6F5F] text-[9px] font-black text-white">
-                                {{ $cartCount }}
-                            </span>
-                        @endif
-                    </a>
+                    <!-- Quick-access icons: hidden below sm since they're already reachable
+                         in the mobile menu panel below, and the compact bar doesn't have
+                         room for them on the smallest phones (~375px). -->
+                    <div class="hidden sm:flex items-center gap-2">
+                        <a href="{{ route('user.wishlist') }}" wire:navigate class="p-2 text-rose-500 relative">
+                            <x-icon name="o-heart" class="w-6 h-6" />
+                            @if(($wishlistCount ?? 0) > 0)
+                                <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white">
+                                    {{ $wishlistCount }}
+                                </span>
+                            @endif
+                        </a>
+                        <a href="{{ route('user.cart') }}" wire:navigate class="p-2 text-[#1F6F5F] relative">
+                            <x-icon name="o-shopping-cart" class="w-6 h-6" />
+                            @if(($cartCount ?? 0) > 0)
+                                <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#1F6F5F] text-[9px] font-black text-white">
+                                    {{ $cartCount }}
+                                </span>
+                            @endif
+                        </a>
+                    </div>
                 @endauth
                 <button
                     type="button"
@@ -385,7 +406,7 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 -translate-y-4"
-         class="md:hidden bg-white border-t border-gray-50 overflow-hidden dark:border-gray-800 dark:bg-gray-900" style="display: none;">
+         class="lg:hidden bg-white border-t border-gray-50 overflow-hidden dark:border-gray-800 dark:bg-gray-900" style="display: none;">
         <div class="px-4 pt-4 pb-6 space-y-2">
             <a
                 href="{{ route('home') }}"
@@ -475,26 +496,42 @@
                             <span>My Orders & Sales</span>
                         </a>
 
-                        @if ($isSeller)
-                            <a href="{{ route('user.products') }}" wire:navigate
-                               class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
-                                <x-icon name="o-cube" class="w-4 h-4"/>
-                                <span>My Products</span>
+                        @if ($pendingPenaltyId)
+                            <a href="{{ route('user.penalties') }}" wire:navigate
+                               class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all">
+                                <x-icon name="o-exclamation-triangle" class="w-4 h-4"/>
+                                <span>Pay Damage Penalty (Rs. {{ number_format($pendingPenaltyAmount, 2) }})</span>
                             </a>
-                        @elseif ($sellerApplicationPending)
-                            <div class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-amber-600 bg-amber-50 rounded-xl">
-                                <x-icon name="o-clock" class="w-4 h-4 text-amber-600"/>
-                                <span>Seller Request Pending</span>
-                            </div>
                         @else
-                            <button wire:click="requestSellerAccess" type="button"
-                                    wire:loading.attr="disabled"
-                                    wire:target="requestSellerAccess"
-                                    class="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all cursor-pointer">
-                                <x-icon name="o-user-plus" class="w-4 h-4 text-emerald-600"/>
-                                <span wire:loading.remove wire:target="requestSellerAccess">Apply as Seller</span>
-                                <span wire:loading wire:target="requestSellerAccess">Sending Request...</span>
-                            </button>
+                            @if ($hasPenaltyOrWarningHistory)
+                                <a href="{{ route('user.penalties') }}" wire:navigate
+                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all rounded-xl">
+                                    <x-icon name="o-exclamation-triangle" class="w-4 h-4"/>
+                                    <span>Penalties & Warnings</span>
+                                </a>
+                            @endif
+
+                            @if ($isSeller)
+                                <a href="{{ route('user.products') }}" wire:navigate
+                                   class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-[#2FA084] transition-all">
+                                    <x-icon name="o-cube" class="w-4 h-4"/>
+                                    <span>My Products</span>
+                                </a>
+                            @elseif ($sellerApplicationPending)
+                                <div class="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-amber-600 bg-amber-50 rounded-xl">
+                                    <x-icon name="o-clock" class="w-4 h-4 text-amber-600"/>
+                                    <span>Seller Request Pending</span>
+                                </div>
+                            @else
+                                <button wire:click="requestSellerAccess" type="button"
+                                        wire:loading.attr="disabled"
+                                        wire:target="requestSellerAccess"
+                                        class="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all cursor-pointer">
+                                    <x-icon name="o-user-plus" class="w-4 h-4 text-emerald-600"/>
+                                    <span wire:loading.remove wire:target="requestSellerAccess">Apply as Seller</span>
+                                    <span wire:loading wire:target="requestSellerAccess">Sending Request...</span>
+                                </button>
+                            @endif
                         @endif
 
                         <button wire:click="logout" type="button"

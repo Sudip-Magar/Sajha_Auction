@@ -12,7 +12,7 @@
             </div>
             <div class="mt-4 sm:mt-0 flex items-center gap-3">
                 <span class="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
-                    {{ $products->count() }} {{ str('Item')->plural($products->count()) }} Saved
+                    {{ $products->total() }} {{ str('Item')->plural($products->total()) }} Saved
                 </span>
                 <a href="{{ route('home') }}" wire:navigate class="text-sm font-semibold text-[#1F6F5F] hover:underline flex items-center gap-1">
                     <x-icon name="o-shopping-bag" class="w-4 h-4" />
@@ -137,6 +137,10 @@
                         </div>
                     </div>
                 @endforeach
+            </div>
+
+            <div class="mt-8">
+                {{ $products->links() }}
             </div>
         @endif
     </div>

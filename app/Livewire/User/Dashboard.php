@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\ProductApprovalStatus;
 use App\Models\Product;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -47,7 +48,11 @@ class Dashboard extends Component
         return view('livewire.user.dashboard', [
             'totalProducts' => (clone $products)->count(),
             'activeProducts' => (clone $products)->where('status', 'active')->count(),
-            'pendingProducts' => (clone $products)->where('is_approved', false)->count(),
+            // Anything not yet approved - pending review, sent back for
+            // correction, or rejected - all need the seller's attention.
+            // Counting PENDING alone used to silently drop correction and
+            // rejected listings from this stat.
+            'needsAttentionProducts' => (clone $products)->where('approval_status', '!=', ProductApprovalStatus::APPROVED)->count(),
             'auctionProducts' => (clone $products)->where('listing_type', 'auction')->count(),
             'recentProducts' => (clone $products)->with(['category', 'images'])->latest()->take(5)->get(),
             'user' => Auth::user(),

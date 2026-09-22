@@ -8,18 +8,19 @@ use App\Models\Conversation;
 use App\Notifications\NewChatMessageNotification;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Contracts\View\View;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
 #[Layout('layouts.app')]
 class Messages extends Component
 {
-    use Toast;
+    use Toast, WithPagination;
 
     public ?int $selectedConversationId = null;
 
@@ -185,7 +186,6 @@ class Messages extends Component
     {
         $user = Auth::user();
 
-        /** @var Collection<int, Conversation> $conversations */
         $conversations = $user
             ? Conversation::query()
                 ->with(['product.images', 'buyer', 'seller', 'messages' => fn ($q) => $q->latest()->limit(1)])
@@ -194,11 +194,22 @@ class Messages extends Component
                         ->orWhere('seller_id', $user->id);
                 })
                 ->latest('last_message_at')
-                ->get()
-            : collect();
+                ->paginate(15)
+            : new LengthAwarePaginator(collect(), 0, 15);
 
-        $selectedConversation = $this->selectedConversationId
-            ? $conversations->firstWhere('id', $this->selectedConversationId)
+        // The open conversation must resolve even when it isn't on the
+        // current page of the paginated sidebar list - scoped to this user's
+        // own conversations, same as the paginated query above, so a crafted
+        // selectedConversationId can't leak someone else's conversation.
+        $selectedConversation = ($this->selectedConversationId && $user)
+            ? ($conversations->firstWhere('id', $this->selectedConversationId)
+                ?? Conversation::with(['product.images', 'buyer', 'seller'])
+                    ->where('id', $this->selectedConversationId)
+                    ->where(function ($query) use ($user): void {
+                        $query->where('buyer_id', $user->id)
+                            ->orWhere('seller_id', $user->id);
+                    })
+                    ->first())
             : null;
 
         return view('livewire.user.messages', [

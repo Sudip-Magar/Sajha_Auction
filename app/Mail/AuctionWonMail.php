@@ -4,13 +4,20 @@ namespace App\Mail;
 
 use App\Models\Auction;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class AuctionWonMail extends Mailable
+/**
+ * Queued rather than sent inline: a live SMTP send used to sit on the
+ * blocking path between an auction ending and the AuctionEnded broadcast
+ * firing (both ran inside the same settlement transaction), delaying the
+ * result on screen by however long the mail server took to respond.
+ */
+class AuctionWonMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 

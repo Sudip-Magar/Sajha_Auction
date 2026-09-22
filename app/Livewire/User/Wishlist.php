@@ -6,15 +6,17 @@ use App\Models\CartItem;
 use App\Models\Product;
 use App\Models\Wishlist as WishlistModel;
 use Illuminate\Contracts\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
 #[Layout('layouts.app')]
 class Wishlist extends Component
 {
-    use Toast;
+    use Toast, WithPagination;
 
     public function removeFromWishlist(int $productId): void
     {
@@ -68,8 +70,8 @@ class Wishlist extends Component
             ? $user->wishlistedProducts()
                 ->with(['category', 'images', 'user'])
                 ->latest('wishlists.created_at')
-                ->get()
-            : collect();
+                ->paginate(12)
+            : new LengthAwarePaginator(collect(), 0, 12);
 
         return view('livewire.user.wishlist', [
             'products' => $wishlistedProducts,

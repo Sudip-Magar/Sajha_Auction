@@ -49,7 +49,7 @@ test('toggling the wishlist from Home only touches the wishlists table', functio
         'sale_price' => 50000,
         'listing_type' => 'direct_seller',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     Livewire::actingAs($user)
@@ -78,7 +78,7 @@ test('the direct-sell products marketplace page renders and links to the product
         'sale_price' => 25000,
         'listing_type' => 'direct_seller',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $this->get(route('user.marketplace-products'))

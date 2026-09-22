@@ -5,9 +5,11 @@ namespace App\Livewire\User;
 use App\Enums\DocumentImageType;
 use App\Models\Admin;
 use App\Models\DocumentImage;
+use App\Models\User;
 use App\Notifications\AuctionApplicationSubmittedNotification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -132,6 +134,21 @@ class JoinAuction extends Component
     }
 
     /**
+     * Re-checks approval straight from the database rather than trusting
+     * $canSubmit, which is only refreshed on mount or by a broadcast event and
+     * can be stale in a background tab. Once any document is approved (or
+     * auction access was granted), the application is permanently locked:
+     * no further resubmission, replacement or deletion through this form.
+     */
+    private function isLockedByApproval(): bool
+    {
+        $user = Auth::user();
+
+        return (bool) $user->fresh()->is_auction_allowed
+            || $user->documentImages()->where('is_approved', true)->exists();
+    }
+
+    /**
      * @return array{id:null,type:string,image_path:null,image:null}
      */
     private function emptyDocumentRow(): array
@@ -151,6 +168,13 @@ class JoinAuction extends Component
 
     public function removeDocumentRow(int $index): void
     {
+        if ($this->isLockedByApproval()) {
+            $this->warning('Your documents are approved and can no longer be changed.');
+            $this->loadApplicationState();
+
+            return;
+        }
+
         if (! array_key_exists($index, $this->documentRows)) {
             return;
         }
@@ -171,6 +195,13 @@ class JoinAuction extends Component
 
     public function submitApplication(): void
     {
+        if ($this->isLockedByApproval()) {
+            $this->warning('Your documents are already approved and can no longer be changed.');
+            $this->loadApplicationState();
+
+            return;
+        }
+
         if (! $this->canSubmit) {
             $this->warning('Your current auction access request cannot be updated right now.');
 
@@ -206,44 +237,65 @@ class JoinAuction extends Component
 
         $user = Auth::user();
 
-        if ($this->removedDocumentIds !== []) {
-            $documentsToDelete = $user->documentImages()
-                ->whereIn('id', $this->removedDocumentIds)
-                ->get();
+        // Re-checked one last time under a lock, immediately before writing,
+        // to close the window between the check above and now (validation
+        // and file uploads take real time, and an admin could approve in
+        // the meantime).
+        $stillLocked = DB::transaction(function () use ($user): bool {
+            $lockedUser = User::whereKey($user->id)->lockForUpdate()->first();
 
-            foreach ($documentsToDelete as $document) {
-                Storage::disk('public')->delete($document->image);
-                $document->delete();
+            if ($lockedUser?->is_auction_allowed || $user->documentImages()->where('is_approved', true)->lockForUpdate()->exists()) {
+                return true;
             }
-        }
 
-        foreach ($this->documentRows as $row) {
-            if ($row['id'] !== null) {
-                $document = $user->documentImages()->find($row['id']);
-                if (! $document) {
+            if ($this->removedDocumentIds !== []) {
+                $documentsToDelete = $user->documentImages()
+                    ->whereIn('id', $this->removedDocumentIds)
+                    ->get();
+
+                foreach ($documentsToDelete as $document) {
+                    Storage::disk('public')->delete($document->image);
+                    $document->delete();
+                }
+            }
+
+            foreach ($this->documentRows as $row) {
+                if ($row['id'] !== null) {
+                    $document = $user->documentImages()->find($row['id']);
+                    if (! $document) {
+                        continue;
+                    }
+
+                    $payload = [
+                        'type' => $row['type'],
+                    ];
+
+                    if ($row['image']) {
+                        Storage::disk('public')->delete($document->image);
+                        $payload['image'] = $row['image']->store('document-images', 'public');
+                        $payload['is_approved'] = false;
+                        $payload['is_rejected'] = false;
+                    }
+
+                    $document->update($payload);
+
                     continue;
                 }
 
-                $payload = [
+                $user->documentImages()->create([
                     'type' => $row['type'],
-                ];
-
-                if ($row['image']) {
-                    Storage::disk('public')->delete($document->image);
-                    $payload['image'] = $row['image']->store('document-images', 'public');
-                    $payload['is_approved'] = false;
-                    $payload['is_rejected'] = false;
-                }
-
-                $document->update($payload);
-
-                continue;
+                    'image' => $row['image']->store('document-images', 'public'),
+                ]);
             }
 
-            $user->documentImages()->create([
-                'type' => $row['type'],
-                'image' => $row['image']->store('document-images', 'public'),
-            ]);
+            return false;
+        });
+
+        if ($stillLocked) {
+            $this->warning('Your documents are already approved and can no longer be changed.');
+            $this->loadApplicationState();
+
+            return;
         }
 
         $this->removedDocumentIds = [];

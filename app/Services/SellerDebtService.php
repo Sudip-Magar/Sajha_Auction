@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\PaymentTransactionParty;
+use App\Enums\PaymentTransactionStatus;
+use App\Enums\PaymentTransactionType;
+use App\Enums\SellerDebtStatus;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Models\SellerDebt;
@@ -9,60 +13,21 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Records what a seller owes the platform after an upheld buyer complaint and
- * recovers it from money the admin is about to pay that seller.
+ * Recovers a seller's outstanding debt from money the admin is about to pay
+ * them.
  *
  * Only admin-held money (currently the seller's share of a forfeited deposit)
  * can be netted. Cash the seller collects at a meetup never passes through
  * the platform, so it cannot be deducted.
+ *
+ * Debt used to be recorded here too (for an upheld buyer complaint via
+ * record()/penaltyFor()), but that's been fully superseded by
+ * DamagePenaltyService's direct seller-pays-admin penalty flow - nothing
+ * creates a SellerDebt row anymore. This service only recovers debt that
+ * already exists.
  */
 class SellerDebtService
 {
-    public static function penaltyFor(Order $order): float
-    {
-        return round((float) $order->total_amount * (float) config('services.esewa.seller_penalty_percentage', 50) / 100, 2);
-    }
-
-    /**
-     * Record the seller's debt for an upheld complaint.
-     */
-    public static function record(Order $order, string $reason): SellerDebt
-    {
-        $amount = self::penaltyFor($order);
-
-        return DB::transaction(function () use ($order, $reason, $amount): SellerDebt {
-            $debt = SellerDebt::create([
-                'seller_id' => $order->seller_id,
-                'related_order_id' => $order->id,
-                'amount' => $amount,
-                'reason' => $reason,
-                'status' => SellerDebt::STATUS_OUTSTANDING,
-            ]);
-
-            PaymentTransaction::create([
-                'order_id' => $order->id,
-                'type' => PaymentTransaction::TYPE_DEBT_RECORDED,
-                'amount' => $amount,
-                'status' => 'completed',
-                'party' => 'seller',
-                'notes' => $reason,
-            ]);
-
-            return $debt;
-        });
-    }
-
-    /**
-     * Total the seller still owes.
-     */
-    public static function outstandingFor(User $seller): float
-    {
-        return round((float) SellerDebt::where('seller_id', $seller->id)
-            ->where('status', SellerDebt::STATUS_OUTSTANDING)
-            ->get()
-            ->sum(fn (SellerDebt $debt): float => $debt->remaining), 2);
-    }
-
     /**
      * Deduct outstanding debt (oldest first) from a payout about to be made to
      * the seller. Returns how much was deducted; the seller receives the rest.
@@ -73,7 +38,7 @@ class SellerDebtService
     {
         return DB::transaction(function () use ($seller, $payoutAmount, $payoutOrder): float {
             $debts = SellerDebt::where('seller_id', $seller->id)
-                ->where('status', SellerDebt::STATUS_OUTSTANDING)
+                ->where('status', SellerDebtStatus::OUTSTANDING)
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
@@ -92,16 +57,16 @@ class SellerDebtService
 
                 $debt->update([
                     'recovered_amount' => $newRecovered,
-                    'status' => $isCleared ? SellerDebt::STATUS_RECOVERED : SellerDebt::STATUS_OUTSTANDING,
+                    'status' => $isCleared ? SellerDebtStatus::RECOVERED : SellerDebtStatus::OUTSTANDING,
                     'recovered_at' => $isCleared ? now() : null,
                 ]);
 
                 PaymentTransaction::create([
                     'order_id' => $debt->related_order_id,
-                    'type' => PaymentTransaction::TYPE_DEBT_RECOVERED,
+                    'type' => PaymentTransactionType::DEBT_RECOVERED,
                     'amount' => $take,
-                    'status' => 'completed',
-                    'party' => 'seller',
+                    'status' => PaymentTransactionStatus::COMPLETED,
+                    'party' => PaymentTransactionParty::SELLER,
                     'notes' => "Deducted from the seller's payout on order #{$payoutOrder->order_number}.",
                 ]);
 

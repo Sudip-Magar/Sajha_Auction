@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AuctionStatus;
 use App\Mail\AuctionWonMail;
 use App\Models\Auction;
 use App\Models\Bid;
@@ -54,7 +55,7 @@ test('algorithm 1: determines winner correctly with reserve price and earliest t
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $auction = Auction::create([
@@ -111,7 +112,8 @@ test('algorithm 1: determines winner correctly with reserve price and earliest t
     ]);
     Notification::assertSentTo($bidder1, AuctionWonNotification::class);
     Notification::assertSentTo($seller, NewOrderReceivedNotification::class);
-    Mail::assertSent(AuctionWonMail::class, fn (AuctionWonMail $mail): bool => $mail->hasTo($bidder1->email));
+    // Queued, not sent inline, so the settlement broadcast isn't delayed by a live SMTP send.
+    Mail::assertQueued(AuctionWonMail::class, fn (AuctionWonMail $mail): bool => $mail->hasTo($bidder1->email));
 });
 
 test('algorithm 2: calculates dynamic step increment and processes proxy bidding correctly', function () {
@@ -133,7 +135,7 @@ test('algorithm 2: calculates dynamic step increment and processes proxy bidding
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $auction = Auction::create([
@@ -200,7 +202,7 @@ test('algorithm 2: a bidder who becomes their own leader still settles at the re
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $auction = Auction::create([
@@ -261,7 +263,7 @@ test('algorithm 2: rejects a proxy submission whose visible bid is below the min
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
     $auction = Auction::create([
         'product_id' => $product->id,
@@ -308,7 +310,7 @@ test('outbid notification: the previous leader is notified when someone else tak
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
     $auction = Auction::create([
         'product_id' => $product->id,
@@ -354,7 +356,7 @@ test('outbid notification: raising your own leading proxy bid does not notify yo
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
     $auction = Auction::create([
         'product_id' => $product->id,
@@ -396,7 +398,7 @@ test('anti-sniping: a bid inside the closing window extends the deadline by time
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
     $auction = Auction::create([
         'product_id' => $product->id,
@@ -441,7 +443,7 @@ test('anti-sniping: a bid outside the closing window does not extend the deadlin
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
     $auction = Auction::create([
         'product_id' => $product->id,
@@ -484,7 +486,7 @@ test('anti-sniping: a second late bid extends further, never shrinking an existi
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
     $auction = Auction::create([
         'product_id' => $product->id,
@@ -534,7 +536,7 @@ test('anti-sniping: an extended auction is not finalized until the extension its
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
     $auction = Auction::create([
         'product_id' => $product->id,
@@ -556,11 +558,11 @@ test('anti-sniping: an extended auction is not finalized until the extension its
 
     expect($auction->isLive())->toBeTrue();
     expect(AuctionEngineService::checkAndFinalizeIfExpired($auction))->toBeFalse();
-    expect($auction->fresh()->status)->toBe('active');
+    expect($auction->fresh()->status)->toBe(AuctionStatus::ACTIVE);
 
     $auction->update(['extended_end_time' => now()->subSecond()]);
     expect(AuctionEngineService::checkAndFinalizeIfExpired($auction->fresh()))->toBeTrue();
-    expect($auction->fresh()->status)->not->toBe('active');
+    expect($auction->fresh()->status)->not->toBe(AuctionStatus::ACTIVE);
 });
 
 test('algorithm 3: calculates optimal reserve and equilibrium bidding strategy', function () {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\OrderDepositStatus;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
@@ -37,7 +38,7 @@ function makeDepositOrder(User $buyer, User $seller): Order
         'sale_price' => 50000,
         'listing_type' => 'direct_seller',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $order = Order::create([
@@ -169,7 +170,7 @@ test('success callback marks the deposit paid only after the status API also con
         ->get(route('payment.esewa.success', ['data' => $encoded]))
         ->assertRedirect(route('user.orders.show', $order));
 
-    expect($order->fresh()->deposit_status)->toBe('paid');
+    expect($order->fresh()->deposit_status)->toBe(OrderDepositStatus::PAID);
 });
 
 test('success callback does not mark deposit paid if the independent status check disagrees', function () {
@@ -201,5 +202,5 @@ test('success callback does not mark deposit paid if the independent status chec
     $this->actingAs($buyer)
         ->get(route('payment.esewa.success', ['data' => $encoded]));
 
-    expect($order->fresh()->deposit_status)->toBe('pending');
+    expect($order->fresh()->deposit_status)->toBe(OrderDepositStatus::PENDING);
 });

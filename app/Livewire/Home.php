@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Enums\StatusState;
 use App\Models\CartItem;
 use App\Models\Category;
 use App\Models\Product;
@@ -29,7 +30,7 @@ class Home extends Component
 
         $productExists = Product::query()
             ->whereKey($productId)
-            ->where('is_approved', true)
+            ->approved()
             ->where('status', 'active')
             ->exists();
 
@@ -101,7 +102,7 @@ class Home extends Component
     public function render(): View
     {
         $productsQuery = Product::with(['auction.traditionalAuction', 'category', 'images', 'user'])
-            ->where('is_approved', true)
+            ->approved()
             ->where(function ($query): void {
                 $query->where('status', 'active')
                     ->orWhereHas('auction', fn ($auctionQuery) => $auctionQuery->where('end_time', '<=', now()));
@@ -116,11 +117,11 @@ class Home extends Component
             'bannerSlides' => $this->bannerSlides(),
             'categories' => Category::query()
                 ->with(['children' => function ($query): void {
-                    $query->where('status', 'active')
+                    $query->where('status', StatusState::ACTIVE)
                         ->orderBy('sort_order')
                         ->orderBy('name');
                 }])
-                ->where('status', 'active')
+                ->where('status', StatusState::ACTIVE)
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->take(14)

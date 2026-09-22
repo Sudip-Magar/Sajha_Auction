@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\AuctionStatus;
 use App\Models\Auction;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
@@ -16,7 +17,7 @@ class AuctionMarketplace extends Component
     public function render(): View
     {
         $auctions = Auction::with(['product.images', 'traditionalAuction'])
-            ->whereIn('status', ['active', 'pending', 'completed', 'ended_unsold'])
+            ->whereIn('status', [AuctionStatus::ACTIVE, AuctionStatus::PENDING, AuctionStatus::COMPLETED, AuctionStatus::ENDED_UNSOLD])
             ->latest()
             ->paginate(12);
 

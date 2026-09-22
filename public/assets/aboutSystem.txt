@@ -3,6 +3,14 @@ ABOUT THE SYSTEM - SAJHA AUCTION (COMPLETE OVERVIEW)
 Database, migrations, routes, views, components, services, and more
 =====================================================================
 
+UPDATE (this file was rewritten to match the system as of 2026-09-22):
+since this file was last accurate, a damage-penalty system, a
+buyer<->admin complaint chat, seller warnings, a payment ledger, a
+payout-request flow and meetup scheduling were all added, and
+products.is_approved was replaced by a proper approval_status enum.
+Sections 5-9, 11, 13, 14, 18, 19 and 21 below have all been updated;
+the rest of the file was still accurate and is unchanged.
+
 TABLE OF CONTENTS
    1.  What the system is
    2.  How a request travels through the system (architecture)
@@ -35,8 +43,9 @@ Items are sold in two ways:
    - DIRECT SELL  : fixed (or negotiable) price. Buyer orders, meets
                     the seller in person, inspects, pays CASH.
    - AUCTION      : live bidding (manual and proxy bids). The highest
-                    valid bid wins. The winner pays a small deposit
-                    online (eSewa, sandbox) and the rest in cash at the
+                    valid bid wins. The winner pays at least a minimum
+                    deposit online (eSewa, sandbox - the buyer may
+                    choose to pay more) and the rest in cash at the
                     meetup.
 
 There are three kinds of people:
@@ -118,7 +127,8 @@ The layers, from top to bottom:
    app/Events/         broadcast events (AuctionBidPlaced, ...)
    app/Exceptions/     AiUnavailableException
    app/Helper/         helper.php (small global functions)
-   app/Http/Controllers/  GoogleAuthController, EsewaPaymentController
+   app/Http/Controllers/  GoogleAuthController, EsewaPaymentController,
+                          DamagePenaltyPaymentController
    app/Http/Middleware/   UserMiddleware, AdminMiddleware,
                           EnsureGoogleSession
    app/Jobs/           GenerateAiAssistantReply
@@ -191,10 +201,12 @@ products
    seller_id FK->users, sub_category_id FK->sub_categories, description,
    specifications, condition, usage_duration, purchase_date, quantity,
    retail_price (original price), sale_price (direct-sell price),
-   negotiable, listing_type ('direct_seller'|'auction'), is_approved,
-   is_featured, is_trending, views_count, location, meetup_location,
-   meetup_instructions, delivery_available (no longer used), expires_at,
-   status ('pending'|'active'|'sold').
+   negotiable, listing_type ('direct_seller'|'auction'), approval_status
+   (pending|approved|rejected|correction - replaced the old is_approved
+   boolean, see section 6), remarks (admin's note when rejecting or
+   requesting a correction), is_featured, is_trending, views_count,
+   location, meetup_location, meetup_instructions, delivery_available
+   (no longer used), expires_at, status ('pending'|'active'|'sold').
 product_images
    Photos: product_id FK, path, image_type ('general'|'proof' -
    proof = warranty card etc. shown only to admins), sort_order.
@@ -232,14 +244,82 @@ orders
    One order per seller per checkout, and one per won auction.
    order_number (ORD-YYYYMMDD-XXXXX), buyer_id, seller_id,
    auction_id (only for auction orders), status
-   ('pending'|'confirmed'|'completed'|'cancelled'), total_amount,
-   deposit_amount, deposit_status ('not_required'|'pending'|'paid'|
-   'refund_owed'|'forfeited'), deposit_transaction_uuid (links the
-   eSewa payment), payment_method, payment_status, handover_type,
+   ('pending'|'confirmed'|'meetup_scheduled'|'completed'|'cancelled'),
+   total_amount, deposit_amount (the MINIMUM online payment, not the
+   only amount that can be paid - see payment_transactions below),
+   deposit_status (native enum OrderDepositStatus: not_required|
+   pending|paid|failed|refund_owed|forfeited), deposit_transaction_uuid
+   (the uuid of the latest eSewa attempt), payment_method, payment_status
+   (native enum OrderPaymentStatus: pending|paid|refunded), handover_type,
    meetup_location, meetup_time (date+time in AD), meetup_time_np
    (the same date in B.S. text), shipping_address (old, unused),
-   buyer_phone, notes, cancellation_reason_category, cancellation_note.
+   buyer_phone, notes, cancellation_reason_category (native enum
+   OrderCancellationReason, section 8), cancellation_note,
+   complaint_status (native enum OrderComplaintStatus: null|
+   under_review|confirmed_damaged|not_damaged - a Group 2 buyer
+   complaint's admin-review state), complaint_resolution_note (the
+   admin's note on the verdict), stale_notified_at (reserved for a
+   not-yet-built "stale order" admin check, see aboutSystem.txt section
+   21 / newUpate.txt Part B3).
 order_items        order_id, product_id, price, quantity, subtotal
+
+---- MONEY LEDGER (added for flexible online payments) -----------
+payment_transactions
+   Every movement of money on an order is one row here: order_id,
+   type (native enum PaymentTransactionType: deposit_paid|
+   balance_paid_cash|refund_issued|deposit_forfeited|payout_sent|
+   damage_penalty_paid, plus two unused leftovers from an earlier
+   design - debt_recorded|debt_recovered), amount, payment_method
+   (esewa|cash), status (pending|completed|failed), party (who it's
+   for/from: admin|buyer|seller), reference (the eSewa transaction_uuid,
+   when relevant), notes. Order helper methods (paidOnline(),
+   paidCash(), totalPaid(), remainingAmount()) sum these rather than
+   trusting a single status flag. See ESewaExplanation.txt.
+payout_requests
+   A pending transfer the admin owes to a buyer or seller (a refund, or
+   the seller's cut of a forfeited deposit): order_id, recipient_id,
+   recipient_role (buyer|seller), purpose (seller_forfeit_share|
+   buyer_refund), amount, debt_deducted, esewa_name, esewa_phone,
+   qr_image_path, payout_status (awaiting_details|pending|sent|
+   settled), details_submitted_at, sent_at. NOTE: the service methods
+   to submit these details and mark one sent exist and are tested, but
+   no screen calls them yet - see ESewaExplanation.txt section 8 /
+   19.1.
+seller_debts
+   Money a seller still owes the platform, recovered automatically out
+   of their next payout: seller_id, related_order_id, amount,
+   recovered_amount, reason, status (outstanding|recovered),
+   overdue_notified_at, recovered_at. Leftover from an earlier "50%
+   compensation" design; only SellerDebtService::recoverFromPayout()
+   (deducting debt from a Group 1 forfeit payout) is still called - see
+   section 13.
+
+---- DAMAGE PENALTIES AND COMPLAINTS ------------------------------
+damage_penalties
+   Issued when an admin confirms a Group 2 buyer complaint was genuine
+   damage: order_id, seller_id, amount (30% of the order total by
+   default), transaction_uuid, status (pending|paid|expired),
+   verdict_recorded_at, due_at (7 days later by default), paid_at,
+   expired_at, legal_action_flagged, prior_is_auction_allowed,
+   prior_is_seller (the seller's access snapshotted before revocation,
+   so it can be restored exactly), restored_at, restored_by_admin_id.
+seller_damage_strikes
+   One row per paid damage penalty: seller_id, order_id,
+   damage_penalty_id, amount. Reaching 3 strikes permanently bans the
+   seller (see users.is_permanently_banned below).
+complaint_messages
+   A chat thread between the buyer and any admin about an order whose
+   complaint_status is set: order_id, sender_role (admin|buyer),
+   sender_id (not a foreign key - it points at admins.id or users.id
+   depending on sender_role, the same "loose party tag" pattern as
+   payment_transactions.party), body.
+seller_warnings
+   A lighter-weight caution an admin can issue without a full damage
+   verdict: seller_id, admin_id, product_id (nullable - set when issued
+   from a specific listing), reason.
+users gained: is_permanently_banned, permanent_ban_reason,
+   permanently_banned_at (set on a 3rd confirmed-damage strike; a
+   permanently banned seller can never have access restored again).
 
 ---- MESSAGING / NOTIFICATIONS / AI ------------------------------
 conversations      product_id, buyer_id, seller_id, last_message_at
@@ -359,6 +439,41 @@ run in filename order with:  php artisan migrate
                                                  MySQL ENUM to a string and renames
                                                  'citizenship Front/Back' to
                                                  'citizenship_front/back'.
+  2026_09_22_000000_create_payment_transactions_
+        table                                    Creates payment_transactions,
+                                                 seller_debts and payout_requests; adds
+                                                 orders.complaint_status,
+                                                 complaint_resolution_note and
+                                                 stale_notified_at; backfills one
+                                                 deposit_paid transaction row per
+                                                 already-existing order so old orders'
+                                                 money history isn't lost.
+  2026_09_22_010000_create_damage_penalty_
+        tables                                   Creates damage_penalties and
+                                                 seller_damage_strikes; adds
+                                                 users.is_permanently_banned,
+                                                 permanent_ban_reason,
+                                                 permanently_banned_at.
+  2026_09_22_141414_create_complaint_messages_
+        table                                    Creates complaint_messages (the
+                                                 buyer<->admin complaint chat).
+  2026_09_22_141414_create_seller_warnings_
+        table                                    Creates seller_warnings.
+  2026_09_23_000000_replace_is_approved_with_
+        approval_status_on_products_table        Drops products.is_approved (boolean),
+                                                 adds approval_status (enum-backed
+                                                 string) and remarks, backfilling
+                                                 true->approved / false->pending.
+  2026_09_23_000001_normalize_product_approval_
+        status_casing                            Data-only fix: normalizes a few
+                                                 approval_status rows that had drifted
+                                                 to the wrong case (e.g. 'APPROVED')
+                                                 before the column above was cast to a
+                                                 native PHP enum, which is case-
+                                                 sensitive. Uses a PHP-side string
+                                                 comparison rather than SQL casing
+                                                 tricks so it behaves the same on
+                                                 MySQL and the SQLite test database.
 
 Commands:
    php artisan migrate            run all pending migrations
@@ -374,10 +489,14 @@ A model is a PHP class for one table (app/Models/).
 
   User            hasMany: products (as seller), documentImages,
                   wishlists, cartItems, buyerOrders, sellerOrders,
-                  buyerConversations, sellerConversations, chatMessages.
+                  buyerConversations, sellerConversations, chatMessages,
+                  damagePenalties, warnings.
                   Methods: isActiveStatus(), scopeActive(). The status
                   and gender values are always stored lowercase;
                   gender_label gives "Male"/"Female"/"Other".
+                  is_permanently_banned/permanent_ban_reason/
+                  permanently_banned_at track a 3-strikes damage ban
+                  (section 13, DamagePenaltyService).
   Admin           Separate login model (admin guard). Notifiable.
   Product         belongsTo user (seller) and category (sub-category);
                   hasMany images, proofImages, timelines, cartItems,
@@ -386,8 +505,13 @@ A model is a PHP class for one table (app/Models/).
                   Methods: isDirectSell(), isAuction(),
                   isWishlistedBy(), logTimeline() (writes history),
                   approveListing() (approve product AND activate its
-                  auction), estimated_value, suggested_starting_price,
-                  condition_label, status_label.
+                  auction; sets approval_status=approved),
+                  rejectListing($reason) (approval_status=rejected),
+                  requestCorrection($reason) (approval_status=
+                  correction, with remarks the seller must address
+                  before resubmitting), estimated_value,
+                  suggested_starting_price, condition_label,
+                  status_label.
   ProductImage    belongsTo product; image_type enum.
   ProductTimeline belongsTo product and actor (user).
   Category        hasMany subCategories.
@@ -399,10 +523,17 @@ A model is a PHP class for one table (app/Models/).
                   effective_end_time (extended_end_time else end_time).
   TraditionalAuction  belongsTo auction (bid rules).
   Bid             belongsTo auction and bidder.
-  Order           belongsTo buyer, seller, auction; hasMany items.
-                  Methods: needsDeposit(), status_label, status_badge,
-                  handover_label, payment_method_label. It creates the
-                  order number ORD-YYYYMMDD-XXXXX automatically.
+  Order           belongsTo buyer, seller, auction; hasMany items,
+                  transactions (payment_transactions, ordered),
+                  payoutRequests, sellerDebts; hasOne damagePenalty;
+                  hasMany complaintMessages.
+                  Methods: needsDeposit(), acceptsOnlinePayment(),
+                  status_label, status_badge, handover_label,
+                  payment_method_label, paidOnline(), paidCash(),
+                  totalPaid(), remainingAmount(), minimumDeposit()
+                  (section 5's payment_transactions ledger, see
+                  ESewaExplanation.txt). It creates the order number
+                  ORD-YYYYMMDD-XXXXX automatically.
   OrderItem       belongsTo order and product.
   CartItem, Wishlist   belongsTo user and product.
   Conversation    belongsTo product, buyer, seller; hasMany messages;
@@ -414,6 +545,24 @@ A model is a PHP class for one table (app/Models/).
                   Setting::set('key', value, group).
   Subscriber      newsletter email.
   AiChatMessage   AI chat rows; scopes forOwner(), sameOwnerAs().
+  PaymentTransaction   belongsTo order; casts type/payment_method/
+                  status/party to their enums (section 8, section 5's
+                  ledger table).
+  PayoutRequest   belongsTo order and recipient (a User); casts
+                  recipient_role/purpose/payout_status.
+  SellerDebt      belongsTo seller (User) and related order.
+                  getRemainingAttribute() = amount - recovered_amount.
+  DamagePenalty   belongsTo order, seller (User), restoredByAdmin;
+                  hasMany strikes (SellerDamageStrike).
+                  canBeRestored() gates DamagePenaltyService::
+                  restoreAccess().
+  SellerDamageStrike   belongsTo seller (User), order, damagePenalty.
+  ComplaintMessage     belongsTo order. sender() resolves to an Admin
+                  or the order's buyer depending on sender_role, since
+                  sender_id isn't a real foreign key (it can point at
+                  either table).
+  SellerWarning   belongsTo seller (User), admin, and an optional
+                  product.
   (Notifications use Laravel's own DatabaseNotification model.)
 
 
@@ -422,6 +571,12 @@ A model is a PHP class for one table (app/Models/).
 =====================================================================
 app/Enums/. Values are stored in the database in lowercase; every enum
 has a label() that gives the human-readable text for screens.
+
+UPDATE: the note that used to close this section ("auction status,
+deposit_status, payment_status are plain text values") is no longer
+true. All three are now native PHP backed enums with a real $casts
+entry - see the BACKED-ENUM CASTS note at the end of this section.
+
    ProductSaleType      direct_seller | auction
    ProductNegotiability any | negotiable | fixed   ("any" is only used
                         by the search filter)
@@ -430,17 +585,63 @@ has a label() that gives the human-readable text for screens.
    ProductCondition     new | like-new | lightly-used | well-used |
                         refurbished | used
    ProductStatus        pending | active | sold
+   ProductApprovalStatus  pending | approved | rejected | correction
+                        (replaced products.is_approved - a rejected or
+                        correction-requested listing carries an admin
+                        remarks note, see Product::rejectListing()/
+                        requestCorrection())
    OrderStatus          pending | confirmed | meetup_scheduled |
-                        completed | cancelled
+                        completed | cancelled (used via labelFor(), see
+                        BACKED-ENUM CASTS below)
+   OrderDepositStatus   not_required | pending | paid | failed |
+                        refund_owed | forfeited
+   OrderPaymentStatus   pending | paid | refunded
+   OrderComplaintStatus  under_review | confirmed_damaged | not_damaged
+                        (null = no complaint filed)
+   OrderCancellationReason  Group 1 (no dispute, forfeits outright):
+                        changed_mind | other. Group 2 (a complaint,
+                        isComplaintReason() true): item_damaged |
+                        not_as_described | documents_missing. See
+                        AlgorithmsExplanation.txt section 16.
    HandoverType         meetup | delivery (delivery only for old orders)
    PaymentMethod        cash_on_meetup | cash_on_delivery | khalti |
                         esewa | wallet (only cash_on_meetup is offered)
+   AuctionStatus        pending | active | completed | ended_unsold
+                        (ended also exists in the enum but is never
+                        written, see section 21)
+   PaymentTransactionType    deposit_paid | balance_paid_cash |
+                        refund_issued | deposit_forfeited | payout_sent |
+                        damage_penalty_paid, plus debt_recorded |
+                        debt_recovered (unused leftovers, section 21)
+   PaymentTransactionStatus  pending | completed | failed
+   PaymentTransactionMethod  esewa | cash
+   PaymentTransactionParty   admin | buyer | seller (who a ledger row's
+                        money goes to or comes from)
+   PayoutStatus          awaiting_details | pending | sent | settled
+                        (settled = fully offset by seller debt, no
+                        transfer needed)
+   PayoutPurpose         seller_forfeit_share | buyer_refund
+   PayoutRecipientRole   buyer | seller
+   SellerDebtStatus      outstanding | recovered
+   DamagePenaltyStatus   pending | paid | expired
+   ComplaintMessageSender   admin | buyer
    StatusState          active | inactive (accounts)
    GenderState          male | female | other
    DocumentImageType    citizenship_front | citizenship_back | passport |
                         driving_license | national_id | other
-Note: some other statuses (auction status, deposit_status,
-payment_status) are plain text values, listed in section 5.
+
+BACKED-ENUM CASTS (which model columns are REAL enum casts, not just a
+labelFor() helper): Auction::status -> AuctionStatus.
+Order::deposit_status -> OrderDepositStatus, Order::payment_status ->
+OrderPaymentStatus, Order::complaint_status -> OrderComplaintStatus,
+Order::cancellation_reason_category -> OrderCancellationReason.
+Order::status itself is NOT cast to OrderStatus - it stays a plain
+string column; OrderStatus is used only via the static helper
+OrderStatus::labelFor($order->status) for display. Product::
+approval_status -> ProductApprovalStatus. PaymentTransaction casts
+type/payment_method/status/party to their four enums. PayoutRequest
+casts recipient_role/purpose/payout_status. DamagePenalty::status ->
+DamagePenaltyStatus.
 
 
 =====================================================================
@@ -478,8 +679,13 @@ the page. Route names are in [brackets].
                           @success - eSewa returns here after paying
   /payment/esewa/failure [payment.esewa.failure] EsewaPaymentController
                           @failure - payment cancelled/failed
-  (The two payment routes are public because eSewa redirects the
-   browser to them; the payment is matched by its transaction id.)
+  /payment/esewa/penalty-success [payment.esewa.penalty-success]
+                          DamagePenaltyPaymentController@success -
+                          eSewa returns here after a penalty payment
+  /payment/esewa/penalty-failure [payment.esewa.penalty-failure]
+                          DamagePenaltyPaymentController@failure
+  (These payment routes are public because eSewa redirects the browser
+   to them; each payment is matched by its own transaction id.)
 
 ---- SIGN-UP STEPS (middleware auth.otp = must have a pending signup) --
   /verify-otp      [verify.otp]          VerifyOtp - enter the 6-digit
@@ -497,8 +703,14 @@ the page. Route names are in [brackets].
   /my-orders       [user.orders]         Orders - my orders list
   /my-orders/{order} [user.orders.show]  OrderDetail - one order
   /my-orders/{order}/pay-deposit [payment.esewa.initiate]
-                          EsewaPaymentController@initiate - start the
-                          eSewa deposit payment
+                          EsewaPaymentController@initiate - start an
+                          eSewa online payment (buyer-chosen amount)
+  /my-penalties    [user.penalties]      PenaltiesAndWarnings - a
+                          seller's own damage penalties and warnings,
+                          reachable even after access is revoked
+  /damage-penalties/{penalty}/pay [payment.esewa.penalty-initiate]
+                          DamagePenaltyPaymentController@initiate -
+                          seller pays a damage penalty via eSewa
   /notifications   [user.notifications]  Notifications page
   /settings        [user.settings]       Settings - profile, password,
                           seller request
@@ -523,7 +735,11 @@ the page. Route names are in [brackets].
   /admin/seller-requests [admin.seller-requests] SellerRequests
   /admin/products       [admin.products]     Products (approval list)
   /admin/products/{product} [admin.products.show] ProductDetail
-  /admin/orders         [admin.orders]       Orders (all orders)
+  /admin/orders         [admin.orders]       Orders (all orders, with
+                          an "Open Complaints" filter)
+  /admin/orders/{order} [admin.orders.show]  OrderDetail - one order:
+                          timeline, complaint review/chat, payouts,
+                          damage-penalty restore-access action
   /admin/notifications  [admin.notifications] Notifications
   /admin/settings       [admin.settings]     Settings
   /admin/auction-application [admin.auction-application] AuctionApplication
@@ -606,10 +822,15 @@ Orders (livewire/user/orders.blade.php)
    My orders (as buyer and as seller) with meetup date/time, payment
    and deposit badges.
 OrderDetail (livewire/user/order-detail.blade.php)
-   One order: items, handover details, deposit card with the
-   "Pay Deposit via eSewa" button, timeline. Actions:
-   updateOrderStatus (seller confirms/completes), toggleCancelForm and
-   confirmCancel (cancel with a reason; decides refund vs forfeit).
+   One order: items, handover details, an online-payment card (buyer-
+   chosen amount within a min/max range, "Pay via eSewa"), the money
+   breakdown/transaction list, timeline. Actions: updateOrderStatus
+   (seller confirms/completes), toggleCancelForm and confirmCancel
+   (cancel with a reason; decides refund/forfeit, or opens a complaint
+   for a Group 2 reason), toggleMeetupForm and saveMeetupDetails
+   ("Schedule Meetup" for an auction win), sendComplaintMessage and
+   pollComplaintMessages (the buyer's side of the complaint chat with
+   admins, polled every 5s).
 Messages (livewire/user/messages.blade.php)
    Two-way chat inbox. Actions: selectConversation, sendChatMessage.
 Notifications (livewire/user/notifications.blade.php)
@@ -646,6 +867,15 @@ ManageProduct (livewire/user/manage-product.blade.php)
 ---- USER: ACCOUNT -----------------------------------------------
 Settings (livewire/user/settings.blade.php)
    Actions: updateProfile, updatePassword, requestSellerAccess.
+PenaltiesAndWarnings (livewire/user/penalties-and-warnings.blade.php,
+   route /my-penalties)
+   A seller's own damage penalties (pending/paid/expired, with a
+   "Pay via eSewa" link while pending) and every warning ever issued
+   to them. No wire:click actions of its own - payment is a plain link
+   to DamagePenaltyPaymentController. Deliberately not gated by
+   is_seller, since a confirmed-damaged verdict revokes that flag; this
+   is the one page (besides the penalty email) that stays reachable
+   after access is suspended.
 
 ---- AUTH (users) ------------------------------------------------
 Register (livewire/auth/user/register.blade.php)          verifyEmail
@@ -661,18 +891,28 @@ ResetPassword (livewire/auth/user/reset-password.blade.php)
 Auth\Admin\Login (livewire/auth/admin/login.blade.php)   login
 Admin\Dashboard (dashboard.blade.php)
    Totals: users, sellers, pending seller requests, pending products,
-   categories; recent requests.
+   categories; recent requests; plus two alert-style sections -
+   "Legal Action Required" (overdue damage penalties) and "Complaints
+   Awaiting Your Verdict" (open Group 2 complaints), so neither gets
+   missed by only skimming the orders list.
 Admin\Users (users.blade.php)                    search, toggleStatus
 Admin\UserDetail (user-detail.blade.php)
-   Full profile; toggleStatus, toggleSellerAccess, toggleAuctionAccess.
+   Full profile; toggleStatus, toggleSellerAccess, toggleAuctionAccess,
+   toggleWarningForm/sendWarning (issue a SellerWarning from the
+   seller's profile page).
 Admin\SellerRequests (seller-requests.blade.php) approveSeller
 Admin\AuctionApplication (auction-application.blade.php)
    List of applications; approveApplication, rejectApplication.
 Admin\AuctionApplicationDetail (auction-application-detail.blade.php)
    The user's documents; approveApplication, rejectApplication.
-Admin\Products (products.blade.php)              approveProduct
+Admin\Products (products.blade.php)
+   approveProduct, openRejectForm/cancelDecision/rejectProduct/
+   requestCorrection (reject a listing or send it back for correction,
+   each notifying the seller).
 Admin\ProductDetail (product-detail.blade.php)
-   Full listing review; approveProduct, toggleFeatured, toggleTrending.
+   Full listing review; approveProduct, toggleDecisionForm/
+   rejectProduct/requestCorrection, toggleFeatured, toggleTrending,
+   toggleWarningForm/sendWarning (issue a warning from this listing).
 Admin\CategorySetup (category-setup.blade.php)
    openCreateModal, editCategory, saveCategory, removeImage,
    deleteCategory, toggleStatus.
@@ -682,8 +922,16 @@ Admin\Faqs (faqs.blade.php)
    openCreateModal, editFaq, saveFaq, deleteFaq, toggleStatus,
    openCategoryQuickAdd, saveCategoryQuickAdd.
 Admin\Orders (orders.blade.php)
-   Every order (second-hand and auction) with search and type/status
-   filters.
+   Every order (second-hand and auction) with search, type/status
+   filters (including an "Open Complaints" filter) and a stat card
+   that jumps straight to it.
+Admin\OrderDetail (order-detail.blade.php, route /admin/orders/{order})
+   One order: full detail, timeline, a read-only list of its payout
+   requests. Actions: recordVerdict (the confirmed-damaged / not-
+   damaged complaint verdict), restoreSellerAccess (manual restore
+   after a paid penalty, refuses if another penalty is still unpaid or
+   the seller is permanently banned), sendComplaintMessage/
+   pollComplaintMessages (the admin's side of the complaint chat).
 Admin\Notifications (notifications.blade.php)    markAsRead, markAllAsRead
 Admin\Settings (settings.blade.php)
    saveGeneral, saveSocial, saveSecurity (stored in the settings table).
@@ -749,12 +997,47 @@ AuctionValuationService
    Estimated value of a used item (depreciation by age x condition
    factor) and the suggested starting price (80%).
 OrderCancellationService
-   Cancels an order and decides what happens to a paid deposit
-   (refund owed vs forfeited); relists the product when an auction
-   sale falls through.
+   Cancels an order and decides what happens to money already paid
+   online: a Group 1 reason forfeits the minimum deposit (split
+   default 80% platform / 20% seller) and refunds any excess; a Group 2
+   reason (a complaint) puts the order "under review" and notifies
+   admins; recordDamageVerdict() records an admin's confirmed-damaged
+   (full refund + DamagePenaltyService::issue()) or not-damaged
+   (falls back to the Group 1 rule) verdict. Also relists the product
+   when an auction sale falls through. See AlgorithmsExplanation.txt
+   section 16.
+DamagePenaltyService
+   The seller-pays-admin damage penalty lifecycle: penaltyFor()
+   (30% of the order total by default), issue() (revokes seller/
+   auction access, snapshotting it first so it can be restored
+   exactly), notifySeller(), recordPayment() (logs the payment, records
+   a SellerDamageStrike, permanently bans the seller on the 3rd
+   strike), restoreAccess() (manual admin action; refuses if another
+   penalty is unresolved or the seller is banned), expireOverdue()
+   (scheduled hourly: deactivates the account and flags legal action
+   past the due date). See ESewaExplanation.txt section 8a.
+SellerDebtService
+   recoverFromPayout() nets a seller's outstanding SellerDebt (oldest
+   first) against an admin-held payout before it's sent - only money
+   the admin actually holds can be deducted, not cash paid at the
+   meetup. This is the only method still called; the debt-creating
+   methods this service used to have (record(), penaltyFor(),
+   outstandingFor()) were removed once DamagePenaltyService's direct
+   penalty replaced that design - seller_debts can still be seeded
+   directly (e.g. by a factory in tests) even though nothing creates
+   one at runtime any more.
+OrderPaymentService
+   complete() (seller confirms handover: records the cash balance,
+   decrements stock, updates the timeline), submitPayoutDetails() and
+   markSent() (the payout hand-off - a recipient supplies their eSewa
+   details, an admin marks the real transfer sent). Tested at the
+   service layer, but not yet wired to any screen - see
+   ESewaExplanation.txt section 8/19.
 EsewaPaymentService
-   Builds the signed eSewa payment form, verifies eSewa's callback and
-   checks the payment status. See ESewaExplanation.txt.
+   Builds the signed eSewa payment form (shared by the deposit flow and
+   the damage-penalty flow), works out a buyer's allowed payment range,
+   verifies eSewa's callback and checks the payment status. See
+   ESewaExplanation.txt.
 AiClientService, AiAssistantPromptService
    Talk to Gemini and build the AI's instructions.
 HtmlSanitizerService
@@ -790,13 +1073,42 @@ notifications table and broadcast
    OutbidNotification                      to the previous leading bidder
    AuctionWonNotification                  to the auction winner
    NewOrderReceivedNotification            to the seller: a new order
-   DepositPaidNotification                 to the seller: deposit paid
+   DepositPaidNotification                 to the seller: an online
+                                           payment was made
    NewChatMessageNotification              to the chat recipient
+   ProductRejectedNotification             to the seller: listing
+                                           rejected, with the reason
+   ProductCorrectionRequestedNotification  to the seller: listing sent
+                                           back for correction
+   SellerWarningIssuedNotification         to the seller: an admin
+                                           issued a formal warning
+   MeetupScheduledNotification             to the seller: the buyer
+                                           set/changed the meetup time
+   ComplaintFiledNotification              to admins: a buyer filed a
+                                           Group 2 complaint
+   ComplaintMessageReceivedNotification    to the other side (buyer or
+                                           admins): a complaint-chat
+                                           message was sent
+   SellerDamagePenaltyIssuedNotification   to the seller: a confirmed-
+                                           damaged verdict issued a
+                                           30% penalty
+   AdminDamagePenaltyPaidNotification      to admins: a seller paid a
+                                           damage penalty
+   AdminLegalActionRequiredNotification    to admins: a penalty went
+                                           unpaid past its deadline
+   SellerPermanentlyBannedNotification     to admins: a seller hit 3
+                                           confirmed-damage strikes
+   (BroadcastDatabaseNotification is not a real notification - it's the
+   abstract base class every one of the above extends, sharing the
+   via()/toArray()/toBroadcast() implementation.)
 
 MAIL (app/Mail/)
    OtpMail                     6-digit sign-up code (sent immediately)
    PasswordResetOtpMail        6-digit password-reset code
    AuctionWonMail              email to the winner
+   DamagePenaltyIssuedMail     queued email to a penalised seller, with
+                               the amount, due date and a direct
+                               "Pay Penalty Now" link
 
 JOB (app/Jobs/)
    GenerateAiAssistantReply    produces one AI answer (normally run
@@ -864,7 +1176,11 @@ so the scheduler is a safety net that guarantees settlement.
    config/services.php     third parties:
         'google'   GOOGLE_CLIENT_ID / SECRET / redirect
         'esewa'    product code, secret key, form URL, status URL,
-                   deposit percentage
+                   deposit percentage, forfeit seller share percentage,
+                   damage penalty percentage, damage penalty days
+                   (plus two unused leftovers from an earlier design -
+                   seller_penalty_percentage, debt_overdue_days - see
+                   ESewaExplanation.txt section 15)
         'ai'       provider, API key, model, fallback models, base
                    URL, timeout, history limit
 Important .env groups: APP_*, DB_*, SESSION/QUEUE/CACHE, BROADCAST_
@@ -879,7 +1195,10 @@ Never commit .env (it holds secrets).
    database/seeders/AdminSeeder.php      creates the default admin
                                          (admin@sajhaauction.com, local
                                          only - change it)
-   database/factories/UserFactory.php    fake users for tests
+   database/factories/UserFactory.php, PaymentTransactionFactory.php,
+   PayoutRequestFactory.php, SellerDebtFactory.php,
+   DamagePenaltyFactory.php, SellerDamageStrikeFactory.php
+                                         fake rows for tests
 
 tests/Feature (run:  php artisan test --compact)
    AuctionEngineTest            bidding, proxy bids, winner, reserve,
@@ -888,17 +1207,38 @@ tests/Feature (run:  php artisan test --compact)
                                 double-settlement safety
    AuctionValuationServiceTest  estimated value and starting price
    AuctionApplicationTest       applying for auction access
+   JoinAuctionDocumentLockTest  document upload locking during an
+                                auction application
    AdminUserManagementTest, AdminSubCategorySetupTest, AdminOrdersTest
                                 admin pages
    CompleteProfileTest, PasswordResetTest   sign-up and password reset
    CheckoutMeetupOnlyTest, DirectSellMarketplaceTest   checkout/orders
    OrderStatusAuthorizationTest who may confirm/complete/cancel orders
+   OrderPaymentLedgerTest       the payment_transactions ledger,
+                                min/max online payment range, Group 1/2
+                                cancellation money rules, debt deducted
+                                from a payout, payout details/mark-sent
+                                (service layer, section 13)
+   OrderCommunicationFeaturesTest  meetup scheduling, complaint chat
+   ProductApprovalWorkflowTest  approve/reject/request-correction
+                                transitions on approval_status
+   DamagePenaltyFlowTest        issue/pay/strike/permanent-ban/restore
    EsewaPaymentTest             eSewa signature and callbacks
+   SecurityHardeningTest, SecurityBugFixesTest   authorization/
+                                security regression checks
+   PaginationCorrectnessTest    pagination edge cases across listings
+   UserDashboardTest            the buyer/seller dashboard
    AiAssistantTest              the AI assistant
    HomeSmokeTest, HomeButtonsFixTest, BookmarksCleanupTest,
    ExampleTest                  page smoke tests and clean-up checks
-(Two older tests currently fail for reasons unrelated to the features:
-AdminUserManagementTest and AuctionApplicationTest.)
+
+All 163 tests pass (548 assertions). The two tests that used to be
+listed here as "currently failing for reasons unrelated to the
+features" (AdminUserManagementTest and AuctionApplicationTest) turned
+out to be real, fixable bugs rather than pre-existing/unrelated noise -
+a stray line in Admin\UserDetail::toggleAuctionAccess() was clobbering
+is_seller as a side effect, and a Livewire testing quirk around nested
+file uploads in ->set(). Both are fixed; see newUpate.txt.
 
 
 =====================================================================
@@ -938,12 +1278,35 @@ F) BIDDING AND WINNING
    / countdown) -> winner and order created, winner and seller
    notified, winner emailed.
 
-G) PAYING THE AUCTION DEPOSIT AND HANDOVER
-   Winner opens the order -> "Pay Deposit via eSewa" ->
-   /my-orders/{order}/pay-deposit -> eSewa -> success callback marks
-   deposit "paid" and notifies the seller -> meetup, balance in cash,
-   seller marks completed. If cancelled after paying: refund owed (seller
-   cancelled or item defective) or forfeited (buyer changed their mind).
+G) PAYING FOR THE AUCTION WIN AND HANDOVER
+   Winner opens the order -> chooses an amount (at least the minimum
+   deposit, at most the full price) -> "Pay via eSewa" ->
+   /my-orders/{order}/pay-deposit -> eSewa -> success callback logs a
+   payment_transactions row, marks deposit_status "paid" and notifies
+   the seller -> "Schedule Meetup" sets the meetup date/time -> meetup,
+   any remaining balance in cash, seller marks completed.
+   If cancelled after paying: Group 1 reason (seller cancels, or buyer
+   cites changed mind/other) settles immediately - refund or a forfeit
+   split; Group 2 reason (a complaint) goes to workflow G2 below instead
+   of settling right away.
+
+G2) A DAMAGE COMPLAINT
+   Buyer cancels citing item_damaged / not_as_described /
+   documents_missing -> order goes "under review", every admin is
+   notified -> buyer and an admin can message each other in a
+   complaint-chat thread on the order page while it's open -> an admin
+   physically inspects the item and records a verdict on
+   /admin/orders/{order}:
+     confirmed damaged -> buyer refunded in full, seller's account
+        suspended, a 30% damage penalty issued (due in 7 days) ->
+        seller pays it at /my-penalties via eSewa -> a strike is
+        recorded (3 strikes permanently bans the seller) -> admin can
+        restoreSellerAccess() once paid (refused if another penalty is
+        still open or the seller is banned)
+     not damaged -> falls back to the Group 1 forfeit-split rule
+   An unpaid penalty past its 7-day deadline is caught by the hourly
+   scheduled command, which deactivates the seller's account and flags
+   the order for admins as needing legal/manual action.
 
 H) CHATTING
    Product page -> "Message Product Owner" -> conversation created ->
@@ -951,19 +1314,28 @@ H) CHATTING
    full inbox is /messages.
 
 I) ADMIN OVERSIGHT
-   Dashboard counts, seller/auction/product approvals, user status,
-   categories and FAQs, all orders, and site settings.
+   Dashboard counts and two alert sections (overdue penalties, open
+   complaints), seller/auction/product approvals (including reject and
+   request-correction, both notifying the seller), user status and
+   warnings, categories and FAQs, all orders (with an open-complaints
+   filter) and detail pages, and site settings.
 
 
 =====================================================================
 20. OTHER DOCUMENTS IN THIS FOLDER
 =====================================================================
    AIChatExplanation.txt     the AI assistant in detail
-   ESewaExplanation.txt      the eSewa deposit payment in detail
-   AlgorithmsExplanation.txt every auction/valuation algorithm
+   ESewaExplanation.txt      the eSewa online-payment and damage-penalty
+                             flows in detail
+   AlgorithmsExplanation.txt every auction/valuation/cancellation
+                             algorithm
    GoogleAuthExplanation.txt Google sign-in, OTP, login, password reset
    ReverbExplanation.txt     real time (Reverb, Echo, channels, events)
    minBidIncreament.txt      how the minimum bid increase is calculated
+   Untitled.txt, newUpate.txt   dated running notes on what was built
+                             and what's still open (see newUpate.txt
+                             Part B for the current honest "not done
+                             yet" list)
    aboutproject.txt, systerm_improvement.txt,
    requirementneeded changes for sajha.txt,
    estimated_value_feature_changes.txt   earlier project notes
@@ -978,17 +1350,31 @@ I) ADMIN OVERSIGHT
 =====================================================================
 21. KNOWN LIMITATIONS
 =====================================================================
-   - eSewa runs against eSewa's SANDBOX only, and only for the
-     auction-win deposit. Second-hand orders are cash on meetup only.
-   - Refunds of a paid deposit are recorded ("refund owed") and paid
-     back manually outside the app.
+   - eSewa runs against eSewa's SANDBOX only, and only for auction-win
+     online payments and damage-penalty payments. Second-hand orders
+     are cash on meetup only.
+   - Refunds and payouts are recorded as PayoutRequest rows and paid
+     back manually outside the app - and right now there isn't even an
+     on-screen way to submit payout details or mark one sent (the
+     service methods exist and are tested; no button calls them yet).
+     See ESewaExplanation.txt section 8/19.
    - Gemini models can be overloaded or retired; the AI uses fallback
      models and shows a clear message if all fail.
    - The scheduler must be running for auctions to be settled with
-     nobody looking at them.
+     nobody looking at them; the same is true of the hourly overdue-
+     damage-penalty check.
+   - No "stale order" automation exists yet (an admin check for meetup
+     dates that have passed with the order never completed/cancelled).
+     This was planned but never built - see newUpate.txt Part B3.
    - Change the default admin password and set APP_DEBUG=false before
      any public deployment.
    - Some older leftovers exist: orders.shipping_address,
      products.delivery_available and the "delivery" handover value are
-     kept only so old data still displays.
+     kept only so old data still displays; two PaymentTransactionType
+     cases (debt_recorded, debt_recovered) and two config keys
+     (ESEWA_SELLER_PENALTY_PERCENTAGE, SELLER_DEBT_OVERDUE_DAYS) are
+     similar leftovers from an earlier "50% seller debt" design that
+     DamagePenaltyService replaced; AuctionStatus::ENDED is accepted by
+     the model's isEnded()/isSettled() helpers but is never actually
+     written.
 =====================================================================

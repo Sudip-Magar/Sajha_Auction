@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\ProductApprovalStatus;
 use App\Events\ChatMessageSent;
 use App\Models\CartItem;
 use App\Models\ChatMessage;
@@ -40,7 +41,17 @@ class ProductDetail extends Component
 
     public function mount(Product $product): void
     {
-        abort_unless($product->is_approved && ($product->status === 'active' || $product->status === 'sold'), 404);
+        $viewer = Auth::user();
+        $isOwner = $viewer && (int) $product->seller_id === (int) $viewer->id;
+
+        // The owning seller can always view their own listing - including
+        // while pending, rejected, or sent back for correction - just not
+        // edit it here (ManageProduct enforces that guard separately).
+        // Everyone else only sees an approved, live/sold listing.
+        abort_unless(
+            $isOwner || ($product->approval_status === ProductApprovalStatus::APPROVED && in_array($product->status, ['active', 'sold'], true)),
+            404
+        );
 
         $product->increment('views_count');
 
@@ -334,7 +345,7 @@ class ProductDetail extends Component
                     ->get()
                 : collect(),
             'similarProducts' => Product::with(['category', 'images'])
-                ->where('is_approved', true)
+                ->approved()
                 ->where('status', 'active')
                 ->where('id', '!=', $this->product->id)
                 ->where('sub_category_id', $this->product->sub_category_id)

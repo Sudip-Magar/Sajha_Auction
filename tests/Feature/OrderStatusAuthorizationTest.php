@@ -1,5 +1,10 @@
 <?php
 
+use App\Enums\AuctionStatus;
+use App\Enums\OrderCancellationReason;
+use App\Enums\OrderComplaintStatus;
+use App\Enums\OrderDepositStatus;
+use App\Enums\OrderPaymentStatus;
 use App\Livewire\User\OrderDetail;
 use App\Models\Auction;
 use App\Models\Category;
@@ -38,7 +43,7 @@ function makeOrderTestOrder(User $buyer, User $seller, string $status = 'confirm
         'sale_price' => 50000,
         'listing_type' => 'direct_seller',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $order = Order::create([
@@ -81,7 +86,7 @@ test('the seller can mark an order as completed', function () {
         ->call('updateOrderStatus', 'completed');
 
     expect($order->fresh()->status)->toBe('completed');
-    expect($order->fresh()->payment_status)->toBe('paid');
+    expect($order->fresh()->payment_status)->toBe(OrderPaymentStatus::PAID);
 });
 
 test('a buyer cannot confirm a pending order', function () {
@@ -108,7 +113,7 @@ test('either party can cancel an order, with a reason', function () {
 
     expect($order->fresh())
         ->status->toBe('cancelled')
-        ->cancellation_reason_category->toBe('item_damaged');
+        ->cancellation_reason_category->toBe(OrderCancellationReason::ITEM_DAMAGED);
 });
 
 function payOnline(Order $order, float $amount): void
@@ -135,7 +140,7 @@ test('a buyer who changes their mind forfeits the deposit; a damaged-item compla
         ->set('cancelReasonCategory', 'changed_mind')
         ->call('confirmCancel');
 
-    expect($order->fresh()->deposit_status)->toBe('forfeited');
+    expect($order->fresh()->deposit_status)->toBe(OrderDepositStatus::FORFEITED);
 
     $order2 = makeOrderTestOrder($buyer, $seller, 'pending');
     $order2->update(['deposit_amount' => 5000]);
@@ -148,8 +153,8 @@ test('a buyer who changes their mind forfeits the deposit; a damaged-item compla
 
     expect($order2->fresh())
         ->status->toBe('cancelled')
-        ->complaint_status->toBe('under_review')
-        ->deposit_status->toBe('paid');
+        ->complaint_status->toBe(OrderComplaintStatus::UNDER_REVIEW)
+        ->deposit_status->toBe(OrderDepositStatus::PAID);
 });
 
 test('a seller cancelling an auction-deposit order always leaves the deposit refund-owed', function () {
@@ -164,7 +169,7 @@ test('a seller cancelling an auction-deposit order always leaves the deposit ref
         ->call('confirmCancel');
 
     expect($order->fresh())
-        ->deposit_status->toBe('refund_owed')
+        ->deposit_status->toBe(OrderDepositStatus::REFUND_OWED)
         ->cancellation_reason_category->toBeNull();
 });
 
@@ -193,7 +198,7 @@ test('cancelling an auction-win order relists the product instead of leaving it 
         ->call('confirmCancel');
 
     expect($product->fresh()->status)->toBe('active')
-        ->and($auction->fresh()->status)->toBe('completed');
+        ->and($auction->fresh()->status)->toBe(AuctionStatus::COMPLETED);
 });
 
 test('cancelling a regular direct-sell order does not touch the product status', function () {

@@ -110,18 +110,22 @@
                             </div>
                         </div>
                     @endforeach
+
+                    <div>
+                        {{ $cartItems->links() }}
+                    </div>
                 </div>
 
                 {{-- Order Summary Sidebar --}}
                 <div class="lg:col-span-4">
-                    <div class="sticky top-24 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#181A1F]">
+                    <div class="lg:sticky lg:top-24 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#181A1F]">
                         <h2 class="text-xl font-black text-gray-900 dark:text-white border-b border-gray-100 pb-4 dark:border-gray-800">
                             Order Summary
                         </h2>
 
                         <div class="mt-4 space-y-3">
                             <div class="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                                <span>Subtotal ({{ $cartItems->sum('quantity') }} items)</span>
+                                <span>Subtotal ({{ $totalItemCount }} items)</span>
                                 <span class="font-bold text-gray-900 dark:text-white">Rs {{ number_format($subtotal) }}</span>
                             </div>
                             <div class="flex justify-between text-sm text-gray-600 dark:text-gray-400">
