@@ -1,0 +1,151 @@
+
+Stage 0: who is allowed to auction
+
+- Selling: a user must be is_seller. For an auction listing they also need is_auction_allowed, which an admin grants after reviewing their Join Auction application (ManageProduct::mount).
+- Bidding: bidders need the same is_auction_allowed flag. It is checked in the UI and again inside processBid.
+
+Stage 1: seller uploads the auction (ManageProduct::save)
+
+Product fields (shared with second-hand listings):
+
+┌─────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────────────┐
+│                  Field                  │                                    Purpose                                    │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ name, description, specifications       │ Listing text. Both text fields are HTML-sanitized before saving.              │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ sub_category_id                         │ Required. The category is derived from it.                                    │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ condition                               │ One of new, like-new, lightly-used, well-used, refurbished. It feeds the      │
+│                                         │ valuation calculation.                                                        │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ usage_duration                          │ Free text, e.g. "8 months".                                                   │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ purchase_date (plus _np for the B.S.    │ When it was bought. It cannot be in the future.                               │
+│ date)                                   │                                                                               │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ retail_price                            │ The original price. It drives both the suggested starting price and the       │
+│                                         │ suggested reserve.                                                            │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ quantity                                │ Stock count.                                                                  │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ location, meetup_location,              │ Where the handover happens. meetup_location is only required for direct-sell  │
+│ meetup_instructions                     │ listings, not auctions.                                                       │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ delivery_available                      │ Only matters for direct-sell. Auction wins are always meetup.                 │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ sale_price, negotiable                  │ Ignored for auctions. sale_price is saved as null and negotiable is forced to │
+│                                         │  fixed.                                                                       │
+├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│ Images                                  │ At least one, max 2 MB each. Optional proof images (e.g. a warranty card) are │
+│                                         │  stored separately.                                                           │
+└─────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────┘
+
+Auction fields:
+
+┌────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────┐
+│           Field            │                                          Purpose                                           │
+├────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ auction_type               │ Only traditional exists.                                                                   │
+├────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ auction_start_*,           │ B.S. date plus a hidden AD date plus a time. The start must be after today on creation,    │
+│ auction_end_*              │ and the end must be after the start.                                                       │
+├────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ starting_bid               │ Required. It becomes the initial current_price.                                            │
+├────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ reserve_price              │ Optional secret floor. A bid below it can never win.                                       │
+├────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ min_bid_increment          │ Default 100. The seller's custom minimum step.                                             │
+├────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ timer_reset_seconds        │ The anti-sniping window (default 15).                                                      │
+├────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ timer_start_seconds        │ Default 60. It is saved, but AuctionEngineService never reads it. I didn't check whether   │
+│                            │ the view uses it.                                                                          │
+└────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Seller helpers:
+- Estimated value: AuctionValuationService computes retail_price × (1 − depreciation) × condition factor. Depreciation is a step table by age in months: under 6 months is 10%, then 18%, 30%, 45%, 60% and 70%, capped at 75% from 60 months. The condition factors are 1.05 for new or like-new, 1.00 for lightly-used or refurbished, and 0.90 for well-used.
+- Suggested starting price: 80% of the estimated value. It is a one-click suggestion only, never enforced.
+- Suggested reserve (Algorithm 3a, Myerson): the average of the retail price and the starting bid, floored at the starting bid. Also a suggestion.
+
+What gets saved: a products row with status=pending, an auctions row with status=pending and current_price=starting_bid, and a traditional_auctions row holding the bid rules. Admins are notified.
+
+Admin approval: Product::approveListing() sets the product to approval_status=approved (replacing the old is_approved boolean), status=active and expires_at=+30 days, and flips the auction to status=active. Approved products can no longer be edited by the seller. Admins can also reject a listing (approval_status=rejected) or send it back for correction (approval_status=correction, with a remarks note the seller must address before resubmitting).
+
+Stage 2: live bidding (AuctionDetail → AuctionEngineService::processBid)
+
+An auction is live when status=active, the start time has passed, and the effective end time has not (Auction::isLive). The effective end time is extended_end_time ?? end_time.
+
+Every bid runs inside a DB transaction with a row lock on the auction (lockForUpdate), so two simultaneous bids are handled one at a time.
+
+Algorithm 2a: dynamic step increment. The minimum step depends on the current price, and the seller's min_bid_increment can only raise it:
+
+┌────────────────┬───────┐
+│ Current price  │ Step  │
+├────────────────┼───────┤
+│ under 1,000    │ 50    │
+├────────────────┼───────┤
+│ under 5,000    │ 100   │
+├────────────────┼───────┤
+│ under 20,000   │ 250   │
+├────────────────┼───────┤
+│ under 50,000   │ 500   │
+├────────────────┼───────┤
+│ 50,000 or more │ 1,000 │
+└────────────────┴───────┘
+
+The minimum next bid is current_price + max(step, custom increment). Even the first bid must be at least starting_bid + step, not the starting bid itself.
+
+Algorithm 2b: proxy bidding. A bidder can enter a visible bid plus a secret maximum. The engine then does the following:
+1. It records the bid, and ranks each bidder by their highest maximum. Ties go to whoever registered that maximum first.
+2. With one bidder, the price is just their bid, but never below the starting bid.
+3. With two or more bidders, it applies p* = min(m1, m2 + step(m2)), where m1 is the leader's maximum and m2 is the runner-up's. The leader pays just above the runner-up's ceiling, never above their own.
+4. If the leader is a proxy bidder and the price moved, it inserts an automatic bid row for them at the new price. This keeps the bid history matching the displayed price.
+
+Example, with a starting bid of 1,000 and a step of 100:
+1. A bids 1,100 with a maximum of 2,000. The price is 1,100.
+2. B bids 1,200. A's maximum is 2,000 and B's is 1,200, so p* = min(2000, 1200+100) = 1,300. The price becomes 1,300, an automatic bid is recorded for A, and A still leads.
+3. B bids 2,100. B's maximum is now higher, so p* = min(2100, 2000+100) = 2,100. B leads and A gets an outbid notification.
+
+Anti-sniping. If a bid lands within timer_reset_seconds of the deadline, extended_end_time is pushed to now plus that window. It only ever moves later, never earlier.
+
+Broadcasts. After the transaction commits, AuctionBidPlaced is broadcast on auctions.{id} so every viewer's page refreshes. A leader change also sends OutbidNotification to the previous leader.
+
+Algorithm 3a: suggested bid (advisory). A bidder can type their private valuation v, and the UI suggests ((n−1)/n) × v, where n is the number of distinct bidders (minimum 2). It has no effect on the engine.
+
+Stage 3: how the winner is decided (determineWinner, Algorithm 1)
+
+When it runs. There are three triggers:
+- The scheduler (routes/console.php) runs every minute. It needs schedule:work or a cron entry to be running.
+- Anyone opening or rendering the auction page.
+- Anyone placing a bid.
+
+All three call checkAndFinalizeIfExpired, which does nothing until the effective end time has actually passed, so an extension is respected.
+
+The rule:
+1. Keep only bids where bid_amount >= reserve_price. The comparison is on the visible bid amount, never on a secret proxy ceiling.
+2. If none qualify, the status becomes ended_unsold.
+3. Otherwise the highest bid_amount wins. If tied, the earliest submission wins. The status becomes completed, and the winner and winning price are recorded.
+4. The product is marked sold.
+
+What the winner gets. An Order is created automatically:
+- Status: pending.
+- Handover: always meetup with cash on meetup, at the product's meetup location or, failing that, its general location.
+- Deposit: 10% of the winning price (configurable), starting as deposit_status=pending.
+- Notifications: the winner receives an AuctionWonNotification and an AuctionWonMail.
+
+Stage 4: handover ("delivery")
+
+There is no courier for auctions. It is a face-to-face handover, run from the order detail page (OrderDetail):
+1. Deposit: the order is created with no meetup details yet - the winner sets (or later edits) the meetup location, date and time from the order page (a dedicated "Schedule Meetup" action; this didn't exist when this note was first written, and the order used to just say "they meet" with no scheduling step at all). The winner also pays a deposit through eSewa - the amount is a buyer-chosen amount within a minimum/maximum range (minimum = the deposit percentage of the winning price, maximum = the full remaining balance), not a fixed 10%. This is sandbox only.
+2. Seller confirms: only the seller can move the order to confirmed.
+3. Meetup: they meet, the buyer inspects the item, and the remaining balance is paid in cash.
+4. Seller completes: only the seller can move the order to completed. This sets payment_status=paid, decrements the product quantity and logs a timeline entry.
+5. Cancellation: either side can cancel, with a reason from one of two groups.
+   - Group 1 (no dispute) - seller cancels for any reason, or buyer cites "changed mind"/"other": the minimum deposit is forfeited and split, by default 80% to the platform and 20% to the seller (configurable via ESEWA_FORFEIT_SELLER_SHARE), with any excess refunded (seller cancelling refunds the buyer in full instead).
+   - Group 2 (a complaint) - buyer cites "item damaged", "not as described", or "documents missing": the order goes to "under review" instead of settling any money. An admin is notified and physically inspects the item, then records a verdict: confirmed damaged refunds the buyer in full, suspends the seller's account, and issues a separate 30% penalty due within 7 days via eSewa (three confirmed-damaged strikes bans the seller permanently); not damaged falls back to the Group 1 forfeit rule. A dedicated chat thread lets the buyer and an admin message each other about the complaint while it's under review.
+   - In every case the product goes back to active if it was marked sold.
+
+Two things I noticed while reading (both now resolved, kept here for history)
+
+- Leftover debug call: ManageProduct::save() had a dd($e->getMessage()) inside its catch block. RESOLVED - it's gone; a genuine save failure now shows the normal error toast instead of a debug dump.
+- Auto-created orders don't notify the seller: RESOLVED - determineWinner() does notify the seller (NewOrderReceivedNotification) alongside the winner.

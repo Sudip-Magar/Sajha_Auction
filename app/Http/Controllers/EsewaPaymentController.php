@@ -2,6 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\OrderDepositStatus;
+use App\Enums\PaymentTransactionMethod;
+use App\Enums\PaymentTransactionParty;
+use App\Enums\PaymentTransactionStatus;
+use App\Enums\PaymentTransactionType;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Notifications\DepositPaidNotification;
@@ -70,22 +75,22 @@ class EsewaPaymentController extends Controller
         if (! $transaction) {
             $legacyOrder = Order::where('deposit_transaction_uuid', $uuid)->first();
 
-            if ($legacyOrder && $legacyOrder->deposit_status === 'pending') {
+            if ($legacyOrder && $legacyOrder->deposit_status === OrderDepositStatus::PENDING) {
                 $transaction = PaymentTransaction::create([
                     'order_id' => $legacyOrder->id,
-                    'type' => PaymentTransaction::TYPE_DEPOSIT_PAID,
+                    'type' => PaymentTransactionType::DEPOSIT_PAID,
                     'amount' => (float) $decoded['total_amount'],
-                    'payment_method' => 'esewa',
-                    'status' => 'pending',
+                    'payment_method' => PaymentTransactionMethod::ESEWA,
+                    'status' => PaymentTransactionStatus::PENDING,
                     'reference' => $uuid,
-                    'party' => 'admin',
+                    'party' => PaymentTransactionParty::ADMIN,
                 ]);
             }
         }
 
         $order = $transaction?->order;
 
-        if (! $transaction || ! $order || $transaction->status === 'completed') {
+        if (! $transaction || ! $order || $transaction->status === PaymentTransactionStatus::COMPLETED) {
             return redirect()->route('user.orders')
                 ->with('esewa_error', 'Could not match this payment to a pending order.');
         }
@@ -100,7 +105,7 @@ class EsewaPaymentController extends Controller
                 'received' => $paidAmount,
             ]);
 
-            $transaction->update(['status' => 'failed', 'notes' => 'Amount mismatch on callback.']);
+            $transaction->update(['status' => PaymentTransactionStatus::FAILED, 'notes' => 'Amount mismatch on callback.']);
 
             return redirect()->route('user.orders.show', $order)
                 ->with('esewa_error', 'The paid amount did not match this payment. Please contact support.');
@@ -121,10 +126,10 @@ class EsewaPaymentController extends Controller
 
         DB::transaction(function () use ($transaction, $order, $decoded): void {
             $transaction->update([
-                'status' => 'completed',
+                'status' => PaymentTransactionStatus::COMPLETED,
                 'notes' => isset($decoded['transaction_code']) ? 'eSewa ref '.$decoded['transaction_code'] : null,
             ]);
-            $order->update(['deposit_status' => 'paid']);
+            $order->update(['deposit_status' => OrderDepositStatus::PAID]);
         });
 
         $order->load(['items.product', 'buyer', 'seller']);

@@ -64,6 +64,8 @@ return [
         'forfeit_seller_share_percentage' => (float) env('ESEWA_FORFEIT_SELLER_SHARE', 20),
         'seller_penalty_percentage' => (float) env('ESEWA_SELLER_PENALTY_PERCENTAGE', 50),
         'debt_overdue_days' => (int) env('SELLER_DEBT_OVERDUE_DAYS', 30),
+        'damage_penalty_percentage' => (float) env('ESEWA_DAMAGE_PENALTY_PERCENTAGE', 30),
+        'damage_penalty_days' => (int) env('ESEWA_DAMAGE_PENALTY_DAYS', 7),
     ],
 
 ];

@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Auction;
-use App\Models\Bid;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\SubCategory;
@@ -48,7 +47,7 @@ function makeValuationTestProduct(array $overrides = []): Product
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ], $overrides));
 }
 

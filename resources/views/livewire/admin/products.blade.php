@@ -17,8 +17,9 @@
                 ['key' => 'id', 'label' => 'ID', 'class' => 'w-16 text-gray-400'],
                 ['key' => 'name', 'label' => 'Product Details'],
                 ['key' => 'user.name', 'label' => 'Seller'],
+                ['key' => 'listing_type', 'label' => 'Type'],
                 ['key' => 'price_display', 'label' => 'Price/Start Bid'],
-                ['key' => 'is_approved', 'label' => 'Status'],
+                ['key' => 'approval_status', 'label' => 'Status'],
                 ['key' => 'actions', 'label' => '', 'sortable' => false],
             ];
         @endphp
@@ -49,22 +50,33 @@
                 </div>
             @endscope
 
-            @scope('cell_price_display', $product)
-                <div class="flex flex-col">
-                    <span class="font-bold text-gray-900 text-sm">
-                        @if($product->listing_type->value === 'direct_seller')
-                            Rs. {{ number_format($product->sale_price) }}
-                        @else
-                            Rs. {{ number_format($product->auction?->traditionalAuction?->starting_bid) }}
-                        @endif
-                    </span>
-                    <span class="text-[9px] uppercase font-black text-gray-400 tracking-tighter">{{ $product->listing_type->label() }}</span>
-                </div>
+            @scope('cell_listing_type', $product)
+                <x-badge :value="$product->listing_type->value === 'auction' ? 'Auction' : 'Direct-Sell'"
+                    :class="$product->listing_type->value === 'auction' ? 'badge-secondary' : 'badge-neutral'"
+                    class="font-bold text-[10px] uppercase tracking-wider" />
             @endscope
 
-            @scope('cell_is_approved', $product)
-                <x-badge :value="$product->is_approved ? 'Live' : 'Pending Review'" 
-                    :class="$product->is_approved ? 'badge-success' : 'badge-warning'" 
+            @scope('cell_price_display', $product)
+                <span class="font-bold text-gray-900 text-sm">
+                    @if($product->listing_type->value === 'direct_seller')
+                        Rs. {{ number_format($product->sale_price) }}
+                    @else
+                        Rs. {{ number_format($product->auction?->traditionalAuction?->starting_bid) }}
+                    @endif
+                </span>
+            @endscope
+
+            @scope('cell_approval_status', $product)
+                @php
+                    $statusBadge = match($product->approval_status) {
+                        \App\Enums\ProductApprovalStatus::APPROVED => 'badge-success',
+                        \App\Enums\ProductApprovalStatus::REJECTED => 'badge-error',
+                        \App\Enums\ProductApprovalStatus::CORRECTION => 'badge-warning',
+                        default => 'badge-ghost',
+                    };
+                @endphp
+                <x-badge :value="$product->approval_status->label()"
+                    :class="$statusBadge"
                     class="font-bold text-[10px] uppercase tracking-wider" />
             @endscope
 
@@ -73,12 +85,26 @@
                     <a href="{{ route('admin.products.show', $product) }}" wire:navigate>
                         <x-button label="View" icon="o-eye" class="btn-sm btn-info rounded-xl shadow-md shadow-info/20" />
                     </a>
-                    @if(!$product->is_approved)
-                        <x-button label="Approve" icon="o-check" class="btn-sm btn-success rounded-xl shadow-md shadow-success/20" 
+                    @if(in_array($product->approval_status, [\App\Enums\ProductApprovalStatus::PENDING, \App\Enums\ProductApprovalStatus::CORRECTION], true))
+                        <x-button label="Approve" icon="o-check" class="btn-sm btn-success rounded-xl shadow-md shadow-success/20"
                             wire:click="approveProduct({{ $product->id }})" spinner />
+                        <x-button label="Decide" icon="o-pencil-square" class="btn-sm rounded-xl"
+                            wire:click="openRejectForm({{ $product->id }})" />
                     @endif
                 </div>
             @endscope
         </x-table>
     </div>
+
+    {{-- Reject / Request Correction --}}
+    <x-modal wire:model="showDecisionModal" title="Reject or Request Correction" separator class="backdrop-blur-sm">
+        <x-textarea label="Reason" wire:model="decisionReason" placeholder="Explain why, so the seller knows what to fix or why it was refused..." rows="4" />
+        <x-slot:actions>
+            <div class="flex flex-wrap justify-end gap-2 w-full">
+                <x-button label="Cancel" wire:click="cancelDecision" class="rounded-xl" />
+                <x-button label="Request Correction" wire:click="requestCorrection" class="btn-warning rounded-xl" spinner="requestCorrection" />
+                <x-button label="Reject" wire:click="rejectProduct" class="btn-error rounded-xl" spinner="rejectProduct" />
+            </div>
+        </x-slot:actions>
+    </x-modal>
 </div>

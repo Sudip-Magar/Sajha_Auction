@@ -2,12 +2,14 @@
     <x-header title="My Products" subtitle="Manage your auction and sales items" separator progress-indicator>
         @if($isSeller)
             <x-slot:actions>
-                <x-button label="Sell a Second-Hand Item" icon="o-tag" class="btn-primary shadow-lg shadow-primary/20" link="{{ route('user.products.create', ['type' => 'direct-sell']) }}" />
-                @if($isAuctionAllowed)
-                    <x-button label="Start an Auction" icon="o-ticket" class="btn-outline border-2" link="{{ route('user.products.create', ['type' => 'auction']) }}" />
-                @else
-                    <x-button label="Start an Auction" icon="o-ticket" class="btn-outline border-2" link="{{ route('user.join-auction') }}" tooltip-left="Requires auction approval — click to apply" />
-                @endif
+                <div class="flex flex-wrap items-center gap-2">
+                    <x-button label="Sell a Second-Hand Item" icon="o-tag" class="btn-primary shadow-lg shadow-primary/20" link="{{ route('user.products.create', ['type' => 'direct-sell']) }}" />
+                    @if($isAuctionAllowed)
+                        <x-button label="Start an Auction" icon="o-ticket" class="btn-outline border-2" link="{{ route('user.products.create', ['type' => 'auction']) }}" />
+                    @else
+                        <x-button label="Start an Auction" icon="o-ticket" class="btn-outline border-2" link="{{ route('user.join-auction') }}" tooltip-left="Requires auction approval — click to apply" />
+                    @endif
+                </div>
             </x-slot:actions>
         @endif
     </x-header>
@@ -71,7 +73,9 @@
                 @endscope
 
                 @scope('cell_listing_type', $product)
-                    @php($auctionType = $product->auction_type)
+                    @php
+                        $auctionType = $product->auction_type;
+                    @endphp
                     <div class="flex flex-col gap-1">
                         <x-badge :value="$product->listing_type->label()" :class="$product->listing_type->value === 'auction' ? 'badge-info text-white' : 'badge-primary text-white'" class="font-bold text-[10px] uppercase" />
                         @if($product->listing_type->value === 'auction' && $auctionType)
@@ -91,18 +95,27 @@
                 @endscope
 
                 @scope('cell_is_approved', $product)
+                    @php
+                        $dot = match($product->approval_status) {
+                            \App\Enums\ProductApprovalStatus::APPROVED => 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]',
+                            \App\Enums\ProductApprovalStatus::REJECTED => 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]',
+                            \App\Enums\ProductApprovalStatus::CORRECTION => 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]',
+                            default => 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]',
+                        };
+                        $text = match($product->approval_status) {
+                            \App\Enums\ProductApprovalStatus::APPROVED => 'text-green-600',
+                            \App\Enums\ProductApprovalStatus::REJECTED => 'text-red-600',
+                            \App\Enums\ProductApprovalStatus::CORRECTION => 'text-amber-600',
+                            default => 'text-yellow-600',
+                        };
+                    @endphp
                     <div class="flex items-center gap-2">
-                        <div @class([
-                            'w-2 h-2 rounded-full',
-                            'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' => $product->is_approved,
-                            'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]' => !$product->is_approved,
-                        ])></div>
-                        <span @class([
-                            'text-[10px] font-black uppercase tracking-tighter',
-                            'text-green-600' => $product->is_approved,
-                            'text-yellow-600' => !$product->is_approved,
-                        ])>{{ $product->is_approved ? 'Approved' : 'Pending' }}</span>
+                        <div class="w-2 h-2 rounded-full {{ $dot }}"></div>
+                        <span class="text-[10px] font-black uppercase tracking-tighter {{ $text }}">{{ $product->approval_status->label() }}</span>
                     </div>
+                    @if($product->remarks && in_array($product->approval_status, [\App\Enums\ProductApprovalStatus::REJECTED, \App\Enums\ProductApprovalStatus::CORRECTION], true))
+                        <p class="text-[10px] text-gray-400 mt-1 max-w-[14rem] truncate" title="{{ $product->remarks }}">{{ $product->remarks }}</p>
+                    @endif
                 @endscope
 
                 @scope('cell_status', $product)
@@ -116,17 +129,20 @@
 
                 @scope('actions', $product)
                     <div class="flex items-center gap-2 justify-end">
-                        @if(!$product->is_approved)
+                        @if($product->isEditableBySeller())
                             <x-button label="Edit" icon="o-pencil-square" class="btn-sm btn-ghost" link="{{ route('user.products.edit', $product->id) }}" />
+                        @endif
+
+                        @if($product->approval_status !== \App\Enums\ProductApprovalStatus::APPROVED)
                             <x-button label="Delete" icon="o-trash" class="btn-sm btn-ghost text-red-500 hover:bg-red-50"
                                 wire:click="deleteProduct({{ $product->id }})"
                                 wire:confirm="Are you sure you want to delete this product? All of its images will also be permanently deleted from the system." />
+                        @endif
+
+                        @if($product->isAuction() && $product->auction)
+                            <x-button label="Live Auction Room" icon="o-ticket" class="btn-xs btn-primary bg-emerald-600 border-none text-white font-bold" link="{{ route('user.auction.detail', $product->auction->id) }}" />
                         @else
-                            @if($product->isAuction() && $product->auction)
-                                <x-button label="Live Auction Room" icon="o-ticket" class="btn-xs btn-primary bg-emerald-600 border-none text-white font-bold" link="{{ route('user.auction.detail', $product->auction->id) }}" />
-                            @else
-                                <x-button label="View Details" icon="o-eye" class="btn-xs btn-ghost text-gray-500" link="{{ route('user.products.show', $product->slug) }}" />
-                            @endif
+                            <x-button label="View Details" icon="o-eye" class="btn-xs btn-ghost text-gray-500" link="{{ route('user.products.show', $product->slug) }}" />
                         @endif
                     </div>
                 @endscope

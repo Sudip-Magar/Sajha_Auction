@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Enums\StatusState;
 use App\Models\Category;
 use App\Models\SubCategory;
 use Illuminate\Contracts\View\View;
@@ -42,7 +43,7 @@ class SubCategorySetup extends Component
 
     public string $color = '#000000';
 
-    public string $status = 'active';
+    public StatusState $status = StatusState::ACTIVE;
 
     public int $sort_order = 0;
 
@@ -96,7 +97,7 @@ class SubCategorySetup extends Component
             'image' => [$this->image ? 'image' : 'nullable', 'max:1024'],
             'icon' => ['nullable', 'string'],
             'color' => ['nullable', 'string'],
-            'status' => ['required', 'in:active,inactive'],
+            'status' => ['required', Rule::enum(StatusState::class)],
             'sort_order' => ['required', 'integer'],
         ]);
 
@@ -149,7 +150,7 @@ class SubCategorySetup extends Component
 
     public function toggleStatus(SubCategory $subCategory): void
     {
-        $subCategory->status = $subCategory->status === 'active' ? 'inactive' : 'active';
+        $subCategory->status = $subCategory->status === StatusState::ACTIVE ? StatusState::INACTIVE : StatusState::ACTIVE;
         $subCategory->save();
 
         $this->success('Status updated.');
@@ -165,7 +166,7 @@ class SubCategorySetup extends Component
         $this->image = null;
         $this->icon = '';
         $this->color = '#000000';
-        $this->status = 'active';
+        $this->status = StatusState::ACTIVE;
         $this->sort_order = 0;
     }
 
@@ -197,7 +198,7 @@ class SubCategorySetup extends Component
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'totalSubCategories' => SubCategory::count(),
-            'activeSubCategories' => SubCategory::where('status', 'active')->count(),
+            'activeSubCategories' => SubCategory::where('status', StatusState::ACTIVE)->count(),
             'linkedProducts' => SubCategory::query()->has('products')->count(),
         ]);
     }

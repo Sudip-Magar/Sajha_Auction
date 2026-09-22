@@ -1,7 +1,7 @@
 <div>
     <x-header title="Orders" subtitle="All second-hand and auction orders across the platform" separator progress-indicator />
 
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-6 mb-8">
         <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
             <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
                 <x-icon name="o-clipboard-document-list" class="w-6 h-6" />
@@ -38,6 +38,15 @@
                 <p class="text-2xl font-black text-gray-900">{{ $refundsOwed }}</p>
             </div>
         </div>
+        <button type="button" wire:click="$set('statusFilter', 'open_complaints')" class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4 text-left hover:border-amber-300 transition-colors">
+            <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                <x-icon name="o-exclamation-triangle" class="w-6 h-6" />
+            </div>
+            <div>
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Open Complaints</p>
+                <p class="text-2xl font-black text-gray-900">{{ $openComplaintsCount }}</p>
+            </div>
+        </button>
     </div>
 
     <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
@@ -46,7 +55,7 @@
                 <div class="w-1 bg-[#2FA084] h-6 rounded-full"></div>
                 <h3 class="font-black text-gray-800 uppercase tracking-tighter">Order Ledger</h3>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 w-full xl:w-[46rem]">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 w-full min-w-0 xl:max-w-[46rem] xl:flex-1">
                 <x-input placeholder="Search order #, buyer, seller, product..." wire:model.live.debounce.300ms="search" icon="o-magnifying-glass" class="bg-white" />
                 <x-select wire:model.live="typeFilter" :options="$typeOptions" placeholder="All Types" icon="o-tag" class="bg-white" />
                 <x-select wire:model.live="statusFilter" :options="$statusOptions" placeholder="All Statuses" icon="o-flag" class="bg-white" />
@@ -66,10 +75,13 @@
 
         <x-table :headers="$headers" :rows="$orders" with-pagination>
             @scope('cell_order_number', $order)
-                <div>
+                <a href="{{ route('admin.orders.show', $order) }}" wire:navigate class="block hover:underline">
                     <div class="font-black text-gray-900 text-sm">{{ $order->order_number }}</div>
                     <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{{ $order->created_at->format('M d, Y') }}</div>
-                </div>
+                    @if($order->complaint_status === \App\Enums\OrderComplaintStatus::UNDER_REVIEW)
+                        <span class="inline-block mt-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[9px] font-extrabold uppercase">Verdict Needed</span>
+                    @endif
+                </a>
             @endscope
 
             @scope('cell_product', $order)
@@ -92,10 +104,10 @@
             @endscope
 
             @scope('cell_parties', $order)
-                <div class="text-xs">
-                    <p class="font-bold text-gray-800">{{ $order->buyer?->name ?? 'Unknown' }}</p>
-                    <p class="text-gray-400">&darr;</p>
-                    <p class="font-bold text-gray-800">{{ $order->seller?->name ?? 'Unknown' }}</p>
+                <div class="flex items-center gap-2 text-xs">
+                    <p class="font-bold text-gray-800 truncate max-w-[6rem]">{{ $order->buyer?->name ?? 'Unknown' }}</p>
+                    <x-icon name="o-arrow-right" class="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                    <p class="font-bold text-gray-800 truncate max-w-[6rem]">{{ $order->seller?->name ?? 'Unknown' }}</p>
                 </div>
             @endscope
 
@@ -104,14 +116,14 @@
             @endscope
 
             @scope('cell_deposit', $order)
-                @if($order->deposit_status === 'not_required')
+                @if($order->deposit_status === \App\Enums\OrderDepositStatus::NOT_REQUIRED)
                     <span class="text-[10px] text-gray-300 font-bold uppercase">&mdash;</span>
                 @else
                     @php
                         $depositBadge = match($order->deposit_status) {
-                            'paid' => ['Paid', 'bg-emerald-100 text-emerald-800 border-emerald-300'],
-                            'refund_owed' => ['Refund Owed', 'bg-blue-100 text-blue-800 border-blue-300'],
-                            'forfeited' => ['Forfeited', 'bg-rose-100 text-rose-800 border-rose-300'],
+                            \App\Enums\OrderDepositStatus::PAID => ['Paid', 'bg-emerald-100 text-emerald-800 border-emerald-300'],
+                            \App\Enums\OrderDepositStatus::REFUND_OWED => ['Refund Owed', 'bg-blue-100 text-blue-800 border-blue-300'],
+                            \App\Enums\OrderDepositStatus::FORFEITED => ['Forfeited', 'bg-rose-100 text-rose-800 border-rose-300'],
                             default => ['Pending', 'bg-amber-100 text-amber-800 border-amber-300'],
                         };
                     @endphp
@@ -129,7 +141,7 @@
                     </span>
                     @if($order->status === 'cancelled' && $order->cancellation_reason_category)
                         <p class="text-[10px] text-gray-400 mt-1 max-w-[12rem] truncate" title="{{ $order->cancellation_note }}">
-                            {{ \App\Services\OrderCancellationService::BUYER_REASONS[$order->cancellation_reason_category] ?? $order->cancellation_reason_category }}
+                            {{ $order->cancellation_reason_category->label() }}
                         </p>
                     @endif
                 </div>

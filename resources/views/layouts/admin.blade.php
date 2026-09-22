@@ -28,7 +28,7 @@
         <main class="flex-1 transition-all duration-300 min-w-0">
             <livewire:components.admin.topbar />
 
-            <div class="p-8 lg:px-7 lg:py-4 max-w-full mx-auto">
+            <div class="p-4 sm:p-6 lg:px-7 lg:py-4 max-w-full mx-auto">
                 {{ $slot }}
             </div>
         </main>
@@ -39,9 +39,20 @@
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('adminSidebar', {
-                collapsed: false,
+                collapsed: (() => {
+                    try {
+                        return localStorage.getItem('adminSidebarCollapsed') === 'true';
+                    } catch (e) {
+                        return false;
+                    }
+                })(),
                 toggle() {
                     this.collapsed = !this.collapsed;
+                    try {
+                        localStorage.setItem('adminSidebarCollapsed', this.collapsed);
+                    } catch (e) {
+                        // private browsing / storage blocked - not persisting is fine
+                    }
                 }
             });
         });

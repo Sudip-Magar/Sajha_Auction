@@ -2,11 +2,14 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\AuctionStatus;
+use App\Enums\ProductApprovalStatus;
 use App\Enums\ProductAuctionType;
 use App\Enums\ProductCondition;
 use App\Enums\ProductImageType;
 use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
+use App\Enums\StatusState;
 use App\Models\Admin;
 use App\Models\Product;
 use App\Models\ProductImage;
@@ -136,8 +139,12 @@ class ManageProduct extends Component
                 abort(403);
             }
 
-            if ($product->is_approved) {
-                $this->error('Approved products cannot be edited.');
+            if (! $product->isEditableBySeller()) {
+                $this->error(match ($product->approval_status) {
+                    ProductApprovalStatus::APPROVED => 'Approved products cannot be edited.',
+                    ProductApprovalStatus::REJECTED => 'This product was rejected and can no longer be edited.'.($product->remarks ? ' Reason: '.$product->remarks : ''),
+                    default => 'This product is awaiting admin review and cannot be edited right now.',
+                });
                 $this->redirect(route('user.products'), navigate: true);
 
                 return;
@@ -375,11 +382,25 @@ class ManageProduct extends Component
             return;
         }
 
+        // Re-check straight from the database rather than trusting this
+        // component's in-memory $this->product, in case an admin decided on
+        // this product in another tab while the seller had this form open.
+        if ($this->product && ! $this->product->fresh()->isEditableBySeller()) {
+            $this->error('This product can no longer be edited. Please refresh and check its current status.');
+            $this->redirect(route('user.products'), navigate: true);
+
+            return;
+        }
+
         try {
             DB::transaction(function () {
                 $isNewProduct = ! $this->product;
                 $productData = [
                     'seller_id' => Auth::id(),
+                    // A resubmission after correction (or a brand-new listing)
+                    // always goes back to PENDING for a fresh admin review.
+                    'approval_status' => ProductApprovalStatus::PENDING->value,
+                    'remarks' => null,
                     'sub_category_id' => $this->sub_category_id,
                     'name' => $this->name,
                     'description' => HtmlSanitizerService::sanitize($this->description),
@@ -471,7 +492,7 @@ class ManageProduct extends Component
                         'start_time_np' => $this->auction_start_np,
                         'end_time' => $endTime,
                         'end_time_np' => $this->auction_end_np,
-                        'status' => 'pending',
+                        'status' => AuctionStatus::PENDING,
                         'current_price' => $this->starting_bid,
                     ]);
 
@@ -515,9 +536,9 @@ class ManageProduct extends Component
         return view('livewire.user.manage-product', [
             'subCategories' => SubCategory::query()
                 ->with('category')
-                ->where('status', 'active')
+                ->where('status', StatusState::ACTIVE)
                 ->whereHas('category', function ($query): void {
-                    $query->where('status', 'active');
+                    $query->where('status', StatusState::ACTIVE);
                 })
                 ->orderBy('sort_order')
                 ->orderBy('name')

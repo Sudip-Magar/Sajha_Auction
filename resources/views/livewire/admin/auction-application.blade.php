@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <x-header title="Auction Applications" subtitle="Review identity documents before granting auction bidding access" separator progress-indicator />
 
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl border border-gray-200 p-5">
             <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Submitted</p>
             <p class="mt-2 text-3xl font-black text-gray-900">{{ $pendingCount + $approvedCount + $rejectedCount }}</p>

@@ -28,7 +28,8 @@
          class="fixed top-0 left-0 h-full w-72 bg-gray-900 text-gray-300 z-50 transition-all duration-300 ease-in-out border-r border-gray-800 shadow-2xl flex flex-col overflow-hidden">
 
         <!-- Logo Section -->
-        <div class="p-6 flex items-center border-b border-gray-800/50 h-20 shrink-0">
+        <div x-bind:class="$store.adminSidebar.collapsed ? 'justify-center px-0' : 'px-6'"
+             class="py-6 flex items-center border-b border-gray-800/50 h-20 shrink-0 transition-all duration-300">
             <div class="w-10 h-10 bg-linear-to-br from-[#1F6F5F] to-[#2FA084] rounded-xl flex items-center justify-center shadow-lg shadow-[#2FA084]/20 shrink-0">
                 <x-icon name="o-bolt" class="w-6 h-6 text-white" />
             </div>
@@ -64,64 +65,73 @@
             <p x-show="!$store.adminSidebar.collapsed" class="px-4 text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-3">Main Menu</p>
 
             <a href="{{ route('admin.dashboard') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Dashboard' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.dashboard') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.dashboard') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-squares-2x2" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.dashboard') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Dashboard</span>
             </a>
 
              <a href="{{ route('admin.category-setup') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Categories' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.category-setup') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.category-setup') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-tag" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.category-setup') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Categories</span>
             </a>
 
             <a href="{{ route('admin.sub-category-setup') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Sub-Categories' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.sub-category-setup') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.sub-category-setup') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-rectangle-stack" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.sub-category-setup') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Sub-Categories</span>
             </a>
 
             <a href="{{ route('admin.users') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Users' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.users*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.users*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-users" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.users*') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Users</span>
             </a>
 
             <a href="{{ route('admin.products') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Products' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.products*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.products*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-shopping-bag" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.products*') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Products</span>
             </a>
 
             <a href="{{ route('admin.orders') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Orders' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.orders*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.orders*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-clipboard-document-list" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.orders*') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Orders</span>
             </a>
 
             <a href="{{ route('admin.seller-requests') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Seller Requests' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.seller-requests') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.seller-requests') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-user-plus" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.seller-requests') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Seller Requests</span>
             </a>
 
             <a href="{{ route('admin.faqs') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'FAQs' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.faqs') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.faqs') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-question-mark-circle" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.faqs') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">FAQs</span>
             </a>
 
             <a href="{{ route('admin.auction-application') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Auction Applications' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-               class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.auction-application*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.auction-application*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                 <x-icon name="o-check-badge" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.auction-application*') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Auction Applications</span>
             </a>
@@ -131,8 +141,9 @@
                 <p x-show="!$store.adminSidebar.collapsed" class="px-4 text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-3">System</p>
 
                 <a href="{{ route('admin.settings') }}" wire:navigate
+                   x-bind:title="$store.adminSidebar.collapsed ? 'Settings' : null"
                    x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
-                   class="flex items-center space-x-3 py-3.5 rounded-xl transition-all duration-300 group {{ request()->routeIs('admin.settings') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-l-4 border-[#2FA084]' : 'hover:bg-gray-800 hover:text-white' }}">
+                   class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.settings') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
                     <x-icon name="o-cog-6-tooth" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.settings') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
                     <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Settings</span>
                 </a>
@@ -142,6 +153,7 @@
         <!-- Footer / Logout -->
         <div class="p-4 border-t border-gray-800/50 shrink-0">
             <button wire:click="logout"
+                    x-bind:title="$store.adminSidebar.collapsed ? 'Sign Out' : null"
                     x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
                     class="w-full flex items-center space-x-3 py-3.5 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-300 group cursor-pointer">
                 <x-icon name="o-arrow-left-on-rectangle" class="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />

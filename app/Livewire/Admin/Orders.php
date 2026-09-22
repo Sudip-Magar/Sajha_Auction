@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Admin;
 
+use App\Enums\OrderComplaintStatus;
+use App\Enums\OrderDepositStatus;
 use App\Models\Order;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -46,7 +48,8 @@ class Orders extends Component
                         ->orWhereHas('items.product', fn ($q) => $q->where('name', 'like', $term));
                 });
             })
-            ->when($this->statusFilter, fn ($query) => $query->where('status', $this->statusFilter))
+            ->when($this->statusFilter === 'open_complaints', fn ($query) => $query->where('complaint_status', OrderComplaintStatus::UNDER_REVIEW))
+            ->when($this->statusFilter && $this->statusFilter !== 'open_complaints', fn ($query) => $query->where('status', $this->statusFilter))
             ->when($this->typeFilter === 'auction', fn ($query) => $query->whereNotNull('auction_id'))
             ->when($this->typeFilter === 'direct_sell', fn ($query) => $query->whereNull('auction_id'))
             ->latest()
@@ -60,6 +63,7 @@ class Orders extends Component
                 ['id' => 'meetup_scheduled', 'name' => 'Meetup Scheduled'],
                 ['id' => 'completed', 'name' => 'Completed & Sold'],
                 ['id' => 'cancelled', 'name' => 'Cancelled'],
+                ['id' => 'open_complaints', 'name' => 'Open Complaints'],
             ],
             'typeOptions' => [
                 ['id' => 'direct_sell', 'name' => 'Second-Hand (Direct Sell)'],
@@ -68,7 +72,8 @@ class Orders extends Component
             'totalOrders' => Order::count(),
             'completedOrders' => Order::where('status', 'completed')->count(),
             'cancelledOrders' => Order::where('status', 'cancelled')->count(),
-            'refundsOwed' => Order::where('deposit_status', 'refund_owed')->count(),
+            'refundsOwed' => Order::where('deposit_status', OrderDepositStatus::REFUND_OWED)->count(),
+            'openComplaintsCount' => Order::where('complaint_status', OrderComplaintStatus::UNDER_REVIEW)->count(),
         ]);
     }
 }

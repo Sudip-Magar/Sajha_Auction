@@ -2,12 +2,26 @@
 
 namespace App\Services;
 
+use App\Enums\OrderCancellationReason;
+use App\Enums\OrderComplaintStatus;
+use App\Enums\OrderDepositStatus;
+use App\Enums\PaymentTransactionMethod;
+use App\Enums\PaymentTransactionParty;
+use App\Enums\PaymentTransactionStatus;
+use App\Enums\PaymentTransactionType;
+use App\Enums\PayoutPurpose;
+use App\Enums\PayoutRecipientRole;
+use App\Enums\PayoutStatus;
 use App\Models\Admin;
+use App\Models\DamagePenalty;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Models\PayoutRequest;
 use App\Models\User;
+use App\Notifications\ComplaintFiledNotification;
+use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Everything that happens to the money on an order when it is cancelled,
@@ -18,49 +32,25 @@ use Illuminate\Support\Facades\DB;
  *    split between the platform and the seller; anything extra the buyer paid
  *    online is refunded.
  *  - Group 2 (damaged / not as described / documents missing): a complaint
- *    against the seller that the admin reviews. If upheld the buyer is refunded
- *    in full and the seller owes a penalty; if rejected Group 1 rules apply.
+ *    against the seller. The order waits as "under review" until an admin
+ *    physically inspects the item and records a verdict via
+ *    recordDamageVerdict() - confirmed damaged refunds the buyer in full and
+ *    sends the seller a separate 30% penalty (DamagePenaltyService); not
+ *    damaged falls back to the Group 1 forfeiture rule.
  */
 class OrderCancellationService
 {
-    /**
-     * @var array<string, string>
-     */
-    public const GROUP_ONE_REASONS = [
-        'changed_mind' => 'I no longer want to buy this item',
-        'other' => 'Other reason',
-    ];
-
-    /**
-     * @var array<string, string>
-     */
-    public const GROUP_TWO_REASONS = [
-        'item_damaged' => 'The item is damaged',
-        'not_as_described' => 'The item is not as described / not good quality',
-        'documents_missing' => 'Documents are missing',
-    ];
-
-    /**
-     * @var array<string, string>
-     */
-    public const BUYER_REASONS = self::GROUP_TWO_REASONS + self::GROUP_ONE_REASONS;
-
-    public static function isComplaintReason(?string $reasonCategory): bool
-    {
-        return $reasonCategory !== null && array_key_exists($reasonCategory, self::GROUP_TWO_REASONS);
-    }
-
-    public static function cancel(Order $order, User $actor, ?string $reasonCategory, ?string $note): void
+    public static function cancel(Order $order, User $actor, ?OrderCancellationReason $reason, ?string $note): void
     {
         $isSeller = (int) $order->seller_id === (int) $actor->id;
-        $isComplaint = ! $isSeller && self::isComplaintReason($reasonCategory);
+        $isComplaint = ! $isSeller && $reason?->isComplaintReason() === true;
 
-        DB::transaction(function () use ($order, $isSeller, $isComplaint, $reasonCategory, $note): void {
+        DB::transaction(function () use ($order, $isSeller, $isComplaint, $reason, $note): void {
             $order->update([
                 'status' => 'cancelled',
-                'cancellation_reason_category' => $isSeller ? null : $reasonCategory,
+                'cancellation_reason_category' => $isSeller ? null : $reason,
                 'cancellation_note' => $note,
-                'complaint_status' => $isComplaint ? 'under_review' : null,
+                'complaint_status' => $isComplaint ? OrderComplaintStatus::UNDER_REVIEW : null,
             ]);
 
             if ($isComplaint) {
@@ -74,15 +64,22 @@ class OrderCancellationService
             }
         });
 
-        $order->refresh();
+        // refresh() reloads the items relation but not its nested product
+        // eager load, so it has to be re-specified explicitly here - without
+        // it, every $item->product access below becomes its own query.
+        $order->refresh()->load('items.product');
 
         foreach ($order->items as $item) {
             $item->product?->logTimeline(
                 'cancelled',
                 "Order Cancelled (#{$order->order_number})",
-                self::describe($order, $isSeller, $reasonCategory, $note),
+                self::describe($order, $isSeller, $reason, $note),
                 $actor
             );
+        }
+
+        if ($isComplaint) {
+            self::notifyAdminsOfComplaint($order);
         }
 
         // Auction wins mark the product 'sold' the moment the auction ends, so a
@@ -93,73 +90,97 @@ class OrderCancellationService
     }
 
     /**
-     * Admin decision on a Group 2 complaint. Upheld: the buyer is refunded in
-     * full, the admin advances the seller's penalty to the buyer as
-     * compensation, and the seller owes that back as debt. Rejected: the
-     * ordinary buyer-cancelled forfeiture applies.
+     * Admin's physical-inspection verdict on a Group 2 complaint.
+     *
+     * Confirmed damaged: the buyer is refunded everything paid online (from
+     * the deposit the admin already holds - unchanged), the seller's access
+     * is revoked immediately, and a separate 30% penalty is issued for the
+     * seller to pay directly (DamagePenaltyService; not a payout deduction).
+     *
+     * Not damaged: the complaint is rejected and the ordinary Group 1
+     * forfeiture applies - the buyer keeps the product.
      */
-    public static function resolveComplaint(Order $order, Admin $admin, bool $upheld, ?string $resolutionNote): void
+    public static function recordDamageVerdict(Order $order, Admin $admin, bool $confirmedDamaged, ?string $resolutionNote): ?DamagePenalty
     {
-        if ($order->complaint_status !== 'under_review') {
-            return;
+        if ($order->complaint_status !== OrderComplaintStatus::UNDER_REVIEW) {
+            return null;
         }
 
-        DB::transaction(function () use ($order, $upheld, $resolutionNote): void {
+        $resolved = false;
+
+        $penalty = DB::transaction(function () use ($order, $confirmedDamaged, $resolutionNote, &$resolved): ?DamagePenalty {
+            // Re-checked under a row lock so a double-click or two concurrent
+            // admin sessions can't both pass the guard and duplicate the
+            // refund and the penalty.
+            $order = Order::whereKey($order->id)->lockForUpdate()->first();
+
+            if (! $order || $order->complaint_status !== OrderComplaintStatus::UNDER_REVIEW) {
+                return null;
+            }
+
+            $resolved = true;
+
             $order->update([
-                'complaint_status' => $upheld ? 'upheld' : 'rejected',
+                'complaint_status' => $confirmedDamaged ? OrderComplaintStatus::CONFIRMED_DAMAGED : OrderComplaintStatus::NOT_DAMAGED,
                 'complaint_resolution_note' => $resolutionNote,
             ]);
 
-            if (! $upheld) {
+            if (! $confirmedDamaged) {
                 self::forfeitMinimumDeposit($order);
 
-                return;
+                return null;
             }
 
             $refund = $order->paidOnline();
-            $penalty = SellerDebtService::penaltyFor($order);
 
             if ($refund > 0) {
                 PaymentTransaction::create([
                     'order_id' => $order->id,
-                    'type' => PaymentTransaction::TYPE_REFUND_ISSUED,
+                    'type' => PaymentTransactionType::REFUND_ISSUED,
                     'amount' => $refund,
-                    'payment_method' => 'esewa',
-                    'status' => 'completed',
-                    'party' => 'buyer',
-                    'notes' => 'Complaint upheld: everything the buyer paid online is refunded.',
+                    'payment_method' => PaymentTransactionMethod::ESEWA,
+                    'status' => PaymentTransactionStatus::COMPLETED,
+                    'party' => PaymentTransactionParty::BUYER,
+                    'notes' => 'Confirmed damaged: everything the buyer paid online is refunded.',
                 ]);
-            }
 
-            SellerDebtService::record($order, 'Buyer complaint upheld on order #'.$order->order_number.': '.(self::BUYER_REASONS[$order->cancellation_reason_category] ?? 'defect').'.');
-
-            $payout = round($refund + $penalty, 2);
-
-            if ($payout > 0) {
                 PayoutRequest::create([
                     'order_id' => $order->id,
                     'recipient_id' => $order->buyer_id,
-                    'recipient_role' => 'buyer',
-                    'purpose' => PayoutRequest::PURPOSE_BUYER_REFUND,
-                    'amount' => $payout,
-                    'payout_status' => PayoutRequest::STATUS_AWAITING_DETAILS,
+                    'recipient_role' => PayoutRecipientRole::BUYER,
+                    'purpose' => PayoutPurpose::BUYER_REFUND,
+                    'amount' => $refund,
+                    'payout_status' => PayoutStatus::AWAITING_DETAILS,
                 ]);
             }
 
-            $order->update(['deposit_status' => 'refund_owed']);
+            $order->update(['deposit_status' => OrderDepositStatus::REFUND_OWED]);
+
+            return DamagePenaltyService::issue($order);
         });
 
-        $order->refresh();
+        if (! $resolved) {
+            return null;
+        }
+
+        // Same nested-eager-load loss as cancel() above.
+        $order->refresh()->load('items.product');
 
         foreach ($order->items as $item) {
             $item->product?->logTimeline(
                 'complaint_resolved',
-                'Complaint '.($upheld ? 'Upheld' : 'Rejected')." (#{$order->order_number})",
-                $upheld
-                    ? 'The buyer was refunded in full and the seller owes a penalty of Rs. '.number_format(SellerDebtService::penaltyFor($order), 2).'.'
+                'Damage Verdict: '.($confirmedDamaged ? 'Confirmed Damaged' : 'Not Damaged')." (#{$order->order_number})",
+                $confirmedDamaged
+                    ? 'The buyer was refunded in full. The seller\'s access has been revoked and a penalty of Rs. '.number_format($penalty->amount, 2).' has been issued.'
                     : 'The complaint was rejected; the minimum deposit is forfeited.'
             );
         }
+
+        if ($penalty) {
+            DamagePenaltyService::notifySeller($penalty);
+        }
+
+        return $penalty;
     }
 
     /**
@@ -175,24 +196,24 @@ class OrderCancellationService
 
         PaymentTransaction::create([
             'order_id' => $order->id,
-            'type' => PaymentTransaction::TYPE_REFUND_ISSUED,
+            'type' => PaymentTransactionType::REFUND_ISSUED,
             'amount' => $refund,
-            'payment_method' => 'esewa',
-            'status' => 'completed',
-            'party' => 'buyer',
+            'payment_method' => PaymentTransactionMethod::ESEWA,
+            'status' => PaymentTransactionStatus::COMPLETED,
+            'party' => PaymentTransactionParty::BUYER,
             'notes' => $reason,
         ]);
 
         PayoutRequest::create([
             'order_id' => $order->id,
             'recipient_id' => $order->buyer_id,
-            'recipient_role' => 'buyer',
-            'purpose' => PayoutRequest::PURPOSE_BUYER_REFUND,
+            'recipient_role' => PayoutRecipientRole::BUYER,
+            'purpose' => PayoutPurpose::BUYER_REFUND,
             'amount' => $refund,
-            'payout_status' => PayoutRequest::STATUS_AWAITING_DETAILS,
+            'payout_status' => PayoutStatus::AWAITING_DETAILS,
         ]);
 
-        $order->update(['deposit_status' => 'refund_owed']);
+        $order->update(['deposit_status' => OrderDepositStatus::REFUND_OWED]);
     }
 
     /**
@@ -215,21 +236,21 @@ class OrderCancellationService
 
         PaymentTransaction::create([
             'order_id' => $order->id,
-            'type' => PaymentTransaction::TYPE_DEPOSIT_FORFEITED,
+            'type' => PaymentTransactionType::DEPOSIT_FORFEITED,
             'amount' => $adminShare,
-            'payment_method' => 'esewa',
-            'status' => 'completed',
-            'party' => 'admin',
+            'payment_method' => PaymentTransactionMethod::ESEWA,
+            'status' => PaymentTransactionStatus::COMPLETED,
+            'party' => PaymentTransactionParty::ADMIN,
             'notes' => "Platform's share of the forfeited deposit.",
         ]);
 
         PaymentTransaction::create([
             'order_id' => $order->id,
-            'type' => PaymentTransaction::TYPE_DEPOSIT_FORFEITED,
+            'type' => PaymentTransactionType::DEPOSIT_FORFEITED,
             'amount' => $sellerShare,
-            'payment_method' => 'esewa',
-            'status' => 'completed',
-            'party' => 'seller',
+            'payment_method' => PaymentTransactionMethod::ESEWA,
+            'status' => PaymentTransactionStatus::COMPLETED,
+            'party' => PaymentTransactionParty::SELLER,
             'notes' => "Seller's share of the forfeited deposit.",
         ]);
 
@@ -240,25 +261,25 @@ class OrderCancellationService
         if ($excess > 0) {
             PaymentTransaction::create([
                 'order_id' => $order->id,
-                'type' => PaymentTransaction::TYPE_REFUND_ISSUED,
+                'type' => PaymentTransactionType::REFUND_ISSUED,
                 'amount' => $excess,
-                'payment_method' => 'esewa',
-                'status' => 'completed',
-                'party' => 'buyer',
+                'payment_method' => PaymentTransactionMethod::ESEWA,
+                'status' => PaymentTransactionStatus::COMPLETED,
+                'party' => PaymentTransactionParty::BUYER,
                 'notes' => 'Amount paid above the minimum deposit is refunded.',
             ]);
 
             PayoutRequest::create([
                 'order_id' => $order->id,
                 'recipient_id' => $order->buyer_id,
-                'recipient_role' => 'buyer',
-                'purpose' => PayoutRequest::PURPOSE_BUYER_REFUND,
+                'recipient_role' => PayoutRecipientRole::BUYER,
+                'purpose' => PayoutPurpose::BUYER_REFUND,
                 'amount' => $excess,
-                'payout_status' => PayoutRequest::STATUS_AWAITING_DETAILS,
+                'payout_status' => PayoutStatus::AWAITING_DETAILS,
             ]);
         }
 
-        $order->update(['deposit_status' => 'forfeited']);
+        $order->update(['deposit_status' => OrderDepositStatus::FORFEITED]);
     }
 
     /**
@@ -273,11 +294,11 @@ class OrderCancellationService
         PayoutRequest::create([
             'order_id' => $order->id,
             'recipient_id' => $order->seller_id,
-            'recipient_role' => 'seller',
-            'purpose' => PayoutRequest::PURPOSE_SELLER_FORFEIT_SHARE,
+            'recipient_role' => PayoutRecipientRole::SELLER,
+            'purpose' => PayoutPurpose::SELLER_FORFEIT_SHARE,
             'amount' => $net,
             'debt_deducted' => $deducted,
-            'payout_status' => $net > 0 ? PayoutRequest::STATUS_AWAITING_DETAILS : PayoutRequest::STATUS_SETTLED,
+            'payout_status' => $net > 0 ? PayoutStatus::AWAITING_DETAILS : PayoutStatus::SETTLED,
         ]);
     }
 
@@ -296,19 +317,45 @@ class OrderCancellationService
         }
     }
 
-    private static function describe(Order $order, bool $isSeller, ?string $reasonCategory, ?string $note): string
+    private static function describe(Order $order, bool $isSeller, ?OrderCancellationReason $reason, ?string $note): string
     {
         $reasonLabel = $isSeller
             ? 'Cancelled by the seller.'
-            : 'Cancelled by the buyer: '.(self::BUYER_REASONS[$reasonCategory] ?? 'No reason given').'.';
+            : 'Cancelled by the buyer: '.($reason?->label() ?? 'No reason given').'.';
 
         $moneyNote = match (true) {
-            $order->complaint_status === 'under_review' => ' The complaint is awaiting admin review; no money has moved yet.',
-            $order->deposit_status === 'refund_owed' => ' Everything paid online is owed back to the buyer.',
-            $order->deposit_status === 'forfeited' => ' The minimum deposit of Rs. '.number_format($order->minimumDeposit(), 2).' is forfeited (split between the platform and the seller).',
+            $order->complaint_status === OrderComplaintStatus::UNDER_REVIEW => ' The complaint is awaiting admin review; no money has moved yet.',
+            $order->deposit_status === OrderDepositStatus::REFUND_OWED => ' Everything paid online is owed back to the buyer.',
+            $order->deposit_status === OrderDepositStatus::FORFEITED => ' The minimum deposit of Rs. '.number_format($order->minimumDeposit(), 2).' is forfeited (split between the platform and the seller).',
             default => '',
         };
 
         return $reasonLabel.$moneyNote.($note ? ' Note: '.$note : '');
+    }
+
+    private static function notifyAdminsOfComplaint(Order $order): void
+    {
+        Admin::all()->each(function (Admin $admin) use ($order): void {
+            self::notifySafely($admin, new ComplaintFiledNotification($order));
+        });
+    }
+
+    /**
+     * Mirrors DamagePenaltyService::notifySafely(): these notifications
+     * broadcast in-process (ShouldBroadcastNow), so a transient Reverb
+     * hiccup must not turn an already-committed cancellation into a fatal
+     * error for whoever triggered it.
+     */
+    private static function notifySafely(object $notifiable, object $notification): void
+    {
+        try {
+            $notifiable->notify($notification);
+        } catch (BroadcastException $exception) {
+            Log::warning('Order-cancellation notification broadcast failed.', [
+                'notifiable' => $notifiable::class,
+                'notification' => $notification::class,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

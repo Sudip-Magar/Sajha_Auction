@@ -1,0 +1,25 @@
+sequenceDiagram
+    actor Buyer
+    participant OrderDetail
+    participant EsewaPaymentController
+    participant EsewaPaymentService
+    participant Esewa
+    participant PaymentTransaction
+    participant Order
+
+    Buyer->>OrderDetail: initiate payment
+    OrderDetail->>EsewaPaymentController: initiate(Request, Order)
+    EsewaPaymentController->>Order: acceptsOnlinePayment()
+    EsewaPaymentController->>EsewaPaymentService: allowedRange(Order)
+    EsewaPaymentController->>EsewaPaymentService: buildPaymentForm(Order, amount)
+    EsewaPaymentService->>PaymentTransaction: create pending deposit_paid
+    EsewaPaymentService-->>Buyer: signed eSewa form
+    Buyer->>Esewa: complete payment
+    Esewa-->>EsewaPaymentController: success(Request)
+    EsewaPaymentController->>EsewaPaymentService: decodeAndVerifyCallback(encodedData)
+    EsewaPaymentController->>PaymentTransaction: find by reference
+    EsewaPaymentController->>EsewaPaymentService: checkStatus(uuid, amount)
+    EsewaPaymentService->>Esewa: status request
+    Esewa-->>EsewaPaymentService: COMPLETE
+    EsewaPaymentController->>PaymentTransaction: update status completed
+    EsewaPaymentController->>Order: update deposit_status paid

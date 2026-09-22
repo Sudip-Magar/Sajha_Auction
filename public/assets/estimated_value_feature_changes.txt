@@ -288,9 +288,9 @@ AFFECTS: Test suite only. Ran the full existing test suite before and
 
 
 ------------------------------------------------------------------
-9. OUTSTANDING / MANUAL STEP REQUIRED
+9. STATUS (UPDATED)
 ------------------------------------------------------------------
-Run `php artisan migrate` against the real dev/production database to
-actually add the products.purchase_date column — this was only verified
-against the in-memory SQLite test database, not the project's MySQL
-database (sajha_auction).
+`php artisan migrate` has since been run against the real MySQL database
+(sajha_auction) — the products.purchase_date column exists there, not
+just on the in-memory SQLite test database this was originally verified
+against. No outstanding step remains for this feature.

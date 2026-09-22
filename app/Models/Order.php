@@ -3,11 +3,18 @@
 namespace App\Models;
 
 use App\Enums\HandoverType;
+use App\Enums\OrderCancellationReason;
+use App\Enums\OrderComplaintStatus;
+use App\Enums\OrderDepositStatus;
+use App\Enums\OrderPaymentStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\PaymentTransactionStatus;
+use App\Enums\PaymentTransactionType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Order extends Model
@@ -41,6 +48,10 @@ class Order extends Model
     protected $casts = [
         'total_amount' => 'float',
         'deposit_amount' => 'float',
+        'cancellation_reason_category' => OrderCancellationReason::class,
+        'complaint_status' => OrderComplaintStatus::class,
+        'deposit_status' => OrderDepositStatus::class,
+        'payment_status' => OrderPaymentStatus::class,
         'meetup_time' => 'datetime',
         'stale_notified_at' => 'datetime',
     ];
@@ -90,13 +101,23 @@ class Order extends Model
         return $this->hasMany(SellerDebt::class, 'related_order_id');
     }
 
+    public function damagePenalty(): HasOne
+    {
+        return $this->hasOne(DamagePenalty::class);
+    }
+
+    public function complaintMessages(): HasMany
+    {
+        return $this->hasMany(ComplaintMessage::class)->orderBy('created_at');
+    }
+
     /**
      * Sum of completed transactions of the given type(s) for this order.
      */
-    public function transactionTotal(string ...$types): float
+    public function transactionTotal(PaymentTransactionType ...$types): float
     {
         return round((float) $this->transactions()
-            ->where('status', 'completed')
+            ->where('status', PaymentTransactionStatus::COMPLETED)
             ->whereIn('type', $types)
             ->sum('amount'), 2);
     }
@@ -104,13 +125,13 @@ class Order extends Model
     /** Money the buyer has paid online (held by the admin). */
     public function paidOnline(): float
     {
-        return $this->transactionTotal(PaymentTransaction::TYPE_DEPOSIT_PAID);
+        return $this->transactionTotal(PaymentTransactionType::DEPOSIT_PAID);
     }
 
     /** Cash the buyer has handed over at the meetup. */
     public function paidCash(): float
     {
-        return $this->transactionTotal(PaymentTransaction::TYPE_BALANCE_PAID_CASH);
+        return $this->transactionTotal(PaymentTransactionType::BALANCE_PAID_CASH);
     }
 
     public function totalPaid(): float
@@ -135,14 +156,14 @@ class Order extends Model
     /** Whether the buyer may still make an online eSewa payment on this order. */
     public function acceptsOnlinePayment(): bool
     {
-        return in_array($this->deposit_status, ['pending', 'paid'], true)
+        return in_array($this->deposit_status, [OrderDepositStatus::PENDING, OrderDepositStatus::PAID], true)
             && ! in_array($this->status, ['cancelled', 'completed'], true)
             && $this->remainingAmount() > 0;
     }
 
     public function needsDeposit(): bool
     {
-        return $this->deposit_status === 'pending' && $this->status !== 'cancelled';
+        return $this->deposit_status === OrderDepositStatus::PENDING && $this->status !== 'cancelled';
     }
 
     public function getStatusBadgeAttribute(): string

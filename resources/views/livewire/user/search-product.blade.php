@@ -60,6 +60,18 @@
                         <x-icon name="o-x-mark" class="ui-icon" />
                         Clear
                     </button>
+
+                    {{-- Price/negotiable filters live in the right-hand sidebar, which is
+                         desktop-only (lg:block) - below that, this opens the same filters
+                         in a modal instead of leaving them completely inaccessible. --}}
+                    <button
+                        type="button"
+                        wire:click="$set('showFiltersModal', true)"
+                        class="flex h-11 items-center justify-center gap-2 rounded-md border border-gray-200 px-4 font-black hover:border-[#0C8FE8] hover:text-[#0C8FE8] dark:border-gray-800 lg:hidden"
+                    >
+                        <x-icon name="o-adjustments-horizontal" class="ui-icon" />
+                        Price & Negotiable Filters
+                    </button>
                 </div>
             </section>
 
@@ -175,4 +187,47 @@
             </section>
         </aside>
     </section>
+
+    {{-- Mobile/tablet equivalent of the desktop-only filters sidebar above --}}
+    <x-modal wire:model="showFiltersModal" title="Filters" separator class="backdrop-blur-sm lg:hidden">
+        <div class="space-y-4">
+            <div>
+                <label class="ui-small font-black uppercase tracking-widest text-gray-500">Price Range</label>
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        wire:model.live.debounce.500ms="minPrice"
+                        placeholder="Min"
+                        class="h-10 min-w-0 rounded-md border border-gray-200 bg-gray-50 px-3 font-semibold outline-none focus:border-[#0C8FE8] dark:border-gray-800 dark:bg-[#202228]"
+                    >
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        wire:model.live.debounce.500ms="maxPrice"
+                        placeholder="Max"
+                        class="h-10 min-w-0 rounded-md border border-gray-200 bg-gray-50 px-3 font-semibold outline-none focus:border-[#0C8FE8] dark:border-gray-800 dark:bg-[#202228]"
+                    >
+                </div>
+            </div>
+
+            <div>
+                <label class="ui-small font-black uppercase tracking-widest text-gray-500">Negotiable</label>
+                <div class="mt-2 space-y-2">
+                    @foreach($negotiabilityOptions as $negotiabilityOption)
+                        <label class="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 font-bold dark:border-gray-800">
+                            <input type="radio" wire:model.live="negotiable" value="{{ $negotiabilityOption->value }}" class="radio radio-primary radio-sm">
+                            <span>{{ $negotiabilityOption->label() }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        <x-slot:actions>
+            <x-button label="Done" wire:click="$set('showFiltersModal', false)" class="btn-primary rounded-xl" />
+        </x-slot:actions>
+    </x-modal>
 </div>

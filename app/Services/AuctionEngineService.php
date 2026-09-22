@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\AuctionStatus;
+use App\Enums\OrderDepositStatus;
+use App\Enums\OrderPaymentStatus;
 use App\Events\AuctionBidPlaced;
 use App\Events\AuctionEnded;
 use App\Mail\AuctionWonMail;
@@ -77,9 +80,12 @@ class AuctionEngineService
 
             // Snapshot who was leading before this bid is recorded, so we can
             // tell them they've been outbid once the new leader is resolved.
-            $previousLeaderId = static::rankBidderMaxes(
-                Bid::where('auction_id', $lockedAuction->id)->orderBy('created_at')->orderBy('id')->get()
-            )[0]['bidder_id'] ?? null;
+            $existingBids = Bid::where('auction_id', $lockedAuction->id)
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->get();
+
+            $previousLeaderId = static::rankBidderMaxes($existingBids)[0]['bidder_id'] ?? null;
 
             // Save new bid entry
             $bid = Bid::create([
@@ -93,11 +99,11 @@ class AuctionEngineService
             ]);
 
             // Proxy Bidding Resolution (Algorithm 2)
-            // Retrieve all distinct top proxy bidders for this auction
-            $allBids = Bid::where('auction_id', $lockedAuction->id)
-                ->orderBy('created_at')
-                ->orderBy('id')
-                ->get();
+            // Reuse the bids already fetched above plus the one just created,
+            // instead of re-querying the same rows a second time under the
+            // held row lock - the new bid is always the newest, so appending
+            // it keeps the created_at/id ordering rankBidderMaxes() expects.
+            $allBids = $existingBids->push($bid);
 
             $bidderMaxes = static::rankBidderMaxes($allBids);
 
@@ -241,7 +247,7 @@ class AuctionEngineService
      */
     public static function determineWinner(Auction $auction): array
     {
-        if ($auction->status !== 'active') {
+        if ($auction->status !== AuctionStatus::ACTIVE) {
             return [
                 'has_winner' => $auction->winner_id !== null,
                 'winner_id' => $auction->winner_id,
@@ -263,7 +269,7 @@ class AuctionEngineService
             $auction->update([
                 'winner_id' => null,
                 'winning_price' => 0,
-                'status' => 'ended_unsold',
+                'status' => AuctionStatus::ENDED_UNSOLD,
                 'settlement_reason' => $reason,
             ]);
 
@@ -318,7 +324,7 @@ class AuctionEngineService
         $auction->update([
             'winner_id' => $winningBid->bidder_id,
             'winning_price' => $maxBidAmount,
-            'status' => 'completed',
+            'status' => AuctionStatus::COMPLETED,
             'settlement_reason' => $reason,
         ]);
 
@@ -346,9 +352,9 @@ class AuctionEngineService
                 'status' => 'pending',
                 'total_amount' => $maxBidAmount,
                 'deposit_amount' => $depositAmount,
-                'deposit_status' => 'pending',
+                'deposit_status' => OrderDepositStatus::PENDING,
                 'payment_method' => 'cash_on_meetup',
-                'payment_status' => 'pending',
+                'payment_status' => OrderPaymentStatus::PENDING,
                 'handover_type' => 'meetup',
                 'meetup_location' => $auction->product->meetup_location ?: $auction->product->location,
                 'buyer_phone' => $winningBid->bidder->phone,
@@ -362,29 +368,41 @@ class AuctionEngineService
                 'subtotal' => $maxBidAmount,
             ]);
 
-            try {
-                $winningBid->bidder->notify(new AuctionWonNotification($auction));
-                Mail::to($winningBid->bidder->email)->send(new AuctionWonMail($auction));
-            } catch (\Throwable $exception) {
-                Log::warning('Auction winner notification could not be delivered.', [
-                    'auction_id' => $auction->id,
-                    'winner_id' => $winningBid->bidder_id,
-                    'exception' => $exception->getMessage(),
-                ]);
-            }
+            $notifyWinnerAndSeller = function () use ($auction, $winningBid, $order): void {
+                try {
+                    $winningBid->bidder->notify(new AuctionWonNotification($auction));
+                    // Queued: a live SMTP send here used to block the settlement
+                    // transaction that the AuctionEnded broadcast waits on (see
+                    // AuctionWonMail's docblock), delaying the result on screen.
+                    Mail::to($winningBid->bidder->email)->send(new AuctionWonMail($auction));
+                } catch (\Throwable $exception) {
+                    Log::warning('Auction winner notification could not be delivered.', [
+                        'auction_id' => $auction->id,
+                        'winner_id' => $winningBid->bidder_id,
+                        'exception' => $exception->getMessage(),
+                    ]);
+                }
 
-            try {
-                $auction->product->user?->notify(new NewOrderReceivedNotification($order));
-            } catch (\Throwable $exception) {
-                Log::warning('Auction seller notification could not be delivered.', [
-                    'auction_id' => $auction->id,
-                    'seller_id' => $auction->product->seller_id,
-                    'exception' => $exception->getMessage(),
-                ]);
-            }
+                try {
+                    $auction->product->user?->notify(new NewOrderReceivedNotification($order));
+                } catch (\Throwable $exception) {
+                    Log::warning('Auction seller notification could not be delivered.', [
+                        'auction_id' => $auction->id,
+                        'seller_id' => $auction->product->seller_id,
+                        'exception' => $exception->getMessage(),
+                    ]);
+                }
+            };
         }
 
         static::announceEnded($auction);
+
+        // Notify after the broadcast is queued to fire (via DB::afterCommit in
+        // announceEnded), not before, so nothing on the notification path can
+        // delay the result reaching a viewer who is watching the page.
+        if (isset($notifyWinnerAndSeller)) {
+            $notifyWinnerAndSeller();
+        }
 
         return [
             'has_winner' => true,
@@ -407,7 +425,7 @@ class AuctionEngineService
         $settled = DB::transaction(function () use ($auction): bool {
             $current = Auction::query()->whereKey($auction->id)->lockForUpdate()->first();
 
-            if (! $current || $current->status !== 'active' || ! $current->effective_end_time || $current->effective_end_time > now()) {
+            if (! $current || $current->status !== AuctionStatus::ACTIVE || ! $current->effective_end_time || $current->effective_end_time > now()) {
                 return false;
             }
 

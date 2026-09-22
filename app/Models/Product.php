@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\AuctionStatus;
+use App\Enums\ProductApprovalStatus;
 use App\Enums\ProductAuctionType;
 use App\Enums\ProductCondition;
 use App\Enums\ProductImageType;
@@ -9,6 +11,7 @@ use App\Enums\ProductNegotiability;
 use App\Enums\ProductSaleType;
 use App\Enums\ProductStatus;
 use App\Services\AuctionValuationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -35,7 +38,8 @@ class Product extends Model
         'sale_price',
         'negotiable',
         'listing_type',
-        'is_approved',
+        'approval_status',
+        'remarks',
         'is_featured',
         'is_trending',
         'views_count',
@@ -50,7 +54,7 @@ class Product extends Model
         'listing_type' => ProductSaleType::class,
         'negotiable' => ProductNegotiability::class,
         'purchase_date' => 'date',
-        'is_approved' => 'boolean',
+        'approval_status' => ProductApprovalStatus::class,
         'is_featured' => 'boolean',
         'is_trending' => 'boolean',
         'views_count' => 'integer',
@@ -67,6 +71,15 @@ class Product extends Model
                 $product->sku = 'PRD-'.strtoupper(Str::random(8));
             }
         });
+    }
+
+    /**
+     * @param  Builder<Product>  $query
+     * @return Builder<Product>
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('approval_status', ProductApprovalStatus::APPROVED);
     }
 
     public function user(): BelongsTo
@@ -157,13 +170,14 @@ class Product extends Model
     public function approveListing(): void
     {
         $this->update([
-            'is_approved' => true,
+            'approval_status' => ProductApprovalStatus::APPROVED,
+            'remarks' => null,
             'expires_at' => $this->expires_at ?? now()->addDays(30),
             'status' => 'active',
         ]);
 
         if ($this->auction) {
-            $this->auction->update(['status' => 'active']);
+            $this->auction->update(['status' => AuctionStatus::ACTIVE]);
         }
 
         $this->logTimeline(
@@ -171,6 +185,49 @@ class Product extends Model
             'Product Approved',
             'Product listing approved by admin and published live on the marketplace.'
         );
+    }
+
+    /**
+     * Rejected outright: the seller cannot edit or resubmit this listing.
+     */
+    public function rejectListing(string $reason): void
+    {
+        $this->update([
+            'approval_status' => ProductApprovalStatus::REJECTED,
+            'remarks' => $reason,
+        ]);
+
+        $this->logTimeline('rejected', 'Product Rejected', $reason);
+    }
+
+    /**
+     * Sent back for changes: the seller can edit and resubmit, which resets
+     * the status to PENDING for another round of review (see
+     * ManageProduct::save()).
+     */
+    public function requestCorrection(string $reason): void
+    {
+        $this->update([
+            'approval_status' => ProductApprovalStatus::CORRECTION,
+            'remarks' => $reason,
+        ]);
+
+        $this->logTimeline('correction_requested', 'Correction Requested', $reason);
+    }
+
+    /**
+     * Only a listing sent back for correction may be edited or resubmitted by
+     * its seller. Approved listings are view-only; rejected ones are locked
+     * entirely; pending ones are already awaiting the admin's first review.
+     */
+    public function isEditableBySeller(): bool
+    {
+        return $this->approval_status === ProductApprovalStatus::CORRECTION;
+    }
+
+    public function getApprovalStatusLabelAttribute(): string
+    {
+        return $this->approval_status->label();
     }
 
     public function getConditionLabelAttribute(): string

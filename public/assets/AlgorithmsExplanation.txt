@@ -651,32 +651,92 @@ PURPOSE : decide what happens to an auction deposit when the order is
           cancelled. The deposit exists to discourage a winner from
           walking away.
 
-RULE (OrderCancellationService::cancel), only when the deposit was
-already PAID (deposit_status = 'paid'):
-      Cancelled by the SELLER                   -> refund_owed
-      Buyer cancels: "defect or not as listed"  -> refund_owed
-      Buyer cancels: "changed my mind" or other -> forfeited
-If the deposit was never paid, deposit_status is left as it is.
-"refund_owed" means the money must be returned to the buyer MANUALLY
-outside the website (no eSewa refund API is connected).
+UPDATE (this section was rewritten - the reasons and money rules below
+are outdated; the correct, current version follows):
 
-Buyer reasons available: defect_mismatch, changed_mind, other.
+There are now 5 buyer cancellation reasons (OrderCancellationReason
+enum), split into two groups, plus the seller's own cancel:
+
+  Group 1 (no dispute) - CHANGED_MIND, OTHER
+  Group 2 (a complaint against the seller) - ITEM_DAMAGED,
+    NOT_AS_DESCRIBED, DOCUMENTS_MISSING
+    (OrderCancellationReason::isComplaintReason() is true for these 3)
+
+RULE (OrderCancellationService::cancel), only when at least some amount
+was already paid online (paidOnline() > 0):
+      Cancelled by the SELLER                        -> full refund of
+                                                        everything paid
+      Buyer cancels, Group 1 reason (or reason null)  -> the minimum
+                                                        deposit is
+                                                        forfeited, any
+                                                        excess refunded
+      Buyer cancels, Group 2 reason (a complaint)     -> nothing moves
+                                                        yet; the order
+                                                        goes to "under
+                                                        review" and every
+                                                        admin is notified
+                                                        (ComplaintFiledNotification)
+If nothing was paid online, no money movement happens either way.
+Refunds recorded here (both the seller-cancel case and any "excess
+above the minimum deposit") still mean the money must be returned to
+the buyer MANUALLY outside the website - there is no eSewa refund API.
+
+Group 1 forfeiture split (forfeitMinimumDeposit()): the forfeited
+minimum deposit is split by default 80% to the platform and 20% to the
+seller (config('services.esewa.forfeit_seller_share_percentage'), env
+ESEWA_FORFEIT_SELLER_SHARE, default 20). The seller's share becomes a
+pending PayoutRequest, not an instant transfer.
+
+Group 2 complaint resolution (OrderCancellationService::
+recordDamageVerdict(), admin-only, called from the admin order-detail
+page): an admin physically inspects the item and records one of two
+verdicts:
+  - Confirmed damaged: the buyer is refunded everything paid online in
+    full, the seller's account is suspended, a SellerDamageStrike is
+    recorded, and DamagePenaltyService::issue() creates a separate
+    penalty of 30% of the order total (config
+    services.esewa.damage_penalty_percentage) that the seller must pay
+    directly through eSewa within 7 days (services.esewa.
+    damage_penalty_days). Reaching 3 confirmed-damaged strikes
+    permanently bans the seller (SellerPermanentlyBannedNotification).
+    An unpaid penalty past its deadline is picked up by the
+    expire-overdue-damage-penalties scheduled command, which notifies
+    admins that legal/manual action may be needed
+    (AdminLegalActionRequiredNotification).
+  - Not damaged: falls back to the Group 1 forfeiture rule above.
+A dedicated complaint-message thread (ComplaintMessageReceivedNotification)
+lets the buyer and any admin exchange messages while the complaint is
+under review, before the verdict is recorded.
+
 The cancellation also stores the reason category and an optional note,
 and adds a timeline entry.
 
-EXTRA for auction orders: when an auction-win order is cancelled and its
-product is still 'sold', the product becomes 'active' again (relisted).
-The finished auction record stays 'completed' as history; the seller can
-start a new auction.
+EXTRA for auction orders: when an auction-win order is cancelled (or a
+complaint is confirmed damaged) and its product is still 'sold', the
+product becomes 'active' again (relisted). The finished auction record
+stays 'completed' as history; the seller can start a new auction.
 
 EXAMPLES
-   Deposit paid 3,200; seller cancels             -> refund_owed
-   Deposit paid 3,200; buyer: item had a defect   -> refund_owed
-   Deposit paid 3,200; buyer: changed mind        -> forfeited
-   Deposit still 'pending'; buyer cancels         -> stays 'pending'
+   Deposit paid 3,200; seller cancels                -> full refund
+   Deposit paid 3,200; buyer: changed mind            -> minimum
+                                                       deposit forfeited
+                                                       (80/20 split),
+                                                       excess refunded
+   Deposit paid 3,200; buyer: item is damaged         -> order goes
+                                                       "under review",
+                                                       nothing moves yet
+   ...admin later confirms damage                     -> full refund to
+                                                       buyer + seller
+                                                       suspended + 30%
+                                                       penalty issued
+   ...admin later rejects the complaint               -> falls back to
+                                                       the forfeit rule
+   Nothing paid online yet; buyer cancels              -> no money moves
 
-CODE  : app/Services/OrderCancellationService.php
-TESTS : OrderStatusAuthorizationTest.
+CODE  : app/Services/OrderCancellationService.php,
+        app/Services/DamagePenaltyService.php
+TESTS : OrderStatusAuthorizationTest, OrderPaymentLedgerTest,
+        DamagePenaltyFlowTest.
 
 
 =====================================================================

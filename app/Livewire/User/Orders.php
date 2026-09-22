@@ -5,17 +5,23 @@ namespace App\Livewire\User;
 use App\Models\Order;
 use App\Services\OrderPaymentService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
 #[Layout('layouts.app')]
 class Orders extends Component
 {
-    use Toast;
+    use Toast, WithPagination;
 
     public string $tab = 'purchases';
+
+    public ?int $confirmingCompleteOrderId = null;
+
+    public bool $showCompleteConfirm = false;
 
     public function mount(): void
     {
@@ -24,6 +30,24 @@ class Orders extends Component
         } elseif (session()->has('esewa_error')) {
             $this->error(session('esewa_error'));
         }
+    }
+
+    public function requestMarkCompleted(int $orderId): void
+    {
+        $this->confirmingCompleteOrderId = $orderId;
+        $this->showCompleteConfirm = true;
+    }
+
+    public function confirmMarkCompleted(): void
+    {
+        $this->showCompleteConfirm = false;
+
+        if ($this->confirmingCompleteOrderId === null) {
+            return;
+        }
+
+        $this->updateOrderStatus($this->confirmingCompleteOrderId, 'completed');
+        $this->confirmingCompleteOrderId = null;
     }
 
     public function updateOrderStatus(int $orderId, string $status): void
@@ -80,18 +104,20 @@ class Orders extends Component
     {
         $user = Auth::user();
         if (! $user) {
-            $purchases = collect();
-            $sales = collect();
+            $purchases = new LengthAwarePaginator(collect(), 0, 10);
+            $sales = new LengthAwarePaginator(collect(), 0, 10);
         } else {
+            // Each tab paginates independently, with its own page query-string
+            // parameter, so switching tabs doesn't reset the other tab's page.
             $purchases = Order::where('buyer_id', $user->id)
                 ->with(['items.product.images', 'seller', 'buyer'])
                 ->latest()
-                ->get();
+                ->paginate(10, pageName: 'purchases-page');
 
             $sales = Order::where('seller_id', $user->id)
                 ->with(['items.product.images', 'seller', 'buyer'])
                 ->latest()
-                ->get();
+                ->paginate(10, pageName: 'sales-page');
         }
 
         return view('livewire.user.orders', [
