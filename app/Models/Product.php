@@ -55,6 +55,7 @@ class Product extends Model
         'negotiable' => ProductNegotiability::class,
         'purchase_date' => 'date',
         'approval_status' => ProductApprovalStatus::class,
+        'quantity' => 'integer',
         'is_featured' => 'boolean',
         'is_trending' => 'boolean',
         'views_count' => 'integer',
@@ -216,13 +217,34 @@ class Product extends Model
     }
 
     /**
-     * Only a listing sent back for correction may be edited or resubmitted by
-     * its seller. Approved listings are view-only; rejected ones are locked
-     * entirely; pending ones are already awaiting the admin's first review.
+     * Seller takes a live, previously-approved direct-sell listing down
+     * themselves - never deleted, just no longer shown on the marketplace or
+     * its own product-detail page (both are gated on approval_status ===
+     * APPROVED). Editing it and resubmitting (see ManageProduct::save())
+     * sends it back to PENDING for a fresh admin review, same as CORRECTION.
+     */
+    public function unlistBySeller(): void
+    {
+        $this->update([
+            'approval_status' => ProductApprovalStatus::UNLISTED,
+        ]);
+
+        $this->logTimeline(
+            'unlisted',
+            'Removed From Sale By Seller',
+            'The seller removed this listing from the marketplace. It stays in the system and can be brought back by editing and resubmitting it for admin review.'
+        );
+    }
+
+    /**
+     * A listing sent back for correction, or one the seller unlisted
+     * themselves, may be edited or resubmitted by its seller. Approved
+     * listings are view-only; rejected ones are locked entirely; pending
+     * ones are already awaiting the admin's first review.
      */
     public function isEditableBySeller(): bool
     {
-        return $this->approval_status === ProductApprovalStatus::CORRECTION;
+        return in_array($this->approval_status, [ProductApprovalStatus::CORRECTION, ProductApprovalStatus::UNLISTED], true);
     }
 
     public function getApprovalStatusLabelAttribute(): string

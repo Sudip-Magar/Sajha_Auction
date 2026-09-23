@@ -6,6 +6,8 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Livewire\Admin\AuctionApplication;
 use App\Livewire\Admin\AuctionApplicationDetail;
 use App\Livewire\Admin\CategorySetup;
+use App\Livewire\Admin\ComplaintDetail;
+use App\Livewire\Admin\Complaints;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Admin\Faqs as AdminFaqs;
 use App\Livewire\Admin\Notifications as AdminNotifications;
@@ -121,6 +123,8 @@ Route::prefix('admin')->middleware('admin')->group(function () {
     Route::get('/products/{product}', AdminProductDetail::class)->name('admin.products.show');
     Route::get('/orders', App\Livewire\Admin\Orders::class)->name('admin.orders');
     Route::get('/orders/{order}', App\Livewire\Admin\OrderDetail::class)->name('admin.orders.show');
+    Route::get('/complaints', Complaints::class)->name('admin.complaints');
+    Route::get('/complaints/{order}', ComplaintDetail::class)->name('admin.complaints.show');
     Route::get('/notifications', AdminNotifications::class)->name('admin.notifications');
     Route::get('/settings', App\Livewire\Admin\Settings::class)->name('admin.settings');
     Route::get('/auction-application', AuctionApplication::class)->name('admin.auction-application');

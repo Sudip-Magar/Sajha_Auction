@@ -14,6 +14,15 @@ enum ProductApprovalStatus: string
     case REJECTED = 'rejected';
     case CORRECTION = 'correction';
 
+    /**
+     * Seller-initiated, not admin-initiated: the seller took a live,
+     * previously-approved direct-sell listing down themselves. Distinct from
+     * REJECTED (admin-initiated, not editable) and CORRECTION (admin asked
+     * for changes) - editing an unlisted product and resubmitting sends it
+     * back through a normal admin review, same as CORRECTION.
+     */
+    case UNLISTED = 'unlisted';
+
     public function label(): string
     {
         return match ($this) {
@@ -21,6 +30,7 @@ enum ProductApprovalStatus: string
             self::APPROVED => 'Approved',
             self::REJECTED => 'Rejected',
             self::CORRECTION => 'Correction',
+            self::UNLISTED => 'Unlisted',
         };
     }
 

@@ -27,7 +27,7 @@ class AuctionWonNotification extends Notification implements ShouldBroadcastNow
     public function toDatabase(object $notifiable): array
     {
         return [
-            'message' => "Congratulations! You won the auction for '{$this->auction->product?->name}'.",
+            'message' => "Congratulations! You won the auction for '{$this->auction->product?->name}'. Check your email for buyer protections and responsibilities before you pay.",
             'auction_id' => $this->auction->id,
             'product_id' => $this->auction->product_id,
             'type' => 'auction_won',

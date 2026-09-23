@@ -102,6 +102,7 @@ test('a correction request lets the seller edit and resubmitting resets to pendi
         ->and($product->isEditableBySeller())->toBeTrue();
 
     ProductImage::create(['product_id' => $product->id, 'path' => 'products/existing.jpg', 'image_type' => 'general', 'sort_order' => 1]);
+    ProductImage::create(['product_id' => $product->id, 'path' => 'products/proofs/existing.jpg', 'image_type' => 'proof', 'sort_order' => 1]);
 
     Livewire::actingAs($seller)
         ->test(ManageProduct::class, ['product' => $product])

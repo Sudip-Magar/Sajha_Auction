@@ -22,6 +22,10 @@ class CategorySetup extends Component
 
     public bool $categoryModal = false;
 
+    public bool $showDeleteCategoryModal = false;
+
+    public ?int $confirmingCategoryId = null;
+
     public ?Category $editingCategory = null;
 
     // Form fields
@@ -120,6 +124,23 @@ class CategorySetup extends Component
             $this->success('Image removed.');
         }
         $this->image = null;
+    }
+
+    public function confirmDeleteCategory(Category $category): void
+    {
+        $this->confirmingCategoryId = $category->id;
+        $this->showDeleteCategoryModal = true;
+    }
+
+    public function runConfirmedCategoryDelete(): void
+    {
+        $category = Category::find($this->confirmingCategoryId);
+        $this->showDeleteCategoryModal = false;
+        $this->confirmingCategoryId = null;
+
+        if ($category) {
+            $this->deleteCategory($category);
+        }
     }
 
     public function deleteCategory(Category $category)

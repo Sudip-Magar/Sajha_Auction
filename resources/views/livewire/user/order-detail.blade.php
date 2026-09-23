@@ -25,19 +25,94 @@
 
                 <div class="flex flex-wrap items-center gap-2">
                     @if($order->status === 'pending' && Auth::id() === $order->seller_id)
-                        <button type="button" wire:click="updateOrderStatus('confirmed')" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
-                            Confirm Order
-                        </button>
+                        @php
+                            // An auction win isn't ready to confirm until the buyer has
+                            // paid the deposit and scheduled a meetup - see
+                            // OrderDetail::updateOrderStatus() for the matching server
+                            // guard. Direct-sell orders never have this gate (deposit
+                            // isn't required and meetup details are set at checkout).
+                            $depositMissing = $order->auction_id && $order->deposit_status !== \App\Enums\OrderDepositStatus::PAID;
+                            $meetupMissing = $order->auction_id && ! $order->meetup_time;
+                            $notReadyToConfirm = $depositMissing || $meetupMissing;
+                        @endphp
+                        <div>
+                            <button type="button"
+                                    wire:click="updateOrderStatus('confirmed')"
+                                    @disabled($notReadyToConfirm)
+                                    title="{{ $notReadyToConfirm ? 'Waiting on the buyer to finish first.' : '' }}"
+                                    class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Confirm Order
+                            </button>
+                            @if($notReadyToConfirm)
+                                <p class="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 max-w-[14rem]">
+                                    Waiting on the buyer:
+                                    @if($depositMissing) deposit not paid yet @endif
+                                    @if($depositMissing && $meetupMissing) &middot; @endif
+                                    @if($meetupMissing) meetup not scheduled yet @endif
+                                </p>
+                            @endif
+                        </div>
                     @endif
                     @if(($order->status === 'confirmed' || $order->status === 'meetup_scheduled') && Auth::id() === $order->seller_id)
-                        <button type="button" wire:click="$set('showCompleteConfirm', true)" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
-                            Mark Completed & Handed Over
-                        </button>
+                        @php
+                            // The handover can't be marked done before the meetup it
+                            // describes has actually happened - see
+                            // Order::meetupDateHasArrived() and the matching server
+                            // guard in updateOrderStatus(). Applies to every order,
+                            // auction or direct-sell.
+                            $meetupNotYetDue = ! $order->meetupDateHasArrived();
+                        @endphp
+                        <div>
+                            <button type="button"
+                                    wire:click="$set('showCompleteConfirm', true)"
+                                    @disabled($meetupNotYetDue)
+                                    title="{{ $meetupNotYetDue ? 'Available once the meetup date arrives.' : '' }}"
+                                    class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Mark Completed & Handed Over
+                            </button>
+                            @if($meetupNotYetDue)
+                                <p class="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 max-w-[14rem]">
+                                    @if($order->meetup_time)
+                                        Available from {{ $order->meetup_time->format('M d, Y') }}.
+                                    @else
+                                        Waiting on a meetup date to be scheduled.
+                                    @endif
+                                </p>
+                            @endif
+                        </div>
                     @endif
-                    @if($order->status !== 'completed' && $order->status !== 'cancelled')
-                        <button type="button" wire:click="toggleCancelForm" class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
-                            {{ $showCancelForm ? 'Never Mind' : 'Cancel Order' }}
-                        </button>
+                    {{-- A won auction is a binding sale - the seller cannot back
+                         out of it here, only the buyer can (e.g. a genuine
+                         damage/documents complaint). --}}
+                    @if($order->status !== 'completed' && $order->status !== 'cancelled' && ! ($order->auction_id && Auth::id() === $order->seller_id))
+                        @php
+                            // For an auction win, cancelling is reserved for a genuine
+                            // complaint about the item (see
+                            // AuctionOrderCannotCancelForChangedMindTest) - which can only
+                            // be raised once the meetup the buyer would have received it
+                            // at has actually happened. Direct-sell orders have no such
+                            // restriction.
+                            $isAuctionBuyer = $order->auction_id && Auth::id() === $order->buyer_id;
+                            $cancelNotYetAvailable = $isAuctionBuyer && ! $order->meetupDateHasArrived();
+                        @endphp
+                        <div>
+                            <button type="button"
+                                    wire:click="toggleCancelForm"
+                                    @disabled($cancelNotYetAvailable)
+                                    title="{{ $cancelNotYetAvailable ? 'Available once the meetup date arrives.' : '' }}"
+                                    class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-rose-950 dark:text-rose-300">
+                                {{ $showCancelForm ? 'Never Mind' : 'Cancel Order' }}
+                            </button>
+                            @if($cancelNotYetAvailable)
+                                <p class="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 max-w-[14rem]">
+                                    @if($order->meetup_time)
+                                        Available from {{ $order->meetup_time->format('M d, Y') }}.
+                                    @else
+                                        Waiting on a meetup date to be scheduled.
+                                    @endif
+                                </p>
+                            @endif
+                        </div>
                     @endif
                 </div>
             </div>
@@ -50,6 +125,8 @@
                     @if(Auth::id() === $order->buyer_id)
                         <div class="space-y-2 mb-4">
                             @foreach (\App\Enums\OrderCancellationReason::cases() as $reason)
+                                {{-- A won auction is a binding sale - "I no longer want to buy this item" is only a valid reason for a direct-sell purchase the buyer can still walk away from. --}}
+                                @continue($order->auction_id && $reason === \App\Enums\OrderCancellationReason::CHANGED_MIND)
                                 <label class="flex items-center gap-2 text-xs font-semibold text-gray-800 dark:text-gray-200">
                                     <input type="radio" wire:model="cancelReasonCategory" value="{{ $reason->value }}" class="text-rose-600 focus:ring-rose-500">
                                     {{ $reason->label() }}
@@ -59,6 +136,7 @@
                         @if($order->deposit_status === \App\Enums\OrderDepositStatus::PAID)
                             <p class="text-xs text-amber-800 dark:text-amber-400 mb-3">
                                 Note: your paid deposit is refunded if the item had a genuine defect/mismatch, but forfeited if you simply changed your mind.
+                                Once you pay the remaining balance in cash at the meetup, that payment is final - inspect the item before paying, and if something is wrong, use the "File a Complaint" option below instead of completing the handover.
                             </p>
                         @endif
                     @endif
@@ -66,7 +144,12 @@
                     <textarea wire:model="cancelNote" rows="2" placeholder="Optional details (e.g. what was wrong with the item)"
                               class="w-full rounded-xl border border-gray-200 p-3 text-xs dark:border-gray-700 dark:bg-gray-900 dark:text-white"></textarea>
 
-                    <div class="mt-3 flex justify-end gap-2">
+                    <div class="mt-3 flex flex-wrap items-center justify-end gap-2">
+                        @if(Auth::id() === $order->buyer_id && $order->auction_id && $cancelReasonCategory === \App\Enums\OrderCancellationReason::OTHER->value)
+                            <button type="button" wire:click="confirmEscalateToComplaint" class="rounded-xl bg-amber-100 px-4 py-2 text-xs font-bold text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300">
+                                File a Complaint Instead
+                            </button>
+                        @endif
                         <button type="button" wire:click="toggleCancelForm" class="rounded-xl px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
                             Never Mind
                         </button>
@@ -137,6 +220,51 @@
                     </p>
                 </div>
             </div>
+
+            {{-- Seller Payout: submit eSewa details for a payout awaiting them on this order --}}
+            @php
+                $pendingPayout = $this->pendingSellerPayout();
+            @endphp
+            @if($pendingPayout)
+                <div class="mt-6 rounded-2xl border border-sky-200 bg-sky-50/60 p-5 dark:border-sky-900 dark:bg-sky-950/20">
+                    <h3 class="font-bold text-sm text-sky-900 dark:text-sky-300 mb-1">A Payout Is Ready For You</h3>
+                    <p class="text-xs text-sky-800 dark:text-sky-400 mb-4">
+                        {{ $pendingPayout->purpose_label }}: <strong>Rs. {{ number_format($pendingPayout->amount, 2) }}</strong>.
+                        Submit your eSewa details so admin can send the transfer.
+                    </p>
+
+                    <form wire:submit.prevent="submitPayoutDetails" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300">eSewa Account Name *</label>
+                            <input type="text" wire:model="payoutEsewaName" class="mt-1 w-full rounded-xl border border-gray-200 p-2.5 text-xs dark:border-gray-700 dark:bg-gray-900 dark:text-white" placeholder="Name on your eSewa account">
+                            @error('payoutEsewaName') <p class="mt-1 text-[10px] font-bold text-rose-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300">eSewa ID / Phone *</label>
+                            <input type="text" wire:model="payoutEsewaPhone" class="mt-1 w-full rounded-xl border border-gray-200 p-2.5 text-xs dark:border-gray-700 dark:bg-gray-900 dark:text-white" placeholder="98XXXXXXXX">
+                            @error('payoutEsewaPhone') <p class="mt-1 text-[10px] font-bold text-rose-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="text-xs font-bold text-gray-700 dark:text-gray-300">eSewa QR Code (optional)</label>
+                            <input type="file" wire:model="payoutQrImage" accept="image/*" class="mt-1 w-full text-xs">
+                            @error('payoutQrImage') <p class="mt-1 text-[10px] font-bold text-rose-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="sm:col-span-2 flex justify-end">
+                            <button type="submit" class="rounded-xl bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-700">
+                                Submit Payout Details
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            @elseif(Auth::id() === $order->seller_id && $order->payoutRequests->where('recipient_id', Auth::id())->isNotEmpty())
+                @foreach($order->payoutRequests->where('recipient_id', Auth::id()) as $submittedPayout)
+                    <div class="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                        <p class="text-xs font-bold text-gray-700 dark:text-gray-300">
+                            {{ $submittedPayout->purpose_label }}: Rs. {{ number_format($submittedPayout->amount, 2) }} &middot; {{ $submittedPayout->payout_status->label() }}
+                        </p>
+                    </div>
+                @endforeach
+            @endif
 
             {{-- Meetup Scheduling Form --}}
             @if($showMeetupForm)
@@ -356,4 +484,8 @@
             <x-button label="Confirm" wire:click="confirmMarkCompleted" class="btn-primary rounded-xl" spinner="confirmMarkCompleted" />
         </x-slot:actions>
     </x-modal>
+
+    <x-confirm-modal wireModel="showComplaintEscalationModal" title="File a Complaint?" confirmClick="runConfirmedEscalateToComplaint" confirmLabel="Yes, File Complaint" confirmClass="btn-warning">
+        Are you sure? This cancels the order and opens a formal complaint for admin review, instead of an outright cancellation. Only do this if there's a genuine problem with the item - an admin will review your note and get back to you.
+    </x-confirm-modal>
 </div>

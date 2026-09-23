@@ -254,13 +254,13 @@
                         <x-icon name="o-shield-check" class="w-6 h-6 text-primary" />
                         Proof of Product
                     </h2>
-                    <p class="text-xs text-gray-400 mb-4 dark:text-gray-500">Optional. Upload warranty / guarantee card or other proof of authenticity. Not shown publicly, for admin verification only.</p>
+                    <p class="text-xs text-gray-400 mb-4 dark:text-gray-500">Required. Upload at least one warranty / guarantee card, receipt, or other proof of authenticity. Not shown publicly, for admin verification only.</p>
 
                     <div class="space-y-4">
                         <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800/60">
                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
                                 <x-icon name="o-cloud-arrow-up" class="w-8 h-8 text-gray-400 mb-2" />
-                                <p class="text-sm text-gray-500 font-semibold dark:text-gray-400">Click to upload proof (optional)</p>
+                                <p class="text-sm text-gray-500 font-semibold dark:text-gray-400">Click to upload proof</p>
                                 <p class="text-xs text-gray-400 dark:text-gray-500">e.g. Warranty / Guarantee Card</p>
                             </div>
                             <input type="file" wire:model="newProofImages" class="hidden" multiple accept="image/*" />

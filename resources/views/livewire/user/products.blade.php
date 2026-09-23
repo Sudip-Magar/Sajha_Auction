@@ -100,12 +100,14 @@
                             \App\Enums\ProductApprovalStatus::APPROVED => 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]',
                             \App\Enums\ProductApprovalStatus::REJECTED => 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]',
                             \App\Enums\ProductApprovalStatus::CORRECTION => 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]',
+                            \App\Enums\ProductApprovalStatus::UNLISTED => 'bg-gray-400 shadow-[0_0_8px_rgba(156,163,175,0.5)]',
                             default => 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]',
                         };
                         $text = match($product->approval_status) {
                             \App\Enums\ProductApprovalStatus::APPROVED => 'text-green-600',
                             \App\Enums\ProductApprovalStatus::REJECTED => 'text-red-600',
                             \App\Enums\ProductApprovalStatus::CORRECTION => 'text-amber-600',
+                            \App\Enums\ProductApprovalStatus::UNLISTED => 'text-gray-500',
                             default => 'text-yellow-600',
                         };
                     @endphp
@@ -115,6 +117,9 @@
                     </div>
                     @if($product->remarks && in_array($product->approval_status, [\App\Enums\ProductApprovalStatus::REJECTED, \App\Enums\ProductApprovalStatus::CORRECTION], true))
                         <p class="text-[10px] text-gray-400 mt-1 max-w-[14rem] truncate" title="{{ $product->remarks }}">{{ $product->remarks }}</p>
+                    @endif
+                    @if($product->approval_status === \App\Enums\ProductApprovalStatus::UNLISTED)
+                        <p class="text-[10px] text-gray-400 mt-1 max-w-[14rem]">Removed from sale - edit to resubmit.</p>
                     @endif
                 @endscope
 
@@ -133,14 +138,22 @@
                             <x-button label="Edit" icon="o-pencil-square" class="btn-sm btn-ghost" link="{{ route('user.products.edit', $product->id) }}" />
                         @endif
 
+                        @if($product->isDirectSell() && $product->approval_status === \App\Enums\ProductApprovalStatus::APPROVED)
+                            <x-button label="Remove from Sale" icon="o-eye-slash" class="btn-sm btn-ghost text-amber-600 hover:bg-amber-50"
+                                wire:click="confirmUnlistProduct({{ $product->id }})" />
+                        @endif
+
                         @if($product->approval_status !== \App\Enums\ProductApprovalStatus::APPROVED)
                             <x-button label="Delete" icon="o-trash" class="btn-sm btn-ghost text-red-500 hover:bg-red-50"
-                                wire:click="deleteProduct({{ $product->id }})"
-                                wire:confirm="Are you sure you want to delete this product? All of its images will also be permanently deleted from the system." />
+                                wire:click="confirmDeleteProduct({{ $product->id }})" />
                         @endif
 
                         @if($product->isAuction() && $product->auction)
-                            <x-button label="Live Auction Room" icon="o-ticket" class="btn-xs btn-primary bg-emerald-600 border-none text-white font-bold" link="{{ route('user.auction.detail', $product->auction->id) }}" />
+                            @if(in_array($product->auction->status, [\App\Enums\AuctionStatus::PENDING, \App\Enums\AuctionStatus::ACTIVE], true))
+                                <x-button label="Live Auction Room" icon="o-ticket" class="btn-xs btn-primary bg-emerald-600 border-none text-white font-bold" link="{{ route('user.auction.detail', $product->auction->id) }}" />
+                            @else
+                                <x-button label="View Auction Result" icon="o-eye" class="btn-xs btn-ghost text-gray-500" link="{{ route('user.auction.detail', $product->auction->id) }}" />
+                            @endif
                         @else
                             <x-button label="View Details" icon="o-eye" class="btn-xs btn-ghost text-gray-500" link="{{ route('user.products.show', $product->slug) }}" />
                         @endif
@@ -152,5 +165,13 @@
         <div class="mt-6">
             {{ $products->links() }}
         </div>
+
+        <x-confirm-modal wireModel="showUnlistProductModal" title="Remove From Sale?" confirmClick="runConfirmedUnlist" confirmLabel="Remove from Sale" confirmClass="btn-warning">
+            Remove this listing from the marketplace? It won't be deleted - you can edit it later to send it back for approval and make it live again.
+        </x-confirm-modal>
+
+        <x-confirm-modal wireModel="showDeleteProductModal" title="Delete Product?" confirmClick="runConfirmedProductDelete" confirmLabel="Delete">
+            Are you sure you want to delete this product? All of its images will also be permanently deleted from the system.
+        </x-confirm-modal>
     @endif
 </div>

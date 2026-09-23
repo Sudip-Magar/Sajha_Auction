@@ -4,8 +4,11 @@ namespace App\Livewire\User;
 
 use App\Enums\ComplaintMessageSender;
 use App\Enums\OrderCancellationReason;
+use App\Enums\OrderDepositStatus;
+use App\Enums\PayoutStatus;
 use App\Models\Admin;
 use App\Models\Order;
+use App\Models\PayoutRequest;
 use App\Notifications\ComplaintMessageReceivedNotification;
 use App\Notifications\MeetupScheduledNotification;
 use App\Services\OrderCancellationService;
@@ -17,12 +20,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Mary\Traits\Toast;
 
 #[Layout('layouts.app')]
 class OrderDetail extends Component
 {
-    use Toast;
+    use Toast, WithFileUploads;
 
     public Order $order;
 
@@ -53,6 +57,14 @@ class OrderDetail extends Component
 
     public string $complaintMessage = '';
 
+    public string $payoutEsewaName = '';
+
+    public string $payoutEsewaPhone = '';
+
+    public mixed $payoutQrImage = null;
+
+    public bool $showComplaintEscalationModal = false;
+
     public function mount(Order $order): void
     {
         $user = Auth::user();
@@ -66,7 +78,14 @@ class OrderDetail extends Component
             'items.product.images',
             'items.product.timelines',
             'complaintMessages',
+            'payoutRequests',
         ]);
+
+        // "I no longer want to buy this item" isn't offered for a won
+        // auction (it's a binding sale), so it can't be the default choice.
+        if ($this->order->auction_id) {
+            $this->cancelReasonCategory = OrderCancellationReason::OTHER->value;
+        }
 
         if (session()->has('esewa_success')) {
             $this->success(session('esewa_success'));
@@ -92,6 +111,22 @@ class OrderDetail extends Component
 
     public function toggleCancelForm(): void
     {
+        $user = Auth::user();
+        $isSeller = $user && (int) $this->order->seller_id === (int) $user->id;
+        $isBuyer = $user && (int) $this->order->buyer_id === (int) $user->id;
+
+        if ($isSeller && $this->order->auction_id) {
+            $this->error('Auction orders cannot be cancelled by the seller. The winning bid is a binding sale - contact an admin if there is a genuine problem.');
+
+            return;
+        }
+
+        if ($isBuyer && $this->order->auction_id && ! $this->order->meetupDateHasArrived()) {
+            $this->error('You can cancel this auction order once the scheduled meetup date arrives.');
+
+            return;
+        }
+
         $this->showCancelForm = ! $this->showCancelForm;
     }
 
@@ -117,10 +152,34 @@ class OrderDetail extends Component
             return;
         }
 
+        // A won auction is a binding sale, not an ordinary listing the seller
+        // can back out of at will - only the buyer may cancel it (e.g. a
+        // genuine damage/documents complaint). Checked here, not inside
+        // OrderCancellationService::cancel() itself: that service trusts its
+        // caller for every other authorization check too (see $isBuyer/
+        // $isSeller above), so this stays consistent with it.
+        if ($isSeller && $this->order->auction_id) {
+            $this->error('Auction orders cannot be cancelled by the seller. The winning bid is a binding sale - contact an admin if there is a genuine problem.');
+
+            return;
+        }
+
         $reason = OrderCancellationReason::tryFrom($this->cancelReasonCategory);
 
         if ($isBuyer && $reason === null) {
             $this->error('Please choose a valid reason for cancelling.');
+
+            return;
+        }
+
+        if ($isBuyer && $this->order->auction_id && $reason === OrderCancellationReason::CHANGED_MIND) {
+            $this->error('A won auction is a binding sale - please choose an actual reason for cancelling.');
+
+            return;
+        }
+
+        if ($isBuyer && $this->order->auction_id && ! $this->order->meetupDateHasArrived()) {
+            $this->error('You can cancel this auction order once the scheduled meetup date arrives.');
 
             return;
         }
@@ -136,6 +195,113 @@ class OrderDetail extends Component
         $this->showCancelForm = false;
         $this->cancelNote = '';
         $this->success('Order cancelled.');
+    }
+
+    /**
+     * Buyer-only, "Other reason" auction cancellations only: routes the
+     * cancellation into the same admin-reviewed complaint path as the
+     * dedicated damage/not-as-described/documents-missing reasons, instead
+     * of the outright Group 1 forfeiture - see OrderCancellationService.
+     */
+    public function confirmEscalateToComplaint(): void
+    {
+        $this->showComplaintEscalationModal = true;
+    }
+
+    public function runConfirmedEscalateToComplaint(): void
+    {
+        $this->showComplaintEscalationModal = false;
+
+        $user = Auth::user();
+        if (! $user || (int) $this->order->buyer_id !== (int) $user->id) {
+            return;
+        }
+
+        if (! $this->order->auction_id) {
+            $this->error('Filing a complaint this way is only available for auction orders.');
+
+            return;
+        }
+
+        if (in_array($this->order->status, ['cancelled', 'completed'], true)) {
+            $this->error('This order can no longer be cancelled.');
+
+            return;
+        }
+
+        if (! $this->order->meetupDateHasArrived()) {
+            $this->error('You can file a complaint once the scheduled meetup date arrives.');
+
+            return;
+        }
+
+        OrderCancellationService::cancel(
+            $this->order,
+            $user,
+            OrderCancellationReason::OTHER,
+            trim($this->cancelNote) ?: null,
+            escalateToComplaint: true
+        );
+
+        $this->order->refresh();
+        $this->showCancelForm = false;
+        $this->cancelNote = '';
+        $this->success('Your complaint was filed and the order cancelled. An admin will review it.');
+    }
+
+    /**
+     * The seller's own payout request still waiting on their eSewa details,
+     * if any - drives the "Submit Payout Details" section on this page.
+     */
+    public function pendingSellerPayout(): ?PayoutRequest
+    {
+        $user = Auth::user();
+        if (! $user || (int) $this->order->seller_id !== (int) $user->id) {
+            return null;
+        }
+
+        return $this->order->payoutRequests
+            ->where('recipient_id', $user->id)
+            ->where('payout_status', PayoutStatus::AWAITING_DETAILS)
+            ->first();
+    }
+
+    public function submitPayoutDetails(): void
+    {
+        $user = Auth::user();
+        $payout = $this->pendingSellerPayout();
+
+        if (! $user || ! $payout) {
+            $this->error('There is no payout awaiting your details on this order.');
+
+            return;
+        }
+
+        $this->validate([
+            'payoutEsewaName' => 'required|string|max:255',
+            'payoutEsewaPhone' => 'required|string|max:20',
+            'payoutQrImage' => 'nullable|image|max:4096',
+        ], [
+            'payoutEsewaName.required' => 'Please enter the name on your eSewa account.',
+            'payoutEsewaPhone.required' => 'Please enter your eSewa ID or phone number.',
+            'payoutQrImage.image' => 'The QR code must be an image.',
+        ]);
+
+        $qrPath = $this->payoutQrImage?->store('payouts', 'public');
+
+        $submitted = OrderPaymentService::submitPayoutDetails($payout, $user, trim($this->payoutEsewaName), trim($this->payoutEsewaPhone), $qrPath);
+
+        if (! $submitted) {
+            $this->error('This payout could not be updated - it may have already been submitted.');
+
+            return;
+        }
+
+        $this->order->refresh()->load('payoutRequests');
+        $this->payoutEsewaName = '';
+        $this->payoutEsewaPhone = '';
+        $this->payoutQrImage = null;
+        $this->success('Your eSewa details were submitted. Admin will send the transfer soon.');
     }
 
     public function confirmMarkCompleted(): void
@@ -171,6 +337,34 @@ class OrderDetail extends Component
 
         if (in_array($this->order->status, ['cancelled', 'completed'], true)) {
             $this->error('This order can no longer be changed.');
+
+            return;
+        }
+
+        // An auction win isn't ready for the seller to confirm until the
+        // buyer has actually secured it - paid at least the minimum deposit
+        // via eSewa - and agreed on a meetup, neither of which happens
+        // automatically the way they do for a direct-sell checkout (where
+        // meetup details are collected upfront and there's no deposit gate).
+        if ($status === 'confirmed' && $this->order->auction_id) {
+            if ($this->order->deposit_status !== OrderDepositStatus::PAID) {
+                $this->error('You cannot confirm this order yet - the buyer has not paid the auction deposit via eSewa.');
+
+                return;
+            }
+
+            if (! $this->order->meetup_time) {
+                $this->error('You cannot confirm this order yet - the buyer has not scheduled a meetup location, date, and time.');
+
+                return;
+            }
+        }
+
+        // The handover can't be marked done before the meetup it describes
+        // has actually happened - applies to every order, auction or
+        // direct-sell, see Order::meetupDateHasArrived().
+        if ($status === 'completed' && ! $this->order->meetupDateHasArrived()) {
+            $this->error('You can mark this order completed once the scheduled meetup date arrives.');
 
             return;
         }

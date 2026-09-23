@@ -74,20 +74,24 @@
 
                             <div class="flex items-center justify-between w-full sm:w-auto gap-6 border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-100 dark:border-gray-800">
                                 {{-- Quantity Selector --}}
-                                <div class="flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
-                                    <button type="button"
-                                            wire:click="updateQuantity({{ $item->id }}, {{ $item->quantity - 1 }})"
-                                            class="flex h-7 w-7 items-center justify-center rounded-lg bg-white font-bold text-gray-700 shadow-xs hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200">
-                                        -
-                                    </button>
-                                    <span class="w-8 text-center text-sm font-extrabold text-gray-900 dark:text-white">
-                                        {{ $item->quantity }}
-                                    </span>
-                                    <button type="button"
-                                            wire:click="updateQuantity({{ $item->id }}, {{ $item->quantity + 1 }})"
-                                            class="flex h-7 w-7 items-center justify-center rounded-lg bg-white font-bold text-gray-700 shadow-xs hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200">
-                                        +
-                                    </button>
+                                <div>
+                                    <div class="flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
+                                        <button type="button"
+                                                wire:click="updateQuantity({{ $item->id }}, {{ $item->quantity - 1 }})"
+                                                class="flex h-7 w-7 items-center justify-center rounded-lg bg-white font-bold text-gray-700 shadow-xs hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200">
+                                            -
+                                        </button>
+                                        <span class="w-8 text-center text-sm font-extrabold text-gray-900 dark:text-white">
+                                            {{ $item->quantity }}
+                                        </span>
+                                        <button type="button"
+                                                wire:click="updateQuantity({{ $item->id }}, {{ $item->quantity + 1 }})"
+                                                @disabled($item->quantity >= ($product->stock_quantity ?? 0))
+                                                class="flex h-7 w-7 items-center justify-center rounded-lg bg-white font-bold text-gray-700 shadow-xs hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-900">
+                                            +
+                                        </button>
+                                    </div>
+                                    <p class="mt-1 text-center text-[10px] font-semibold text-gray-400">{{ $product->stock_quantity ?? 0 }} in stock</p>
                                 </div>
 
                                 {{-- Price & Subtotal --}}

@@ -14,6 +14,7 @@ use App\Models\Admin;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\SubCategory;
+use App\Notifications\AuctionMultiUnitListedNotification;
 use App\Notifications\NewProductUploadedNotification;
 use App\Services\AuctionEngineService;
 use App\Services\AuctionValuationService;
@@ -382,6 +383,12 @@ class ManageProduct extends Component
             return;
         }
 
+        if (count($this->existingProofImages) === 0 && count($this->newProofImages) === 0) {
+            $this->addError('newProofImages', 'Please upload at least one proof image (e.g. a receipt, warranty card, or box/label photo).');
+
+            return;
+        }
+
         // Re-check straight from the database rather than trusting this
         // component's in-memory $this->product, in case an admin decided on
         // this product in another tab while the seller had this form open.
@@ -511,6 +518,10 @@ class ManageProduct extends Component
 
                 if ($isNewProduct) {
                     $this->notifyAdmins($product);
+
+                    if ($this->listing_type === 'auction' && $product->quantity > 1) {
+                        $product->user?->notify(new AuctionMultiUnitListedNotification($product));
+                    }
                 }
             });
 

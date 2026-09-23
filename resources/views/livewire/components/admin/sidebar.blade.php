@@ -112,6 +112,14 @@
                 <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Orders</span>
             </a>
 
+            <a href="{{ route('admin.complaints') }}" wire:navigate
+               x-bind:title="$store.adminSidebar.collapsed ? 'Complaints' : null"
+               x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"
+               class="flex items-center space-x-3 py-3.5 rounded-xl border-l-4 transition-all duration-300 group {{ request()->routeIs('admin.complaints*') ? 'bg-[#1F6F5F]/10 text-[#2FA084] border-[#2FA084]' : 'border-transparent hover:bg-gray-800 hover:text-white' }}">
+                <x-icon name="o-exclamation-triangle" class="w-5 h-5 shrink-0 {{ request()->routeIs('admin.complaints*') ? 'text-[#2FA084]' : 'text-gray-500 group-hover:text-[#2FA084]' }}" />
+                <span x-show="!$store.adminSidebar.collapsed" x-transition.opacity.duration.300ms class="font-semibold text-sm whitespace-nowrap">Complaints</span>
+            </a>
+
             <a href="{{ route('admin.seller-requests') }}" wire:navigate
                x-bind:title="$store.adminSidebar.collapsed ? 'Seller Requests' : null"
                x-bind:class="$store.adminSidebar.collapsed ? 'justify-center' : 'px-4'"

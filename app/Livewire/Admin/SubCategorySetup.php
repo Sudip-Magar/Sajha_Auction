@@ -27,6 +27,10 @@ class SubCategorySetup extends Component
 
     public bool $subCategoryModal = false;
 
+    public bool $showDeleteSubCategoryModal = false;
+
+    public ?int $confirmingSubCategoryId = null;
+
     public ?SubCategory $editingSubCategory = null;
 
     public ?int $category_id = null;
@@ -130,6 +134,23 @@ class SubCategorySetup extends Component
         }
 
         $this->image = null;
+    }
+
+    public function confirmDeleteSubCategory(SubCategory $subCategory): void
+    {
+        $this->confirmingSubCategoryId = $subCategory->id;
+        $this->showDeleteSubCategoryModal = true;
+    }
+
+    public function runConfirmedSubCategoryDelete(): void
+    {
+        $subCategory = SubCategory::find($this->confirmingSubCategoryId);
+        $this->showDeleteSubCategoryModal = false;
+        $this->confirmingSubCategoryId = null;
+
+        if ($subCategory) {
+            $this->deleteSubCategory($subCategory);
+        }
     }
 
     public function deleteSubCategory(SubCategory $subCategory): void

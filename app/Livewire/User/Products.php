@@ -19,6 +19,12 @@ class Products extends Component
 {
     use Toast, WithPagination;
 
+    public bool $showUnlistProductModal = false;
+
+    public bool $showDeleteProductModal = false;
+
+    public ?int $confirmingProductId = null;
+
     public function getListeners(): array
     {
         $userId = Auth::id();
@@ -65,6 +71,67 @@ class Products extends Component
         }
 
         $this->success('Seller access request sent for admin review.');
+    }
+
+    public function confirmUnlistProduct(Product $product): void
+    {
+        $this->confirmingProductId = $product->id;
+        $this->showUnlistProductModal = true;
+    }
+
+    public function runConfirmedUnlist(): void
+    {
+        $product = Product::find($this->confirmingProductId);
+        $this->showUnlistProductModal = false;
+        $this->confirmingProductId = null;
+
+        if ($product) {
+            $this->unlistProduct($product);
+        }
+    }
+
+    public function confirmDeleteProduct(Product $product): void
+    {
+        $this->confirmingProductId = $product->id;
+        $this->showDeleteProductModal = true;
+    }
+
+    public function runConfirmedProductDelete(): void
+    {
+        $product = Product::find($this->confirmingProductId);
+        $this->showDeleteProductModal = false;
+        $this->confirmingProductId = null;
+
+        if ($product) {
+            $this->deleteProduct($product);
+        }
+    }
+
+    /**
+     * Takes a live direct-sell listing down without deleting it - the seller
+     * can bring it back later by editing and resubmitting it for approval
+     * (Product::isEditableBySeller() / ManageProduct::save()).
+     */
+    public function unlistProduct(Product $product): void
+    {
+        if ((int) $product->seller_id !== (int) Auth::id()) {
+            abort(403);
+        }
+
+        if (! $product->isDirectSell()) {
+            $this->error('Only direct-sell listings can be removed from sale this way.');
+
+            return;
+        }
+
+        if ($product->approval_status !== ProductApprovalStatus::APPROVED) {
+            $this->warning('This listing is not currently live.');
+
+            return;
+        }
+
+        $product->unlistBySeller();
+        $this->success('Product removed from sale. Edit and resubmit it whenever you want it live again.');
     }
 
     public function deleteProduct(Product $product): void

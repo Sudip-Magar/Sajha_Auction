@@ -361,10 +361,18 @@ class AuctionEngineService
                 'notes' => "Created automatically after winning auction #{$auction->id}. A {$depositPercentage}% deposit (Rs. ".number_format($depositAmount, 2).') secures the win via eSewa; the remaining balance is paid in cash at the meetup.',
             ]);
 
+            // The winning bid is for the entire listed lot, not one unit -
+            // the winner receives every unit the seller listed. price is
+            // stored as the per-unit share of the winning bid (not the bid
+            // amount itself) so it stays consistent with how every other
+            // order item is displayed ("Qty: N x Rs price"); subtotal is
+            // always the true amount actually won, unaffected by rounding.
+            $lotQuantity = max(1, (int) $auction->product->quantity);
+
             $order->items()->create([
                 'product_id' => $auction->product->id,
-                'price' => $maxBidAmount,
-                'quantity' => 1,
+                'price' => round($maxBidAmount / $lotQuantity, 2),
+                'quantity' => $lotQuantity,
                 'subtotal' => $maxBidAmount,
             ]);
 

@@ -1,3 +1,5 @@
+@php($condition = \App\Enums\ProductCondition::labelFor($auction->product->condition))
+
 <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
 
     {{-- Top Header / Breadcrumb --}}
@@ -63,6 +65,21 @@
                                 </button>
                             @endforeach
                         </div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Badges & Quick Stats --}}
+            <div class="flex flex-wrap items-center justify-between gap-2 text-gray-500 text-xs px-1">
+                <span class="flex items-center gap-1 font-semibold"><x-icon name="o-eye" class="w-4 h-4 text-gray-400" /> {{ number_format($auction->product->views_count) }} views</span>
+                <div class="flex flex-wrap gap-1.5">
+                    <span class="rounded-lg bg-purple-100 px-2.5 py-1 font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300">{{ $auction->product->listing_type->label() }}</span>
+                    <span class="rounded-lg bg-gray-100 px-2.5 py-1 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">Condition: {{ $condition }}</span>
+                    @if($auction->product->usage_duration)
+                        <span class="rounded-lg bg-amber-100 px-2.5 py-1 font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-300">Used: {{ $auction->product->usage_duration }}</span>
+                    @endif
+                    @if($auction->product->category)
+                        <span class="rounded-lg bg-sky-100 px-2.5 py-1 font-bold text-sky-800 dark:bg-sky-950 dark:text-sky-300">{{ $auction->product->category->name }}</span>
                     @endif
                 </div>
             </div>
@@ -148,7 +165,53 @@
                         </div>
                     </div>
                 @endif
+
+                {{-- Proof of Authenticity --}}
+                <div class="pt-6 border-t border-gray-100 dark:border-gray-800">
+                    <h3 class="text-lg font-black text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+                        <x-icon name="o-shield-check" class="w-5 h-5 text-[#0C8FE8]" />
+                        Proof of Authenticity
+                    </h3>
+                    @if($auction->product->proofImages->isNotEmpty())
+                        <div class="flex flex-wrap gap-3">
+                            @foreach($auction->product->proofImages as $image)
+                                <a href="{{ Storage::url($image->path) }}" target="_blank" rel="noopener" class="block h-20 w-20 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <img src="{{ Storage::url($image->path) }}" alt="Proof of authenticity" class="h-full w-full object-cover">
+                                </a>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="rounded-xl bg-gray-50 p-3 text-xs font-medium text-gray-400 dark:bg-gray-900/60 dark:text-gray-500 border border-gray-100 dark:border-gray-800">
+                            The seller has not provided any warranty / guarantee proof for this item yet.
+                        </div>
+                    @endif
+                </div>
             </div>
+
+            {{-- Product Lifecycle & Timeline --}}
+            @if($auction->product->timelines->isNotEmpty())
+                <div class="bg-white dark:bg-[#181A1F] rounded-3xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm">
+                    <h2 class="text-base font-black text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+                        <x-icon name="o-clock" class="w-5 h-5 text-[#0C8FE8]" />
+                        Product Lifecycle & Timeline
+                    </h2>
+
+                    <div class="relative pl-6 space-y-4 before:absolute before:left-2 before:top-1 before:bottom-1 before:w-0.5 before:bg-gray-200 dark:before:bg-gray-800">
+                        @foreach($auction->product->timelines as $timeline)
+                            <div class="relative">
+                                <div class="absolute -left-6 top-1 h-3 w-3 rounded-full border-2 border-white bg-[#0C8FE8] dark:border-[#181A1F]"></div>
+                                <div class="flex items-baseline justify-between gap-2">
+                                    <p class="text-xs font-bold text-gray-900 dark:text-white">{{ $timeline->title }}</p>
+                                    <span class="text-[10px] text-gray-400">{{ $timeline->created_at->format('M d, Y @ h:i A') }}</span>
+                                </div>
+                                @if($timeline->description)
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{{ $timeline->description }}</p>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
         </div>
 
         {{-- Right Column: Countdown, Bidding Control, History & Transparency --}}
@@ -247,23 +310,47 @@
             {{-- Main Bidding Card --}}
             <div class="bg-white dark:bg-[#181A1F] rounded-3xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
 
-                {{-- Price Stats Grid --}}
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
-                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Current Standing Price</p>
-                        <p class="text-xl sm:text-2xl font-black text-[#0C8FE8]">Rs. {{ number_format($auction->current_price, 2) }}</p>
-                    </div>
-                    <div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
-                        <div class="flex items-center gap-1">
-                            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Minimum bid increase</p>
-                            <div x-data="{ open: false }" class="relative mb-1">
-                                <button type="button" @click="open = !open" @click.outside="open = false" class="flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[10px] font-black text-gray-500 hover:bg-gray-200 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="What minimum bid increase means">?</button>
-                                <div x-cloak x-show="open" x-transition class="absolute left-1/2 top-6 z-20 w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                    Each new bid must be at least this much higher than the current price. The amount increases for higher-priced items to keep the auction moving.
+                {{-- Current Standing Price - the hero number --}}
+                <div class="mb-4 rounded-2xl bg-linear-to-br from-[#0C8FE8] to-[#0967B0] p-5 text-white shadow-lg shadow-[#0C8FE8]/20">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-white/70 mb-1">Current Standing Price</p>
+                    <p class="text-3xl sm:text-4xl font-black tracking-tight">Rs. {{ number_format($auction->current_price, 2) }}</p>
+                </div>
+
+                {{-- Minimum bid increase & Lot size - secondary stat chips --}}
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-3.5 flex items-start gap-3">
+                        <div class="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl bg-[#0C8FE8]/10 text-[#0C8FE8]">
+                            <x-icon name="o-arrow-trending-up" class="w-4 h-4" />
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1">
+                                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Min. Bid Increase</p>
+                                <div x-data="{ open: false }" class="relative shrink-0">
+                                    <button type="button" @click="open = !open" @click.outside="open = false" class="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300 text-[9px] font-black text-gray-500 hover:bg-gray-200 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="What minimum bid increase means">?</button>
+                                    <div x-cloak x-show="open" x-transition class="absolute left-1/2 top-5 z-20 w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                        Each new bid must be at least this much higher than the current price. The amount increases for higher-priced items to keep the auction moving.
+                                    </div>
                                 </div>
                             </div>
+                            <p class="text-base font-black text-gray-900 dark:text-gray-100 truncate">+ Rs. {{ number_format($stepIncrement, 2) }}</p>
                         </div>
-                        <p class="text-xl font-black text-gray-900 dark:text-gray-100">+ Rs. {{ number_format($stepIncrement, 2) }}</p>
+                    </div>
+                    <div class="rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-3.5 flex items-start gap-3">
+                        <div class="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                            <x-icon name="o-cube" class="w-4 h-4" />
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1">
+                                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Lot Size</p>
+                                <div x-data="{ open: false }" class="relative shrink-0">
+                                    <button type="button" @click="open = !open" @click.outside="open = false" class="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300 text-[9px] font-black text-gray-500 hover:bg-gray-200 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="What lot size means">?</button>
+                                    <div x-cloak x-show="open" x-transition class="absolute left-1/2 top-5 z-20 w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                        This auction is for the whole lot. Whoever wins the bidding receives all listed units - the lot is never split between bidders.
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-base font-black text-gray-900 dark:text-gray-100 truncate">{{ $auction->product->quantity }} unit(s)</p>
+                        </div>
                     </div>
                 </div>
 
@@ -380,6 +467,27 @@
                             @endif
                         </p>
                     </div>
+                @endif
+            </div>
+
+            {{-- Seller Info Card --}}
+            <div class="bg-white dark:bg-[#181A1F] rounded-3xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Seller Details</h3>
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-full bg-linear-to-br from-[#1F6F5F] to-[#2FA084] flex items-center justify-center text-white font-bold">
+                        {{ substr($auction->product->user?->name ?? 'S', 0, 1) }}
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm text-gray-900 dark:text-white">{{ $auction->product->user?->name ?? 'Seller' }}</p>
+                        <p class="text-xs text-gray-500">{{ $auction->product->user?->phone ?? 'Contact available on order' }}</p>
+                    </div>
+                </div>
+                @if(! auth()->check() || (int) $auction->product->seller_id !== (int) auth()->id())
+                    <a href="{{ route('user.products.show', $auction->product->slug) }}" wire:navigate
+                       class="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all dark:border-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                        <x-icon name="o-chat-bubble-left-right" class="w-4 h-4 text-sky-500" />
+                        Message Product Owner
+                    </a>
                 @endif
             </div>
 

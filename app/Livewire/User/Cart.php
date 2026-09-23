@@ -23,7 +23,7 @@ class Cart extends Component
             return;
         }
 
-        $cartItem = CartItem::where('id', $cartItemId)->where('user_id', $user->id)->first();
+        $cartItem = CartItem::where('id', $cartItemId)->where('user_id', $user->id)->with('product')->first();
         if (! $cartItem) {
             return;
         }
@@ -31,10 +31,27 @@ class Cart extends Component
         if ($qty <= 0) {
             $cartItem->delete();
             $this->success('Item removed from cart.');
-        } else {
-            $cartItem->update(['quantity' => min($qty, 99)]);
+            $this->dispatch('cartUpdated');
+
+            return;
         }
 
+        $stock = $cartItem->product?->stock_quantity ?? 0;
+        $capped = min($qty, $stock, 99);
+
+        if ($qty > $stock) {
+            $this->warning("Only {$stock} unit(s) of \"{$cartItem->product?->name}\" are in stock.");
+        }
+
+        if ($capped <= 0) {
+            $cartItem->delete();
+            $this->error('This item is out of stock and was removed from your cart.');
+            $this->dispatch('cartUpdated');
+
+            return;
+        }
+
+        $cartItem->update(['quantity' => $capped]);
         $this->dispatch('cartUpdated');
     }
 

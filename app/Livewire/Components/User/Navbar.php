@@ -133,7 +133,10 @@ class Navbar extends Component
         if ($type === 'App\Notifications\SellerApprovedNotification') {
             return $this->redirect(route('user.products'), navigate: true);
         }
-        if ($type === 'App\Notifications\ProductApprovedNotification') {
+        if (
+            $type === 'App\Notifications\ProductApprovedNotification'
+            || $type === 'App\Notifications\AuctionMultiUnitListedNotification'
+        ) {
             return $this->redirect(route('user.products'), navigate: true);
         }
         if ($type === 'App\Notifications\SellerSuspendedNotification') {
@@ -153,7 +156,7 @@ class Navbar extends Component
 
             return $this->redirect(route('user.messages'), navigate: true);
         }
-        if ($type === 'App\Notifications\NewOrderReceivedNotification') {
+        if ($type === 'App\Notifications\NewOrderReceivedNotification' || $type === 'App\Notifications\SellerPayoutOwedNotification') {
             $orderId = $notification->data['order_id'] ?? null;
 
             return $this->redirect($orderId ? route('user.orders.show', $orderId) : route('user.orders'), navigate: true);

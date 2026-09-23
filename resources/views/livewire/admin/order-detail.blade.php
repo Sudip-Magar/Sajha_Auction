@@ -41,10 +41,10 @@
                             <p class="text-xs text-gray-600 mb-3">Record the outcome after physically inspecting the item.</p>
                             <x-textarea wire:model="verdictNote" placeholder="Inspection notes (optional)" rows="2" />
                             <div class="flex flex-wrap gap-3 mt-3">
-                                <button type="button" wire:click="recordVerdict(true)" wire:confirm="Confirm this item is damaged? This refunds the buyer, revokes the seller's access, and issues a penalty." class="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">
+                                <button type="button" wire:click="confirmRecordVerdict(true)" class="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">
                                     Confirmed Damaged
                                 </button>
-                                <button type="button" wire:click="recordVerdict(false)" wire:confirm="Confirm this item is NOT damaged? The complaint is rejected and the deposit is forfeited." class="rounded-xl bg-gray-700 px-4 py-2 text-xs font-bold text-white hover:bg-gray-800">
+                                <button type="button" wire:click="confirmRecordVerdict(false)" class="rounded-xl bg-gray-700 px-4 py-2 text-xs font-bold text-white hover:bg-gray-800">
                                     Not Damaged
                                 </button>
                             </div>
@@ -109,7 +109,7 @@
                             This seller is permanently banned ({{ str($penalty->seller->permanent_ban_reason)->replace('_', ' ')->title() }}) — not reversible here.
                         </div>
                     @elseif($penalty->canBeRestored())
-                        <button type="button" wire:click="restoreSellerAccess" wire:confirm="Restore this seller's access to exactly what they had before?" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
+                        <button type="button" wire:click="confirmRestoreSellerAccess" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
                             Restore Seller Access
                         </button>
                     @endif
@@ -143,9 +143,20 @@
             <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
                 <h3 class="font-black text-gray-800 mb-3">Payouts</h3>
                 @forelse($order->payoutRequests as $payout)
-                    <div class="text-sm border-b border-gray-50 pb-2 mb-2">
-                        <p class="font-semibold">{{ $payout->purpose_label }}</p>
+                    <div class="text-sm border-b border-gray-50 pb-3 mb-3">
+                        <p class="font-semibold">{{ $payout->purpose_label }} &mdash; {{ $payout->recipient?->name }} ({{ $payout->recipient_role->label() }})</p>
                         <p class="text-xs text-gray-400">{{ $payout->payout_status->label() }} · Rs. {{ number_format($payout->amount, 2) }}</p>
+                        @if($payout->esewa_name || $payout->esewa_phone)
+                            <p class="text-xs text-gray-600 mt-1">eSewa: {{ $payout->esewa_name }} ({{ $payout->esewa_phone }})</p>
+                            @if($payout->qr_image_path)
+                                <a href="{{ Storage::url($payout->qr_image_path) }}" target="_blank" rel="noopener" class="text-xs text-blue-600 underline">View QR code</a>
+                            @endif
+                        @endif
+                        @if($payout->payout_status === \App\Enums\PayoutStatus::PENDING)
+                            <button type="button" wire:click="markPayoutSent({{ $payout->id }})" class="mt-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700">
+                                Mark Sent
+                            </button>
+                        @endif
                     </div>
                 @empty
                     <p class="text-sm text-gray-400">None.</p>
@@ -153,4 +164,20 @@
             </div>
         </div>
     </div>
+
+    <x-confirm-modal wireModel="showVerdictModal"
+        title="{{ $confirmingVerdict ? 'Confirm Damaged?' : 'Confirm Not Damaged?' }}"
+        confirmClick="runConfirmedVerdict"
+        :confirmLabel="$confirmingVerdict ? 'Confirmed Damaged' : 'Not Damaged'"
+        :confirmClass="$confirmingVerdict ? 'btn-error' : 'btn-neutral'">
+        @if($confirmingVerdict)
+            Confirm this item is damaged? This refunds the buyer, revokes the seller's access, and issues a penalty.
+        @else
+            Confirm this item is NOT damaged? The complaint is rejected and the deposit is forfeited.
+        @endif
+    </x-confirm-modal>
+
+    <x-confirm-modal wireModel="showRestoreAccessModal" title="Restore Seller Access?" confirmClick="runConfirmedRestoreAccess" confirmLabel="Restore Access" confirmClass="btn-success">
+        Restore this seller's access to exactly what they had before?
+    </x-confirm-modal>
 </div>

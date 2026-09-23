@@ -99,7 +99,7 @@
                 <div class="flex items-center gap-1 justify-end">
                     <x-button icon="o-pencil" class="btn-sm btn-ghost hover:bg-blue-50 hover:text-blue-600 rounded-xl" wire:click="editCategory({{ $category->id }})" />
                     <x-button icon="o-power" class="btn-sm btn-ghost rounded-xl {{ $category->status === \App\Enums\StatusState::ACTIVE ? 'hover:bg-red-50 hover:text-red-600 text-gray-300' : 'hover:bg-green-50 hover:text-green-600 text-green-400' }}" wire:click="toggleStatus({{ $category->id }})" />
-                    <x-button icon="o-trash" class="btn-sm btn-ghost hover:bg-red-50 hover:text-red-600 text-gray-300 rounded-xl" wire:confirm="Are you sure?" wire:click="deleteCategory({{ $category->id }})" />
+                    <x-button icon="o-trash" class="btn-sm btn-ghost hover:bg-red-50 hover:text-red-600 text-gray-300 rounded-xl" wire:click="confirmDeleteCategory({{ $category->id }})" />
                 </div>
             @endscope
         </x-table>
@@ -144,4 +144,8 @@
             </x-slot:actions>
         </x-form>
     </x-modal>
+
+    <x-confirm-modal wireModel="showDeleteCategoryModal" title="Delete Category?" confirmClick="runConfirmedCategoryDelete" confirmLabel="Delete">
+        Are you sure you want to delete this category? This cannot be undone.
+    </x-confirm-modal>
 </div>

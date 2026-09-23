@@ -67,6 +67,7 @@ it('allows an admin to approve an auction application from the list page', funct
     ]);
 
     $user = User::factory()->create([
+        'is_seller' => true,
         'is_auction_allowed' => false,
     ]);
 
