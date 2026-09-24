@@ -70,7 +70,7 @@
                                  placeholder="98XXXXXXXX" class="no-spinner border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"/>
                         <div>
                             <label for="date_of_birth_np" class="fieldset-legend mb-0.5">Date of Birth (B.S.)</label>
-                            <input
+                            <input readonly
                                 id="date_of_birth_np"
                                 wire:model="date_of_birth_np"
                                 data-nepali-date="date_of_birth"
