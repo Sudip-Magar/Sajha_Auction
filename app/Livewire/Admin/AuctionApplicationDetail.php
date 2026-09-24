@@ -37,6 +37,15 @@ class AuctionApplicationDetail extends Component
             return;
         }
 
+        // Auction access always requires seller access first (see
+        // JoinAuction::submitApplication(), which bundles a seller request
+        // in automatically) - approve that request before this one.
+        if (! $this->user->is_seller) {
+            $this->warning("{$this->user->name} does not have seller access yet. Approve their seller request first, on Seller Requests.");
+
+            return;
+        }
+
         $this->user->documentImages()->update([
             'is_approved' => true,
             'is_rejected' => false,

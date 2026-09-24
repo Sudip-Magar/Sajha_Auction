@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\OrderDepositStatus;
 use App\Models\Order;
 use App\Services\OrderPaymentService;
 use Illuminate\Contracts\View\View;
@@ -78,6 +79,32 @@ class Orders extends Component
 
         if (in_array($order->status, ['cancelled', 'completed'], true)) {
             $this->error('This order can no longer be changed.');
+
+            return;
+        }
+
+        // Same precondition as OrderDetail::updateOrderStatus(): an auction
+        // win isn't ready to confirm until the buyer has paid at least the
+        // minimum deposit via eSewa and scheduled a meetup.
+        if ($status === 'confirmed' && $order->auction_id) {
+            if ($order->deposit_status !== OrderDepositStatus::PAID) {
+                $this->error('You cannot confirm this order yet - the buyer has not paid the auction deposit via eSewa.');
+
+                return;
+            }
+
+            if (! $order->meetup_time) {
+                $this->error('You cannot confirm this order yet - the buyer has not scheduled a meetup location, date, and time.');
+
+                return;
+            }
+        }
+
+        // The handover can't be marked done before the meetup it describes
+        // has actually happened - applies to every order, auction or
+        // direct-sell, see Order::meetupDateHasArrived().
+        if ($status === 'completed' && ! $order->meetupDateHasArrived()) {
+            $this->error('You can mark this order completed once the scheduled meetup date arrives.');
 
             return;
         }

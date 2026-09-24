@@ -65,6 +65,10 @@ class Notifications extends Component
             'App\Notifications\AuctionApplicationSubmittedNotification' => isset($notification->data['user_id'])
                 ? route('admin.auction-application.show', $notification->data['user_id'])
                 : route('admin.auction-application'),
+            'App\Notifications\OrderCompletedAdminNotification',
+            'App\Notifications\OrderCancelledAdminNotification' => isset($notification->data['order_id'])
+                ? route('admin.orders.show', $notification->data['order_id'])
+                : route('admin.orders'),
             default => route('admin.dashboard'),
         };
     }

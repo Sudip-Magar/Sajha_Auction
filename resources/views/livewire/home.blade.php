@@ -147,7 +147,7 @@
                                     @endif
                                     <div class="absolute top-2 left-2">
                                         @if($product->isAuction())
-                                            <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                            <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" :class="{'bg-emerald-600': state === 'live', 'bg-amber-500': state === 'upcoming', 'bg-gray-500': state === 'ended'}" class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
                                                 <span x-text="label"></span>
                                             </span>
                                         @else
@@ -197,14 +197,6 @@
                 </div>
             </section>
 
-            <section class="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-[#181A1F]">
-                <div class="flex flex-wrap gap-2">
-                    @foreach($popularSearches as $search)
-                        <a href="{{ route('user.search.product', ['search' => $search]) }}" wire:navigate class="rounded-md bg-gray-100 px-3 py-2 font-bold text-gray-700 hover:bg-sky-50 hover:text-[#0C8FE8] dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-sky-950/40">{{ $search }}</a>
-                    @endforeach
-                </div>
-            </section>
-
             @if($featuredProducts->isNotEmpty())
                 <section id="featured" class="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-[#181A1F]">
                     <div class="mb-3 flex items-center justify-between">
@@ -228,7 +220,7 @@
                                     <div class="min-w-0 pr-7">
                                         <div class="flex items-center gap-1.5 mb-1">
                                             @if($product->isAuction())
-                                                <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white"><span x-text="label"></span></span>
+                                                <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" :class="{'bg-emerald-600': state === 'live', 'bg-amber-500': state === 'upcoming', 'bg-gray-500': state === 'ended'}" class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-black text-white"><span x-text="label"></span></span>
                                             @else
                                                 <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white">DIRECT SELL</span>
                                             @endif
@@ -271,20 +263,87 @@
             @endif
 
             <section id="latest" class="rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#181A1F]">
-                <div class="sticky top-15 z-20 flex items-center justify-between border-b border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-[#181A1F]">
-                    <div class="flex gap-5">
-                        <a href="#latest" class="flex items-center gap-2 border-b-2 border-[#0C8FE8] pb-2 font-black text-[#0C8FE8]">
-                            <x-icon name="o-arrow-up-tray" class="ui-icon" />
-                            Latest Uploads
-                        </a>
-                        <a href="#featured" class="flex items-center gap-2 pb-2 font-black text-gray-600 dark:text-gray-300">
-                            <x-icon name="o-hand-thumb-up" class="ui-icon" />
-                            Recommended
-                        </a>
+                <div class="sticky top-15 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-[#181A1F]">
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" wire:click="setListingFilter('all')" @class(['rounded-md px-3 py-1.5 text-xs font-black sm:text-sm', 'bg-[#0C8FE8] text-white' => $listingFilter === 'all', 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700' => $listingFilter !== 'all'])>
+                            All
+                        </button>
+                        <button type="button" wire:click="setListingFilter('direct_seller')" @class(['rounded-md px-3 py-1.5 text-xs font-black sm:text-sm', 'bg-[#0C8FE8] text-white' => $listingFilter === 'direct_seller', 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700' => $listingFilter !== 'direct_seller'])>
+                            Second Hand Product
+                        </button>
+                        <button type="button" wire:click="setListingFilter('auction')" @class(['rounded-md px-3 py-1.5 text-xs font-black sm:text-sm', 'bg-[#0C8FE8] text-white' => $listingFilter === 'auction', 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700' => $listingFilter !== 'auction'])>
+                            Auction
+                        </button>
                     </div>
-                    <x-icon name="o-squares-2x2" class="ui-icon-lg text-gray-500" />
+                    <button type="button" wire:click="toggleViewMode" class="rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Toggle grid or list view">
+                        <x-icon name="{{ $viewMode === 'grid' ? 'o-bars-3' : 'o-squares-2x2' }}" class="ui-icon-lg text-gray-500" />
+                    </button>
                 </div>
 
+                <div wire:transition>
+                @if($viewMode === 'grid')
+                    <div class="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-4">
+                        @forelse($latestProducts as $product)
+                            <div class="group relative overflow-hidden rounded-md border border-gray-200 bg-white transition hover:border-[#0C8FE8] dark:border-gray-800 dark:bg-gray-900">
+                                <a href="{{ $targetUrl($product) }}" wire:navigate class="block">
+                                    <div class="relative aspect-square w-full bg-gray-100 dark:bg-gray-800">
+                                        @if($product->image)
+                                            <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}" class="absolute inset-0 h-full w-full object-cover transition group-hover:scale-105">
+                                        @else
+                                            <div class="flex h-full items-center justify-center"><x-icon name="o-photo" class="h-9 w-9 text-gray-300" /></div>
+                                        @endif
+                                        <div class="absolute top-2 left-2">
+                                            @if($product->isAuction())
+                                                <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" :class="{'bg-emerald-600': state === 'live', 'bg-amber-500': state === 'upcoming', 'bg-gray-500': state === 'ended'}" class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                                                    <span x-text="label"></span>
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1 rounded bg-[#0C8FE8] px-2 py-0.5 text-[9px] font-black text-white shadow-sm">DIRECT SELL</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <div class="p-2.5 pr-9">
+                                        <h3 class="line-clamp-2 min-h-9 font-black leading-snug text-gray-900 dark:text-gray-100">{{ $product->name }}</h3>
+                                        <p class="ui-price mt-1 font-black text-[#0C8FE8]">
+                                            {{ $product->isAuction() ? 'Current Bid: ' : '' }}Rs {{ number_format((float) $priceFor($product)) }}
+                                        </p>
+                                        <span class="mt-2 inline-flex rounded-md bg-gray-100 px-2 py-1 ui-small font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $conditionLabel($product->condition) }}</span>
+                                    </div>
+                                </a>
+                                <button
+                                    type="button"
+                                    wire:click="toggleBookmark({{ $product->id }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="toggleBookmark({{ $product->id }})"
+                                    class="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white/90 shadow-sm hover:bg-white disabled:opacity-60 dark:bg-gray-900/90"
+                                    aria-label="Toggle bookmark for {{ $product->name }}"
+                                >
+                                    <x-icon
+                                        name="{{ in_array($product->id, $bookmarkedProductIds, true) ? 's-bookmark' : 'o-bookmark' }}"
+                                        @class(['w-4 h-4', 'text-[#0C8FE8]' => in_array($product->id, $bookmarkedProductIds, true), 'text-gray-600 dark:text-gray-300' => ! in_array($product->id, $bookmarkedProductIds, true)])
+                                    />
+                                </button>
+                                @if($product->isDirectSell() && (! Auth::check() || (int) $product->seller_id !== (int) Auth::id()))
+                                    <button
+                                        type="button"
+                                        wire:click="addToCart({{ $product->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="addToCart({{ $product->id }})"
+                                        class="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white/90 shadow-sm hover:bg-white disabled:opacity-60 dark:bg-gray-900/90"
+                                        aria-label="Add {{ $product->name }} to cart"
+                                    >
+                                        <x-icon name="o-shopping-cart" class="w-4 h-4 text-gray-700 dark:text-gray-200" />
+                                    </button>
+                                @endif
+                            </div>
+                        @empty
+                            <div class="col-span-full p-10 text-center">
+                                <x-icon name="o-inbox-stack" class="mx-auto h-8 w-8 text-gray-300" />
+                                <p class="mt-4 text-sm font-bold text-gray-500">No approved products are available.</p>
+                            </div>
+                        @endforelse
+                    </div>
+                @else
                 <div class="divide-y divide-gray-100 dark:divide-gray-800">
                     @forelse($latestProducts as $product)
                         <article class="relative transition hover:bg-gray-50 dark:hover:bg-[#202228]">
@@ -302,7 +361,7 @@
                                         <div class="flex flex-col gap-1">
                                             <div class="flex flex-wrap items-center gap-2">
                                                 @if($product->isAuction())
-                                                    <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
+                                                    <span x-data="auctionCountdown('{{ $product->auction?->start_time?->toIso8601String() }}', '{{ $product->auction?->effective_end_time?->toIso8601String() }}')" :class="{'bg-emerald-600': state === 'live', 'bg-amber-500': state === 'upcoming', 'bg-gray-500': state === 'ended'}" class="rounded-md px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1">
                                                         <span x-show="isLive" class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                                                         <span x-text="label"></span>
                                                     </span>
@@ -388,6 +447,8 @@
                         </div>
                     @endforelse
                 </div>
+                @endif
+                </div>
 
                 <div class="p-3">{{ $latestProducts->links() }}</div>
             </section>
@@ -432,6 +493,7 @@
                 startTime: new Date(startTime).getTime(),
                 endTime: new Date(endTime).getTime(),
                 label: '',
+                state: 'upcoming',
                 isLive: false,
                 timer: null,
                 init() {
@@ -443,12 +505,13 @@
                     this.isLive = now >= this.startTime && now <= this.endTime;
 
                     if (now > this.endTime) {
-                        this.label = 'AUCTION ENDED';
-                        clearInterval(this.timer);
+                        this.state = 'ended';
+                        this.label = `ENDED ${this.timeAgo(now - this.endTime)}`;
                         return;
                     }
 
                     if (now < this.startTime) {
+                        this.state = 'upcoming';
                         const remaining = this.startTime - now;
                         const hours = Math.floor(remaining / 3600000);
                         const minutes = Math.floor((remaining % 3600000) / 60000);
@@ -457,7 +520,20 @@
                         return;
                     }
 
+                    this.state = 'live';
                     this.label = 'LIVE AUCTION';
+                },
+                timeAgo(elapsedMs) {
+                    const minutes = Math.floor(elapsedMs / 60000);
+                    if (minutes < 1) {
+                        return 'JUST NOW';
+                    }
+                    if (minutes < 60) {
+                        return `${minutes} MINUTE${minutes === 1 ? '' : 'S'} AGO`;
+                    }
+                    const hours = Math.floor(minutes / 60);
+
+                    return `${hours} HOUR${hours === 1 ? '' : 'S'} AGO`;
                 },
             };
         }

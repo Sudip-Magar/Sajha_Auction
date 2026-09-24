@@ -3,6 +3,7 @@
 namespace App\Livewire\User;
 
 use App\Enums\OrderPaymentStatus;
+use App\Enums\ProductApprovalStatus;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\Product;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Mary\Traits\Toast;
+use RuntimeException;
 use Throwable;
 
 #[Layout('layouts.app')]
@@ -26,6 +28,12 @@ class Checkout extends Component
     private const PAYMENT_METHOD = 'cash_on_meetup';
 
     public ?int $directProductId = null;
+
+    // Untyped (not `int`): a strictly-typed property throws when the buyer
+    // clears the number input (Livewire sends "" for wire:model.live), which
+    // crashes the whole component instead of just failing validation. See
+    // ProductDetail::$quantity for the same fix.
+    public mixed $quantity = 1;
 
     public string $meetup_location = '';
 
@@ -60,8 +68,24 @@ class Checkout extends Component
             }
 
             if ($targetProduct && $targetProduct->isDirectSell()) {
+                // Closes the gap ProductDetail's own view guard doesn't cover:
+                // this route can be reached directly (an old link, a stale
+                // tab, a guessed/typed id) without ever passing through the
+                // product page's own approval/live check, so it has to be
+                // repeated here too - not just relied on for placeOrder()'s
+                // server-side check further down.
+                if ($targetProduct->approval_status !== ProductApprovalStatus::APPROVED || $targetProduct->status !== 'active') {
+                    $this->error('This product is no longer available for purchase.');
+                    $this->redirect(route('home'), navigate: true);
+
+                    return;
+                }
+
                 $this->directProductId = $targetProduct->id;
                 $this->meetup_location = $targetProduct->meetup_location ?: ($targetProduct->location ?? '');
+
+                $requestedQuantity = (int) request()->query('quantity', 1);
+                $this->quantity = max(1, min($requestedQuantity, $targetProduct->stock_quantity));
             }
         } else {
             // Default meetup location from first item in cart
@@ -69,6 +93,30 @@ class Checkout extends Component
             if ($firstCartItem && $firstCartItem->product) {
                 $this->meetup_location = $firstCartItem->product->meetup_location ?: ($firstCartItem->product->location ?? '');
             }
+        }
+    }
+
+    /**
+     * Live stock check as the buyer adjusts the direct-buy quantity on this
+     * page - mirrors ProductDetail::updatedQuantity().
+     */
+    public function updatedQuantity(): void
+    {
+        $this->resetErrorBag('quantity');
+
+        if (! $this->directProductId) {
+            return;
+        }
+
+        $product = Product::find($this->directProductId);
+        if (! $product) {
+            return;
+        }
+
+        if (! is_numeric($this->quantity) || (int) $this->quantity < 1) {
+            $this->addError('quantity', 'Please enter a quantity of at least 1.');
+        } elseif ((int) $this->quantity > $product->stock_quantity) {
+            $this->addError('quantity', 'Only '.$product->stock_quantity.' unit(s) available in stock.');
         }
     }
 
@@ -97,13 +145,20 @@ class Checkout extends Component
         // Fetch checkout items
         if ($this->directProductId) {
             $product = Product::findOrFail($this->directProductId);
+
+            if (! is_numeric($this->quantity) || (int) $this->quantity < 1) {
+                $this->addError('quantity', 'Please enter a quantity of at least 1.');
+
+                return;
+            }
+
             $checkoutGroups = collect([
                 [
                     'seller_id' => $product->seller_id,
                     'items' => [
                         [
                             'product' => $product,
-                            'quantity' => 1,
+                            'quantity' => (int) $this->quantity,
                             'price' => (float) $product->sale_price,
                         ],
                     ],
@@ -134,6 +189,34 @@ class Checkout extends Component
             $createdOrders = [];
 
             DB::transaction(function () use ($user, $checkoutGroups, &$createdOrders): void {
+                // Defense in depth: quantity and live-listing status were
+                // already checked client-side (ProductDetail/Cart/mount()
+                // here) for the direct-buy case, but either can change
+                // between then and now - another buyer, a tampered request,
+                // or the seller unlisting the product while it sat in
+                // someone's cart or a stale product page - so every item is
+                // re-checked here against a row-locked read of the product
+                // immediately before the order is created.
+                foreach ($checkoutGroups as $group) {
+                    foreach ($group['items'] as $itemData) {
+                        /** @var Product $product */
+                        $product = $itemData['product'];
+                        $locked = Product::whereKey($product->id)->lockForUpdate()->first();
+
+                        if (! $locked || $locked->approval_status !== ProductApprovalStatus::APPROVED || $locked->status !== 'active') {
+                            throw new RuntimeException(
+                                "\"{$product->name}\" is no longer available for purchase - it may have been unlisted or is still awaiting approval."
+                            );
+                        }
+
+                        if ($itemData['quantity'] > $locked->stock_quantity) {
+                            throw new RuntimeException(
+                                "Only {$locked->stock_quantity} unit(s) of \"{$product->name}\" are in stock - please adjust the quantity and try again."
+                            );
+                        }
+                    }
+                }
+
                 foreach ($checkoutGroups as $group) {
                     $sellerId = $group['seller_id'];
                     $itemsData = $group['items'];
@@ -199,6 +282,8 @@ class Checkout extends Component
             $this->success('Order placed successfully! The seller has been notified.');
             $this->redirect(route('user.orders'), navigate: true);
 
+        } catch (RuntimeException $e) {
+            $this->error($e->getMessage());
         } catch (Throwable $e) {
             $this->error('An error occurred while placing order: '.$e->getMessage());
         }
@@ -209,11 +294,14 @@ class Checkout extends Component
         $user = Auth::user();
         if ($this->directProductId) {
             $product = Product::with(['images', 'user', 'category'])->find($this->directProductId);
+            // While the buyer is mid-edit (field briefly empty), display 0
+            // rather than letting a non-numeric value reach arithmetic below.
+            $displayQuantity = is_numeric($this->quantity) ? (int) $this->quantity : 0;
             $items = $product ? collect([[
                 'product' => $product,
-                'quantity' => 1,
+                'quantity' => $displayQuantity,
                 'price' => (float) $product->sale_price,
-                'subtotal' => (float) $product->sale_price,
+                'subtotal' => (float) $product->sale_price * $displayQuantity,
             ]]) : collect();
         } else {
             $items = $user

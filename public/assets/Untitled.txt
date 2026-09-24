@@ -36,8 +36,9 @@ Product fields (shared with second-hand listings):
 │ sale_price, negotiable                  │ Ignored for auctions. sale_price is saved as null and negotiable is forced to │
 │                                         │  fixed.                                                                       │
 ├─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────┤
-│ Images                                  │ At least one, max 2 MB each. Optional proof images (e.g. a warranty card) are │
-│                                         │  stored separately.                                                           │
+│ Images                                  │ At least one, max 2 MB each. At least one proof image (e.g. a warranty card, │
+│                                         │  receipt) is also required (added later; used to be optional) - stored       │
+│                                         │  separately.                                                                  │
 └─────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────┘
 
 Auction fields:

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Notifications\AuctionApplicationApprovedNotification;
 use App\Notifications\AuctionApplicationRejectedNotification;
 use Illuminate\Contracts\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -52,6 +53,15 @@ class AuctionApplication extends Component
 
         if ($user->is_auction_allowed && $documents->every(fn (DocumentImage $document): bool => $document->is_approved)) {
             $this->warning('This auction application is already approved.');
+
+            return;
+        }
+
+        // Auction access always requires seller access first (see
+        // JoinAuction::submitApplication(), which bundles a seller request
+        // in automatically) - approve that request before this one.
+        if (! $user->is_seller) {
+            $this->warning("{$user->name} does not have seller access yet. Approve their seller request first, on Seller Requests.");
 
             return;
         }
@@ -119,9 +129,22 @@ class AuctionApplication extends Component
         return 'unknown';
     }
 
+    /**
+     * Only applications still awaiting a decision belong on this queue - once
+     * an admin approves or rejects one, it would otherwise sit here forever
+     * (the query used to have no status filter at all). Rejecting doesn't
+     * delete anything: resubmitting new document images through JoinAuction
+     * resets those rows to pending, which naturally brings the applicant
+     * back onto this list for another look.
+     *
+     * This can't be expressed as a single SQL where() (the same "pending"
+     * definition applicationStatus() computes per user, from a mix of
+     * document flags and is_auction_allowed), so it's filtered in PHP from
+     * an eager-loaded set, same as the status counts below already were.
+     */
     public function render(): View
     {
-        $applications = User::query()
+        $matchingUsers = User::query()
             ->with('documentImages')
             ->whereHas('documentImages')
             ->where(function ($query): void {
@@ -131,7 +154,18 @@ class AuctionApplication extends Component
                     ->orWhere('username', 'like', '%'.$this->search.'%');
             })
             ->latest()
-            ->paginate(10);
+            ->get()
+            ->filter(fn (User $user): bool => $this->applicationStatus($user) === 'pending')
+            ->values();
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $applications = new LengthAwarePaginator(
+            $matchingUsers->forPage($page, 10)->values(),
+            $matchingUsers->count(),
+            10,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath()]
+        );
 
         $submittedUsers = User::query()
             ->with('documentImages')

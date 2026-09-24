@@ -12,6 +12,8 @@ use App\Enums\PaymentTransactionType;
 use App\Enums\PayoutPurpose;
 use App\Enums\PayoutRecipientRole;
 use App\Enums\PayoutStatus;
+use App\Mail\OrderCancelledAdminMail;
+use App\Mail\SellerPayoutOwedMail;
 use App\Models\Admin;
 use App\Models\DamagePenalty;
 use App\Models\Order;
@@ -19,9 +21,12 @@ use App\Models\PaymentTransaction;
 use App\Models\PayoutRequest;
 use App\Models\User;
 use App\Notifications\ComplaintFiledNotification;
+use App\Notifications\OrderCancelledAdminNotification;
+use App\Notifications\SellerPayoutOwedNotification;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Everything that happens to the money on an order when it is cancelled,
@@ -40,12 +45,19 @@ use Illuminate\Support\Facades\Log;
  */
 class OrderCancellationService
 {
-    public static function cancel(Order $order, User $actor, ?OrderCancellationReason $reason, ?string $note): void
+    public static function cancel(Order $order, User $actor, ?OrderCancellationReason $reason, ?string $note, bool $escalateToComplaint = false): void
     {
         $isSeller = (int) $order->seller_id === (int) $actor->id;
-        $isComplaint = ! $isSeller && $reason?->isComplaintReason() === true;
+        // $escalateToComplaint lets a buyer route an "Other reason"
+        // cancellation into the same admin-reviewed complaint path as the
+        // dedicated damage/not-as-described/documents-missing reasons,
+        // instead of the outright Group 1 forfeiture - see the "File a
+        // Complaint" button on the order detail page.
+        $isComplaint = ! $isSeller && ($reason?->isComplaintReason() === true || $escalateToComplaint);
 
-        DB::transaction(function () use ($order, $isSeller, $isComplaint, $reason, $note): void {
+        $sellerPayout = null;
+
+        DB::transaction(function () use ($order, $isSeller, $isComplaint, $reason, $note, &$sellerPayout): void {
             $order->update([
                 'status' => 'cancelled',
                 'cancellation_reason_category' => $isSeller ? null : $reason,
@@ -60,7 +72,7 @@ class OrderCancellationService
             if ($isSeller) {
                 self::refundEverything($order, 'The seller cancelled the order.');
             } else {
-                self::forfeitMinimumDeposit($order);
+                $sellerPayout = self::forfeitMinimumDeposit($order);
             }
         });
 
@@ -86,7 +98,10 @@ class OrderCancellationService
         // cancelled auction order has to put the product back on sale.
         if ($order->auction_id) {
             self::relistProduct($order, $actor);
+            self::notifyAdminsOfCancellation($order);
         }
+
+        self::notifySellerOfPayout($order, $sellerPayout);
     }
 
     /**
@@ -107,8 +122,9 @@ class OrderCancellationService
         }
 
         $resolved = false;
+        $sellerPayout = null;
 
-        $penalty = DB::transaction(function () use ($order, $confirmedDamaged, $resolutionNote, &$resolved): ?DamagePenalty {
+        $penalty = DB::transaction(function () use ($order, $confirmedDamaged, $resolutionNote, &$resolved, &$sellerPayout): ?DamagePenalty {
             // Re-checked under a row lock so a double-click or two concurrent
             // admin sessions can't both pass the guard and duplicate the
             // refund and the penalty.
@@ -126,7 +142,7 @@ class OrderCancellationService
             ]);
 
             if (! $confirmedDamaged) {
-                self::forfeitMinimumDeposit($order);
+                $sellerPayout = self::forfeitMinimumDeposit($order);
 
                 return null;
             }
@@ -180,6 +196,8 @@ class OrderCancellationService
             DamagePenaltyService::notifySeller($penalty);
         }
 
+        self::notifySellerOfPayout($order, $sellerPayout);
+
         return $penalty;
     }
 
@@ -221,12 +239,12 @@ class OrderCancellationService
      * forfeited, split between the platform and the seller. Any extra the
      * buyer paid online is refunded.
      */
-    private static function forfeitMinimumDeposit(Order $order): void
+    private static function forfeitMinimumDeposit(Order $order): ?PayoutRequest
     {
         $paid = $order->paidOnline();
 
         if ($paid <= 0) {
-            return;
+            return null;
         }
 
         $forfeited = min($paid, $order->minimumDeposit());
@@ -254,9 +272,7 @@ class OrderCancellationService
             'notes' => "Seller's share of the forfeited deposit.",
         ]);
 
-        if ($sellerShare > 0) {
-            self::createSellerPayout($order, $sellerShare);
-        }
+        $sellerPayout = $sellerShare > 0 ? self::createSellerPayout($order, $sellerShare) : null;
 
         if ($excess > 0) {
             PaymentTransaction::create([
@@ -280,18 +296,20 @@ class OrderCancellationService
         }
 
         $order->update(['deposit_status' => OrderDepositStatus::FORFEITED]);
+
+        return $sellerPayout;
     }
 
     /**
      * The seller's share is first netted against any debt they owe; whatever
      * is left becomes the payout. Fully offset shares need no transfer.
      */
-    private static function createSellerPayout(Order $order, float $sellerShare): void
+    private static function createSellerPayout(Order $order, float $sellerShare): PayoutRequest
     {
         $deducted = SellerDebtService::recoverFromPayout($order->seller, $sellerShare, $order);
         $net = round($sellerShare - $deducted, 2);
 
-        PayoutRequest::create([
+        return PayoutRequest::create([
             'order_id' => $order->id,
             'recipient_id' => $order->seller_id,
             'recipient_role' => PayoutRecipientRole::SELLER,
@@ -338,6 +356,34 @@ class OrderCancellationService
         Admin::all()->each(function (Admin $admin) use ($order): void {
             self::notifySafely($admin, new ComplaintFiledNotification($order));
         });
+    }
+
+    /**
+     * Auction orders only, per the seller notification/payout work this
+     * accompanies - direct-sell cancellations keep working exactly as
+     * before, with no payout-owed prompt.
+     */
+    private static function notifyAdminsOfCancellation(Order $order): void
+    {
+        Admin::all()->each(function (Admin $admin) use ($order): void {
+            self::notifySafely($admin, new OrderCancelledAdminNotification($order));
+            Mail::to($admin->email)->send(new OrderCancelledAdminMail($order));
+        });
+    }
+
+    /**
+     * Auction orders only - see notifyAdminsOfCancellation(). Skipped when
+     * there's nothing to actually receive (no payout was created, or its
+     * share was fully absorbed by outstanding debt).
+     */
+    private static function notifySellerOfPayout(Order $order, ?PayoutRequest $payout): void
+    {
+        if (! $order->auction_id || ! $payout || $payout->payout_status !== PayoutStatus::AWAITING_DETAILS || ! $order->seller) {
+            return;
+        }
+
+        self::notifySafely($order->seller, new SellerPayoutOwedNotification($payout));
+        Mail::to($order->seller->email)->send(new SellerPayoutOwedMail($payout));
     }
 
     /**

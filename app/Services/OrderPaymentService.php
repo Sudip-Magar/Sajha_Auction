@@ -7,13 +7,22 @@ use App\Enums\PaymentTransactionMethod;
 use App\Enums\PaymentTransactionParty;
 use App\Enums\PaymentTransactionStatus;
 use App\Enums\PaymentTransactionType;
+use App\Enums\PayoutPurpose;
+use App\Enums\PayoutRecipientRole;
 use App\Enums\PayoutStatus;
+use App\Mail\OrderCompletedAdminMail;
+use App\Mail\SellerPayoutOwedMail;
 use App\Models\Admin;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Models\PayoutRequest;
 use App\Models\User;
+use App\Notifications\OrderCompletedAdminNotification;
+use App\Notifications\SellerPayoutOwedNotification;
+use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Order completion and the payout hand-off. Payouts are never automated: the
@@ -27,7 +36,9 @@ class OrderPaymentService
      */
     public static function complete(Order $order, User $actor): void
     {
-        DB::transaction(function () use ($order): void {
+        $payout = null;
+
+        DB::transaction(function () use ($order, &$payout): void {
             $remaining = $order->remainingAmount();
 
             $order->update(['status' => 'completed', 'payment_status' => OrderPaymentStatus::PAID]);
@@ -42,6 +53,15 @@ class OrderPaymentService
                     'party' => PaymentTransactionParty::SELLER,
                     'notes' => 'Cash paid at the meetup.',
                 ]);
+            }
+
+            // Auction orders only: the deposit admin already holds online has
+            // no destination today - now that the sale is confirmed
+            // complete, forward it to the seller in full (no platform fee).
+            // Direct-sell orders never route money through the platform this
+            // way (cash-on-handover only), so they're untouched.
+            if ($order->auction_id) {
+                $payout = self::createSaleProceedsPayout($order);
             }
         });
 
@@ -61,6 +81,67 @@ class OrderPaymentService
                 "Order successfully completed by buyer {$order->buyer?->name} and seller {$order->seller?->name}.",
                 $actor
             );
+        }
+
+        if (! $order->auction_id) {
+            return;
+        }
+
+        if ($payout && $payout->payout_status === PayoutStatus::AWAITING_DETAILS && $order->seller) {
+            self::notifySafely($order->seller, new SellerPayoutOwedNotification($payout));
+            Mail::to($order->seller->email)->send(new SellerPayoutOwedMail($payout));
+        }
+
+        Admin::all()->each(function (Admin $admin) use ($order): void {
+            self::notifySafely($admin, new OrderCompletedAdminNotification($order));
+            Mail::to($admin->email)->send(new OrderCompletedAdminMail($order));
+        });
+    }
+
+    /**
+     * The seller's proceeds are first netted against any debt they owe;
+     * whatever is left becomes the payout. Mirrors
+     * OrderCancellationService::createSellerPayout() for the forfeit-share
+     * case.
+     */
+    private static function createSaleProceedsPayout(Order $order): ?PayoutRequest
+    {
+        $paidOnline = $order->paidOnline();
+
+        if ($paidOnline <= 0) {
+            return null;
+        }
+
+        $deducted = SellerDebtService::recoverFromPayout($order->seller, $paidOnline, $order);
+        $net = round($paidOnline - $deducted, 2);
+
+        return PayoutRequest::create([
+            'order_id' => $order->id,
+            'recipient_id' => $order->seller_id,
+            'recipient_role' => PayoutRecipientRole::SELLER,
+            'purpose' => PayoutPurpose::SELLER_SALE_PROCEEDS,
+            'amount' => $net,
+            'debt_deducted' => $deducted,
+            'payout_status' => $net > 0 ? PayoutStatus::AWAITING_DETAILS : PayoutStatus::SETTLED,
+        ]);
+    }
+
+    /**
+     * Mirrors OrderCancellationService::notifySafely(): these notifications
+     * broadcast in-process (ShouldBroadcastNow), so a transient Reverb
+     * hiccup must not turn an already-committed completion into a fatal
+     * error for whoever triggered it.
+     */
+    private static function notifySafely(object $notifiable, object $notification): void
+    {
+        try {
+            $notifiable->notify($notification);
+        } catch (BroadcastException $exception) {
+            Log::warning('Order-completion notification broadcast failed.', [
+                'notifiable' => $notifiable::class,
+                'notification' => $notification::class,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 

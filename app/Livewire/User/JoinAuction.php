@@ -7,6 +7,7 @@ use App\Models\Admin;
 use App\Models\DocumentImage;
 use App\Models\User;
 use App\Notifications\AuctionApplicationSubmittedNotification;
+use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,23 @@ class JoinAuction extends Component
     public array $removedDocumentIds = [];
 
     public bool $isAuctionAllowed = false;
+
+    /**
+     * Auction access requires seller access first. A user who isn't a
+     * seller yet sees a locked-on "Also apply as seller" toggle (see
+     * requestSellerAccessToo below) and submitting bundles a seller
+     * request in with the auction application.
+     */
+    public bool $isSeller = false;
+
+    public bool $sellerApplicationPending = false;
+
+    /**
+     * Always true while shown - not a real choice, just makes the bundled
+     * seller request visible on the form (see the blade: hidden entirely
+     * once the user is already a seller).
+     */
+    public bool $requestSellerAccessToo = true;
 
     public string $applicationStatus = 'not_submitted';
 
@@ -72,12 +90,24 @@ class JoinAuction extends Component
         $this->loadApplicationState();
     }
 
+    /**
+     * Locked on for as long as the toggle is shown at all - tampering with
+     * the request (e.g. via devtools) can't turn off the bundled seller
+     * request, since auction access always requires seller access.
+     */
+    public function updatedRequestSellerAccessToo(): void
+    {
+        $this->requestSellerAccessToo = true;
+    }
+
     private function loadApplicationState(): void
     {
         $user = Auth::user();
         $documents = $user->documentImages()->latest()->get();
 
         $this->isAuctionAllowed = (bool) $user->is_auction_allowed;
+        $this->isSeller = (bool) $user->is_seller;
+        $this->sellerApplicationPending = (bool) $user->seller_application_pending;
         $this->documentRows = $documents
             ->map(fn (DocumentImage $document): array => [
                 'id' => $document->id,
@@ -236,16 +266,25 @@ class JoinAuction extends Component
         }
 
         $user = Auth::user();
+        $sellerRequestJustCreated = false;
 
         // Re-checked one last time under a lock, immediately before writing,
         // to close the window between the check above and now (validation
         // and file uploads take real time, and an admin could approve in
         // the meantime).
-        $stillLocked = DB::transaction(function () use ($user): bool {
+        $stillLocked = DB::transaction(function () use ($user, &$sellerRequestJustCreated): bool {
             $lockedUser = User::whereKey($user->id)->lockForUpdate()->first();
 
             if ($lockedUser?->is_auction_allowed || $user->documentImages()->where('is_approved', true)->lockForUpdate()->exists()) {
                 return true;
+            }
+
+            // Auction access always requires seller access. A user who isn't
+            // a seller yet gets a seller request bundled in automatically -
+            // the form's toggle for this is locked on, never optional.
+            if (! $lockedUser->is_seller && ! $lockedUser->seller_application_pending) {
+                $lockedUser->update(['seller_application_pending' => true]);
+                $sellerRequestJustCreated = true;
             }
 
             if ($this->removedDocumentIds !== []) {
@@ -302,12 +341,18 @@ class JoinAuction extends Component
         $this->loadApplicationState();
 
         if ($this->applicationStatus === 'pending') {
-            Admin::query()->each(function (Admin $admin) use ($user): void {
+            Admin::query()->each(function (Admin $admin) use ($user, $sellerRequestJustCreated): void {
                 $admin->notify(new AuctionApplicationSubmittedNotification($user));
+
+                if ($sellerRequestJustCreated) {
+                    $admin->notify(new SellerRegisteredNotification($user));
+                }
             });
         }
 
-        $this->success('Your auction application submitted successfully.');
+        $this->success($sellerRequestJustCreated
+            ? 'Your auction application was submitted, along with a seller access request - both are now awaiting admin review.'
+            : 'Your auction application submitted successfully.');
         $this->redirect(url()->previous(), navigate: true);
     }
 

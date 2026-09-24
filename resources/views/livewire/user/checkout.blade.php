@@ -114,7 +114,24 @@
 
                                 <div class="flex-1 min-w-0">
                                     <h4 class="font-bold text-sm text-gray-900 truncate dark:text-white">{{ $prod->name }}</h4>
-                                    <p class="text-xs text-gray-500">Qty: {{ $item['quantity'] }} × Rs {{ number_format($item['price']) }}</p>
+
+                                    @if($directProductId)
+                                        <div class="mt-1 flex items-center gap-2">
+                                            <x-input
+                                                wire:model.live="quantity"
+                                                type="number"
+                                                min="1"
+                                                :max="$prod->stock_quantity"
+                                                class="w-20 input-sm"
+                                            />
+                                            <span class="text-xs text-gray-500">× Rs {{ number_format($item['price']) }} ({{ $prod->stock_quantity }} in stock)</span>
+                                        </div>
+                                    @else
+                                        <p class="text-xs text-gray-500">Qty: {{ $item['quantity'] }} × Rs {{ number_format($item['price']) }}
+                                            <a href="{{ route('user.cart') }}" wire:navigate class="ml-1 text-[#1F6F5F] underline">edit in cart</a>
+                                        </p>
+                                    @endif
+
                                     @if($prod->meetup_location)
                                         <p class="text-[11px] text-emerald-600 truncate">Meetup: {{ $prod->meetup_location }}</p>
                                     @endif
@@ -141,7 +158,8 @@
                     <button type="button"
                             wire:click="placeOrder"
                             wire:loading.attr="disabled"
-                            class="mt-6 w-full flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-[#1F6F5F] to-[#2FA084] py-4 text-base font-black text-white shadow-lg shadow-[#2FA084]/20 hover:opacity-95 transition-all">
+                            @disabled($errors->has('quantity'))
+                            class="mt-6 w-full flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-[#1F6F5F] to-[#2FA084] py-4 text-base font-black text-white shadow-lg shadow-[#2FA084]/20 hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                         <x-icon name="o-check-circle" class="w-6 h-6" />
                         <span wire:loading.remove wire:target="placeOrder">Confirm & Place Order</span>
                         <span wire:loading wire:target="placeOrder">Processing Order...</span>

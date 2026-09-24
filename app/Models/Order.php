@@ -166,6 +166,19 @@ class Order extends Model
         return $this->deposit_status === OrderDepositStatus::PENDING && $this->status !== 'cancelled';
     }
 
+    /**
+     * Whether the scheduled meetup date is today or already in the past -
+     * a calendar-date comparison, not an exact-time one. Gates the buyer's
+     * cancel button on an auction order and the seller's "Mark Completed &
+     * Handed Over" button: neither makes sense before the meetup the order
+     * revolves around has actually happened. An order with no meetup
+     * scheduled yet is never eligible.
+     */
+    public function meetupDateHasArrived(): bool
+    {
+        return $this->meetup_time !== null && $this->meetup_time->toDateString() <= now()->toDateString();
+    }
+
     public function getStatusBadgeAttribute(): string
     {
         return match ($this->status) {

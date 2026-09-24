@@ -80,6 +80,7 @@ test('the seller can mark an order as completed', function () {
     $seller = User::factory()->create();
     $buyer = User::factory()->create();
     $order = makeOrderTestOrder($buyer, $seller);
+    $order->update(['meetup_time' => now()->subDay()]);
 
     Livewire::actingAs($seller)
         ->test(OrderDetail::class, ['order' => $order])
@@ -190,7 +191,7 @@ test('cancelling an auction-win order relists the product instead of leaving it 
         'winner_id' => $buyer->id,
         'status' => 'completed',
     ]);
-    $order->update(['auction_id' => $auction->id]);
+    $order->update(['auction_id' => $auction->id, 'meetup_time' => now()->subDay()]);
 
     Livewire::actingAs($buyer)
         ->test(OrderDetail::class, ['order' => $order])

@@ -26,6 +26,13 @@ class ProductDetail extends Component
 
     public Product $product;
 
+    // Untyped (not `int`): a strictly-typed property throws when the buyer
+    // clears the number input (Livewire sends "" for wire:model.live), which
+    // crashes the whole component instead of just failing validation.
+    // ManageProduct's own $quantity uses the same `mixed` pattern for this
+    // reason.
+    public mixed $quantity = 1;
+
     public bool $isWishlisted = false;
 
     public bool $chatOpen = false;
@@ -65,6 +72,34 @@ class ProductDetail extends Component
         ]);
 
         $this->checkWishlistStatus();
+    }
+
+    /**
+     * Live stock check as the buyer types/changes the quantity - fires on
+     * every wire:model.live update, before they ever click a buy button.
+     */
+    public function updatedQuantity(): void
+    {
+        $this->validateQuantityAgainstStock();
+    }
+
+    private function validateQuantityAgainstStock(): bool
+    {
+        $this->resetErrorBag('quantity');
+
+        if (! is_numeric($this->quantity) || (int) $this->quantity < 1) {
+            $this->addError('quantity', 'Please enter a quantity of at least 1.');
+
+            return false;
+        }
+
+        if ((int) $this->quantity > $this->product->stock_quantity) {
+            $this->addError('quantity', 'Only '.$this->product->stock_quantity.' unit(s) available in stock.');
+
+            return false;
+        }
+
+        return true;
     }
 
     public function checkWishlistStatus(): void
@@ -129,14 +164,29 @@ class ProductDetail extends Component
             return;
         }
 
+        if (! $this->validateQuantityAgainstStock()) {
+            return;
+        }
+
+        $quantity = (int) $this->quantity;
+
         $cartItem = CartItem::firstOrCreate(
             ['user_id' => $user->id, 'product_id' => $this->product->id],
-            ['quantity' => 1]
+            ['quantity' => 0]
         );
 
-        if (! $cartItem->wasRecentlyCreated) {
-            $cartItem->increment('quantity');
+        $newQuantity = $cartItem->quantity + $quantity;
+
+        // Re-check against stock with what's already in the cart included -
+        // this can still exceed stock even though $quantity alone was
+        // valid, e.g. the buyer already has some units in the cart.
+        if ($newQuantity > $this->product->stock_quantity) {
+            $this->addError('quantity', 'Adding '.$quantity.' would put '.$newQuantity.' in your cart, but only '.$this->product->stock_quantity.' are in stock.');
+
+            return;
         }
+
+        $cartItem->update(['quantity' => $newQuantity]);
 
         $this->success('Product added to your cart!');
         $this->dispatch('cartUpdated');
@@ -157,7 +207,11 @@ class ProductDetail extends Component
             return null;
         }
 
-        return $this->redirect(route('user.checkout', ['product' => $this->product->id]), navigate: true);
+        if (! $this->validateQuantityAgainstStock()) {
+            return null;
+        }
+
+        return $this->redirect(route('user.checkout', ['product' => $this->product->id, 'quantity' => (int) $this->quantity]), navigate: true);
     }
 
     public function openChat(): void

@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Enums\ProductSaleType;
 use App\Enums\StatusState;
 use App\Models\CartItem;
 use App\Models\Category;
@@ -17,6 +18,20 @@ use Mary\Traits\Toast;
 class Home extends Component
 {
     use Toast;
+
+    public string $listingFilter = 'all';
+
+    public string $viewMode = 'list';
+
+    public function setListingFilter(string $filter): void
+    {
+        $this->listingFilter = in_array($filter, ['all', 'direct_seller', 'auction'], true) ? $filter : 'all';
+    }
+
+    public function toggleViewMode(): void
+    {
+        $this->viewMode = $this->viewMode === 'grid' ? 'list' : 'grid';
+    }
 
     public function toggleWishlist(int $productId): void
     {
@@ -104,8 +119,18 @@ class Home extends Component
         $productsQuery = Product::with(['auction.traditionalAuction', 'category', 'images', 'user'])
             ->approved()
             ->where(function ($query): void {
-                $query->where('status', 'active')
-                    ->orWhereHas('auction', fn ($auctionQuery) => $auctionQuery->where('end_time', '<=', now()));
+                $query->where(function ($directSell): void {
+                    $directSell->where('listing_type', ProductSaleType::DIRECT_SELLER)
+                        ->where('status', 'active');
+                })->orWhere(function ($auction): void {
+                    // Upcoming and live auctions always have an end_time in
+                    // the future, so this single bound covers both of those
+                    // plus a 1-hour grace window to see the result - without
+                    // it, every auction that has EVER ended would stay on
+                    // the home feed forever.
+                    $auction->where('listing_type', ProductSaleType::AUCTION)
+                        ->whereHas('auction', fn ($auctionQuery) => $auctionQuery->where('end_time', '>=', now()->subHour()));
+                });
             });
 
         $user = Auth::user();
@@ -126,14 +151,6 @@ class Home extends Component
                 ->orderBy('name')
                 ->take(14)
                 ->get(),
-            'popularSearches' => [
-                'Mobile phones',
-                'Bikes',
-                'Laptops',
-                'Property',
-                'Furniture',
-                'Services',
-            ],
             'bookmarkedProductIds' => $wishlistedIds,
             'featuredProducts' => (clone $productsQuery)
                 ->where('is_featured', true)
@@ -151,6 +168,7 @@ class Home extends Component
                 ->take(8)
                 ->get(),
             'latestProducts' => $productsQuery
+                ->when($this->listingFilter !== 'all', fn ($query) => $query->where('listing_type', $this->listingFilter))
                 ->latest()
                 ->paginate(12),
         ]);

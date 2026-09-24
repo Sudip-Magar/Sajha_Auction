@@ -44,6 +44,7 @@
                 ['key' => 'id', 'label' => 'ID', 'class' => 'w-16 text-gray-400'],
                 ['key' => 'name', 'label' => 'Applicant'],
                 ['key' => 'username', 'label' => 'Username'],
+                ['key' => 'seller_access', 'label' => 'Seller Access'],
                 ['key' => 'documents_count', 'label' => 'Documents'],
                 ['key' => 'status', 'label' => 'Status'],
                 ['key' => 'actions', 'label' => '', 'sortable' => false],
@@ -72,6 +73,16 @@
                 <div class="text-xs font-bold text-gray-600">
                     {{ $user->username ?? 'Not set' }}
                 </div>
+            @endscope
+
+            @scope('cell_seller_access', $user)
+                @if($user->is_seller)
+                    <x-badge value="Has Access" class="badge-success font-bold text-[10px] uppercase tracking-wider" />
+                @elseif($user->seller_application_pending)
+                    <x-badge value="Request Pending" class="badge-warning font-bold text-[10px] uppercase tracking-wider" />
+                @else
+                    <x-badge value="No Access" class="badge-neutral font-bold text-[10px] uppercase tracking-wider" />
+                @endif
             @endscope
 
             @scope('cell_documents_count', $user)
@@ -107,8 +118,10 @@
                         <x-button
                             label="Approve"
                             icon="o-check"
-                            class="btn-sm btn-success rounded-xl shadow-md shadow-success/20"
+                            class="btn-sm btn-success rounded-xl shadow-md shadow-success/20 disabled:opacity-50 disabled:cursor-not-allowed"
                             wire:click="approveApplication({{ $user->id }})"
+                            @disabled(! $user->is_seller)
+                            tooltip-left="{{ $user->is_seller ? null : 'Approve their seller request first, on Seller Requests.' }}"
                             spinner
                         />
                     @endif
