@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\PaymentTransactionType;
 use App\Models\PaymentTransaction;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -16,7 +17,7 @@ class PaymentTransactionFactory extends Factory
     public function definition(): array
     {
         return [
-            'type' => PaymentTransaction::TYPE_DEPOSIT_PAID,
+            'type' => PaymentTransactionType::DEPOSIT_PAID,
             'amount' => 1000,
             'payment_method' => 'esewa',
             'status' => 'completed',

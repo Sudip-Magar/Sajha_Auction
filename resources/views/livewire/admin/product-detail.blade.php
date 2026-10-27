@@ -56,14 +56,25 @@
             </div>
             <div>
                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Approval</p>
-                <p class="text-2xl font-black {{ $product->is_approved ? 'text-green-600' : 'text-amber-500' }}">
-                    {{ $product->is_approved ? 'Approved' : 'Pending' }}
+                @php
+                    $approvalColor = match($product->approval_status) {
+                        \App\Enums\ProductApprovalStatus::APPROVED => 'text-green-600',
+                        \App\Enums\ProductApprovalStatus::REJECTED => 'text-red-600',
+                        \App\Enums\ProductApprovalStatus::CORRECTION => 'text-amber-500',
+                        default => 'text-gray-500',
+                    };
+                @endphp
+                <p class="text-2xl font-black {{ $approvalColor }}">
+                    {{ $product->approval_status->label() }}
                 </p>
+                @if($product->remarks)
+                    <p class="text-xs text-gray-500 mt-1">{{ $product->remarks }}</p>
+                @endif
             </div>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_420px] gap-4">
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,420px)] gap-4">
         <div class="space-y-4">
             <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
@@ -155,7 +166,9 @@
                         </div>
                     </div>
 
-                    @php($adminSpecsHtml = \App\Services\HtmlSanitizerService::toSafeHtml($product->specifications))
+                    @php
+                        $adminSpecsHtml = \App\Services\HtmlSanitizerService::toSafeHtml($product->specifications);
+                    @endphp
                     @if($adminSpecsHtml !== '')
                         <div class="border-t border-gray-200 pt-4">
                             <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Specifications</p>
@@ -275,10 +288,27 @@
 
                     <div class="rounded-xl bg-[#f5f2ea] p-4">
                         <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Approval State</p>
-                        <div class="mt-2 inline-flex items-center gap-2 text-xs font-bold {{ $product->is_approved ? 'text-green-600' : 'text-amber-600' }}">
-                            <span class="w-2 h-2 rounded-full {{ $product->is_approved ? 'bg-green-500' : 'bg-amber-500' }}"></span>
-                            {{ $product->is_approved ? 'Approved and live' : 'Pending review' }}
+                        @php
+                            $stateText = match($product->approval_status) {
+                                \App\Enums\ProductApprovalStatus::APPROVED => 'text-green-600',
+                                \App\Enums\ProductApprovalStatus::REJECTED => 'text-red-600',
+                                \App\Enums\ProductApprovalStatus::CORRECTION => 'text-amber-600',
+                                default => 'text-gray-600',
+                            };
+                            $stateDot = match($product->approval_status) {
+                                \App\Enums\ProductApprovalStatus::APPROVED => 'bg-green-500',
+                                \App\Enums\ProductApprovalStatus::REJECTED => 'bg-red-500',
+                                \App\Enums\ProductApprovalStatus::CORRECTION => 'bg-amber-500',
+                                default => 'bg-gray-400',
+                            };
+                        @endphp
+                        <div class="mt-2 inline-flex items-center gap-2 text-xs font-bold {{ $stateText }}">
+                            <span class="w-2 h-2 rounded-full {{ $stateDot }}"></span>
+                            {{ $product->approval_status->label() }}
                         </div>
+                        @if($product->remarks)
+                            <p class="mt-2 text-[11px] text-gray-500">{{ $product->remarks }}</p>
+                        @endif
                     </div>
 
                     <div class="rounded-xl bg-[#f5f2ea] p-4">
@@ -318,17 +348,53 @@
                 </div>
 
                 <div class="px-4 pb-4 pt-2">
-                    <div class="border-t border-gray-200 pt-4 flex items-center gap-3">
-                        @if(! $product->is_approved)
+                    @if(in_array($product->approval_status, [\App\Enums\ProductApprovalStatus::PENDING, \App\Enums\ProductApprovalStatus::CORRECTION], true))
+                        <div class="border-t border-gray-200 pt-4 pb-1">
                             <x-button
                                 label="Approve"
                                 icon="o-check"
-                                class="btn-outline flex-1 rounded-xl"
+                                class="btn-success w-full rounded-xl"
                                 wire:click="approveProduct"
                                 spinner="approveProduct"
                             />
-                        @endif
+                            <x-button
+                                label="Reject / Request Correction"
+                                icon="o-pencil-square"
+                                class="btn-outline w-full rounded-xl mt-2"
+                                wire:click="toggleDecisionForm"
+                            />
+                        </div>
 
+                        @if($showDecisionForm)
+                            <div class="mt-3 rounded-xl border border-gray-200 p-3 space-y-3">
+                                <x-textarea label="Reason" wire:model="decisionReason" placeholder="Explain why, so the seller knows what to fix or why it was refused..." rows="3" />
+                                <div class="flex gap-2">
+                                    <x-button label="Request Correction" class="btn-warning btn-sm flex-1 rounded-xl" wire:click="requestCorrection" spinner="requestCorrection" />
+                                    <x-button label="Reject" class="btn-error btn-sm flex-1 rounded-xl" wire:click="rejectProduct" spinner="rejectProduct" />
+                                </div>
+                            </div>
+                        @endif
+                    @endif
+
+                    @if($product->user)
+                        <div class="border-t border-gray-200 pt-4 mt-2">
+                            <x-button
+                                label="Send Warning to Seller"
+                                icon="o-exclamation-triangle"
+                                class="btn-outline btn-warning w-full rounded-xl"
+                                wire:click="toggleWarningForm"
+                            />
+
+                            @if($showWarningForm)
+                                <div class="mt-3 rounded-xl border border-amber-200 p-3 space-y-3">
+                                    <x-textarea label="Warning Reason" wire:model="warningReason" placeholder="Explain what the seller needs to fix or stop doing..." rows="3" />
+                                    <x-button label="Send Warning" class="btn-warning btn-sm w-full rounded-xl" wire:click="sendWarning" spinner="sendWarning" />
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+
+                    <div class="border-t border-gray-200 pt-4 mt-2 flex items-center gap-3">
                         <a href="{{ route('admin.products') }}" wire:navigate class="flex-1">
                             <x-button label="Back" icon="o-x-mark" class="btn-ghost w-full rounded-xl border border-gray-300" />
                         </a>

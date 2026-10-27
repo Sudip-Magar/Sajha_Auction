@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\StatusState;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,6 +19,10 @@ class SubCategory extends Model
         'color',
         'status',
         'sort_order',
+    ];
+
+    protected $casts = [
+        'status' => StatusState::class,
     ];
 
     public function category(): BelongsTo

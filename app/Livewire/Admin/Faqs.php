@@ -24,6 +24,10 @@ class Faqs extends Component
 
     public bool $faqModal = false;
 
+    public bool $showDeleteFaqModal = false;
+
+    public ?int $confirmingFaqId = null;
+
     public ?Faq $editingFaq = null;
 
     public ?int $faq_category_id = null;
@@ -87,6 +91,23 @@ class Faqs extends Component
 
         $this->faqModal = false;
         $this->resetForm();
+    }
+
+    public function confirmDeleteFaq(Faq $faq): void
+    {
+        $this->confirmingFaqId = $faq->id;
+        $this->showDeleteFaqModal = true;
+    }
+
+    public function runConfirmedFaqDelete(): void
+    {
+        $faq = Faq::find($this->confirmingFaqId);
+        $this->showDeleteFaqModal = false;
+        $this->confirmingFaqId = null;
+
+        if ($faq) {
+            $this->deleteFaq($faq);
+        }
     }
 
     public function deleteFaq(Faq $faq): void

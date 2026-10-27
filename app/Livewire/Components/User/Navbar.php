@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Components\User;
 
+use App\Enums\DamagePenaltyStatus;
 use App\Models\Admin;
 use App\Notifications\SellerRegisteredNotification;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,20 @@ class Navbar extends Component
     public bool $isAuctioner = false;
 
     public bool $sellerApplicationPending = false;
+
+    /**
+     * A confirmed-damaged verdict revokes seller/auction access immediately,
+     * which used to leave the "Seller Request Pending" / "Join Auction" menu
+     * items showing as if nothing had happened. While a penalty is unpaid,
+     * both are replaced with a single link straight to paying it.
+     */
+    public ?int $pendingPenaltyId = null;
+
+    public float $pendingPenaltyAmount = 0;
+
+    public ?string $pendingPenaltyDueAt = null;
+
+    public bool $hasPenaltyOrWarningHistory = false;
 
     public function mount(): void
     {
@@ -118,7 +133,10 @@ class Navbar extends Component
         if ($type === 'App\Notifications\SellerApprovedNotification') {
             return $this->redirect(route('user.products'), navigate: true);
         }
-        if ($type === 'App\Notifications\ProductApprovedNotification') {
+        if (
+            $type === 'App\Notifications\ProductApprovedNotification'
+            || $type === 'App\Notifications\AuctionMultiUnitListedNotification'
+        ) {
             return $this->redirect(route('user.products'), navigate: true);
         }
         if ($type === 'App\Notifications\SellerSuspendedNotification') {
@@ -138,13 +156,19 @@ class Navbar extends Component
 
             return $this->redirect(route('user.messages'), navigate: true);
         }
-        if ($type === 'App\Notifications\NewOrderReceivedNotification') {
+        if ($type === 'App\Notifications\NewOrderReceivedNotification' || $type === 'App\Notifications\SellerPayoutOwedNotification') {
             $orderId = $notification->data['order_id'] ?? null;
 
             return $this->redirect($orderId ? route('user.orders.show', $orderId) : route('user.orders'), navigate: true);
         }
         if ($type === 'App\Notifications\AccountStatusChangedNotification') {
             return $this->redirect(route('home'), navigate: true);
+        }
+        if (
+            $type === 'App\Notifications\SellerDamagePenaltyIssuedNotification'
+            || $type === 'App\Notifications\SellerWarningIssuedNotification'
+        ) {
+            return $this->redirect(route('user.penalties'), navigate: true);
         }
 
         return $this->redirect(Auth::user()?->is_seller ? route('dashboard') : route('home'), navigate: true);
@@ -166,6 +190,15 @@ class Navbar extends Component
         $this->isSeller = (bool) $user?->is_seller;
         $this->isAuctioner = (bool) $user?->is_auction_allowed;
         $this->sellerApplicationPending = (bool) $user?->seller_application_pending;
+
+        $penalty = $user?->damagePenalties()->where('status', DamagePenaltyStatus::PENDING)->latest()->first();
+        $this->pendingPenaltyId = $penalty?->id;
+        $this->pendingPenaltyAmount = (float) ($penalty?->amount ?? 0);
+        $this->pendingPenaltyDueAt = $penalty?->due_at?->format('M d, Y');
+
+        $this->hasPenaltyOrWarningHistory = $this->pendingPenaltyId !== null
+            || (bool) $user?->damagePenalties()->exists()
+            || (bool) $user?->warnings()->exists();
     }
 
     private function logoutIfInactive(): bool

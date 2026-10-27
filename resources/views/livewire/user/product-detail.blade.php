@@ -14,18 +14,26 @@
     <div class="mx-auto max-w-[1280px] px-2 pb-14 pt-3 sm:px-3 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5 lg:px-4 lg:pt-5">
         <main>
             @if($product->isAuction() && $product->auction)
+                @php
+                    $auctionIsLive = in_array($product->auction->status, [\App\Enums\AuctionStatus::PENDING, \App\Enums\AuctionStatus::ACTIVE], true);
+                @endphp
                 <div class="mb-4 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-4 text-white shadow-lg flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <div class="p-2 bg-white/15 rounded-xl">
                             <x-icon name="o-ticket" class="w-6 h-6 text-emerald-200" />
                         </div>
                         <div>
-                            <h2 class="font-black text-base text-white">This product is hosted on Live Auction!</h2>
-                            <p class="text-xs text-emerald-100">Participate in real-time bidding, set proxy limits, and follow the live bid room.</p>
+                            @if($auctionIsLive)
+                                <h2 class="font-black text-base text-white">This product is hosted on Live Auction!</h2>
+                                <p class="text-xs text-emerald-100">Participate in real-time bidding, set proxy limits, and follow the live bid room.</p>
+                            @else
+                                <h2 class="font-black text-base text-white">This item was sold through auction.</h2>
+                                <p class="text-xs text-emerald-100">Bidding has ended - you can still view the final result and bid history.</p>
+                            @endif
                         </div>
                     </div>
                     <a href="{{ route('user.auction.detail', $product->auction->id) }}" wire:navigate class="btn bg-white text-emerald-900 hover:bg-gray-100 border-none font-black rounded-xl px-5 shadow-md">
-                        Enter Live Auction Room →
+                        @if($auctionIsLive) Enter Live Auction Room → @else View Auction Result → @endif
                     </a>
                 </div>
             @endif
@@ -195,6 +203,17 @@
                             <h2 class="font-bold text-base text-gray-900 dark:text-white">{{ $product->name }}</h2>
                             <p class="mt-2 text-2xl font-black text-[#1F6F5F] dark:text-[#7CE0C5]">Rs {{ number_format((float) $price) }}</p>
 
+                            @if($product->isDirectSell())
+                                <p class="mt-1 text-xs font-bold text-gray-500 dark:text-gray-400">{{ $product->stock_quantity }} unit(s) in stock</p>
+                            @elseif($product->isAuction())
+                                <p class="mt-1 text-xs font-bold text-gray-500 dark:text-gray-400">
+                                    Lot size: {{ $product->stock_quantity }} unit(s)
+                                    @if($product->stock_quantity > 1)
+                                        &mdash; the winner takes the entire lot
+                                    @endif
+                                </p>
+                            @endif
+
                             @if(auth()->check() && (int)$product->seller_id === (int)auth()->id())
                                 <div class="mt-5 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center dark:bg-emerald-950/40 dark:border-emerald-800">
                                     <div class="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-xl flex items-center justify-center mx-auto mb-2">
@@ -212,10 +231,20 @@
                                         </div>
                                     @else
                                         <div class="mt-5 space-y-3">
+                                            <x-input
+                                                label="Quantity"
+                                                wire:model.live="quantity"
+                                                type="number"
+                                                min="1"
+                                                :max="$product->stock_quantity"
+                                                hint="{{ $product->stock_quantity }} available"
+                                            />
+
                                             <button type="button"
                                                     wire:click="buyNow"
                                                     wire:loading.attr="disabled"
-                                                    class="w-full flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-[#1F6F5F] to-[#2FA084] py-3 text-sm font-extrabold text-white shadow-lg shadow-[#2FA084]/20 hover:opacity-95 transition-all">
+                                                    @disabled($errors->has('quantity'))
+                                                    class="w-full flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-[#1F6F5F] to-[#2FA084] py-3 text-sm font-extrabold text-white shadow-lg shadow-[#2FA084]/20 hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                                 <x-icon name="o-shopping-bag" class="w-4 h-4" />
                                                 Order Product
                                             </button>
@@ -223,7 +252,8 @@
                                             <button type="button"
                                                     wire:click="addToCart"
                                                     wire:loading.attr="disabled"
-                                                    class="w-full flex items-center justify-center gap-2 rounded-xl border border-[#1F6F5F] bg-emerald-50/50 py-3 text-sm font-bold text-[#1F6F5F] hover:bg-emerald-100 transition-all dark:bg-emerald-950/30 dark:text-[#7CE0C5]">
+                                                    @disabled($errors->has('quantity'))
+                                                    class="w-full flex items-center justify-center gap-2 rounded-xl border border-[#1F6F5F] bg-emerald-50/50 py-3 text-sm font-bold text-[#1F6F5F] hover:bg-emerald-100 transition-all dark:bg-emerald-950/30 dark:text-[#7CE0C5] disabled:opacity-50 disabled:cursor-not-allowed">
                                                 <x-icon name="o-shopping-cart" class="w-4 h-4" />
                                                 Add to Cart
                                             </button>

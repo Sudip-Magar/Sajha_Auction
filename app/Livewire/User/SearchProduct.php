@@ -4,6 +4,7 @@ namespace App\Livewire\User;
 
 use App\Enums\ProductCondition;
 use App\Enums\ProductNegotiability;
+use App\Enums\StatusState;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Contracts\View\View;
@@ -36,6 +37,13 @@ class SearchProduct extends Component
 
     #[Url(except: 'any')]
     public string $negotiable = ProductNegotiability::ANY->value;
+
+    /**
+     * The price/negotiable filters live in a right-hand sidebar that's
+     * desktop-only (lg:block); below that, this reveals the same filters
+     * in a modal instead of leaving them completely inaccessible.
+     */
+    public bool $showFiltersModal = false;
 
     /**
      * @return array<string, string>
@@ -92,7 +100,7 @@ class SearchProduct extends Component
         $maxPrice = is_numeric($this->maxPrice) ? (float) $this->maxPrice : null;
 
         $products = Product::with(['auction.traditionalAuction', 'category', 'images', 'user'])
-            ->where('is_approved', true)
+            ->approved()
             ->where('status', 'active')
             ->when($search !== '', function (Builder $query) use ($search, $conditionSearch): void {
                 $query->where(function (Builder $query) use ($search, $conditionSearch): void {
@@ -147,11 +155,11 @@ class SearchProduct extends Component
             'products' => $products,
             'categories' => Category::query()
                 ->with(['children' => function (HasMany $query): void {
-                    $query->where('status', 'active')
+                    $query->where('status', StatusState::ACTIVE)
                         ->orderBy('sort_order')
                         ->orderBy('name');
                 }])
-                ->where('status', 'active')
+                ->where('status', StatusState::ACTIVE)
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),

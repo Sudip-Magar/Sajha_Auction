@@ -105,8 +105,10 @@ is saved normally; the pages simply update when you refresh (section
     app/Events/AuctionBidPlaced.php    Live bid event.
     app/Events/AuctionEnded.php        Auction finished event.
     app/Events/ChatMessageSent.php     Chat message event.
-    app/Notifications/*.php            14 notification classes (database
-                                       + broadcast).
+    app/Notifications/*.php            23 notification classes (database
+                                       + broadcast), plus one abstract
+                                       base class they all extend
+                                       (BroadcastDatabaseNotification).
     app/Models/Admin.php               receivesBroadcastNotificationsOn()
                                        -> "App.Models.Admin.{id}".
     app/Services/AuctionEngineService.php   Sends the bid / ended events.
@@ -298,7 +300,12 @@ The private channel used is the default one for the person:
    admin -> App.Models.Admin.{id}
 (Admin defines receivesBroadcastNotificationsOn() to return exactly that.)
 
-The 14 notification classes:
+UPDATE (later): the list below was written when there were 14 classes.
+Ten more have been added since (damage-penalty system, complaints, and
+a couple of smaller gaps); they're appended at the end of the table
+below rather than re-sorted in, so the original entries are untouched.
+
+The (now 23) notification classes:
 
   Class                                   Sent to   When
   --------------------------------------  --------  ---------------------------------
@@ -317,6 +324,28 @@ The 14 notification classes:
   OutbidNotification                      Bidder    Someone else took the lead
   AuctionWonNotification                  Winner    The auction is won
   DepositPaidNotification                 Seller    The buyer paid the eSewa deposit
+
+  -- added later --
+  ProductRejectedNotification             Seller    Admin rejects the listing
+  ProductCorrectionRequestedNotification  Seller    Admin sends the listing back for
+                                                    correction, with a remarks note
+  SellerWarningIssuedNotification         User      Admin issues a formal warning
+  MeetupScheduledNotification             Seller    Buyer sets/edits the meetup
+                                                    date/time on an auction order
+  ComplaintFiledNotification              Admins    Buyer files a Group 2 cancellation
+                                                    complaint (item damaged / not as
+                                                    described / documents missing)
+  ComplaintMessageReceivedNotification    The other Either side sends a message in the
+                                           side      complaint chat thread (buyer <->
+                                                    admin)
+  SellerDamagePenaltyIssuedNotification   Seller    Admin confirms damage: a 30%
+                                                    penalty (7-day deadline) is issued
+  AdminDamagePenaltyPaidNotification      Admins    The seller pays a damage penalty
+                                                    through eSewa
+  AdminLegalActionRequiredNotification    Admins    A damage penalty goes overdue
+                                                    (unpaid past the 7-day deadline)
+  SellerPermanentlyBannedNotification     Admins    A seller reaches 3 confirmed-
+                                                    damage strikes and is auto-banned
 
 
 =====================================================================
@@ -451,7 +480,7 @@ and you would still see a delay.
 This project avoids that:
    - The 3 events implement ShouldBroadcastNow: they are sent
      immediately, in the same request.
-   - The 14 notifications call ->onConnection('sync') inside
+   - The 23 notifications call ->onConnection('sync') inside
      toBroadcast(): the internal broadcast job runs at once instead of
      waiting for a worker. (They also implement ShouldBroadcastNow.)
 So real-time needs only Reverb, not the queue worker.

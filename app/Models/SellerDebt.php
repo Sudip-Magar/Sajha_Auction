@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SellerDebtStatus;
 use Database\Factories\SellerDebtFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,10 +12,6 @@ class SellerDebt extends Model
 {
     /** @use HasFactory<SellerDebtFactory> */
     use HasFactory;
-
-    public const STATUS_OUTSTANDING = 'outstanding';
-
-    public const STATUS_RECOVERED = 'recovered';
 
     protected $fillable = [
         'seller_id',
@@ -30,6 +27,7 @@ class SellerDebt extends Model
     protected $casts = [
         'amount' => 'float',
         'recovered_amount' => 'float',
+        'status' => SellerDebtStatus::class,
         'overdue_notified_at' => 'datetime',
         'recovered_at' => 'datetime',
     ];

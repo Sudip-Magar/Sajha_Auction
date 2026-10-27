@@ -2,6 +2,7 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\ProductApprovalStatus;
 use App\Models\Auction;
 use App\Services\AuctionEngineService;
 use Illuminate\Contracts\View\View;
@@ -46,6 +47,20 @@ class AuctionDetail extends Component
         $this->auction = $auction;
         $this->refreshAuctionData();
 
+        $viewer = Auth::user();
+        $isOwner = $viewer && (int) $this->auction->product->seller_id === (int) $viewer->id;
+
+        // Same guard as ProductDetail::mount() - this route was reachable
+        // directly (a shared link, a guessed/typed id) without ever passing
+        // through the product page's own approval check, so a listing still
+        // awaiting admin approval (or rejected/unlisted) was fully visible,
+        // bids and all, to anyone. The owning seller can still preview their
+        // own auction before it's approved; everyone else gets a 404.
+        abort_unless(
+            $isOwner || ($this->auction->product->approval_status === ProductApprovalStatus::APPROVED && in_array($this->auction->product->status, ['active', 'sold'], true)),
+            404
+        );
+
         // Auto-check whether an expired auction needs settlement.
         AuctionEngineService::checkAndFinalizeIfExpired($this->auction);
         $this->refreshAuctionData();
@@ -76,6 +91,8 @@ class AuctionDetail extends Component
             'product.images',
             'product.category',
             'product.user',
+            'product.proofImages',
+            'product.timelines',
             'traditionalAuction',
             'winner',
             'bids' => fn ($q) => $q->with('bidder')->latest()->take(20),

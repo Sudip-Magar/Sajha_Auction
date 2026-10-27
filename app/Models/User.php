@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'username', 'google_id', 'avatar', 'phone', 'date_of_birth_en', 'daate_of_birth_np', 'gender', 'bio', 'is_verified', 'is_seller', 'is_auction_allowed', 'seller_application_pending', 'status'])]
+#[Fillable(['name', 'email', 'password', 'username', 'google_id', 'avatar', 'phone', 'date_of_birth_en', 'daate_of_birth_np', 'gender', 'bio', 'is_verified', 'is_seller', 'is_auction_allowed', 'seller_application_pending', 'status', 'is_permanently_banned', 'permanent_ban_reason', 'permanently_banned_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -36,12 +36,29 @@ class User extends Authenticatable
             'is_seller' => 'boolean',
             'is_auction_allowed' => 'boolean',
             'seller_application_pending' => 'boolean',
+            'is_permanently_banned' => 'boolean',
+            'permanently_banned_at' => 'datetime',
         ];
     }
 
     public function documentImages(): HasMany
     {
         return $this->hasMany(DocumentImage::class);
+    }
+
+    public function damagePenalties(): HasMany
+    {
+        return $this->hasMany(DamagePenalty::class, 'seller_id');
+    }
+
+    public function damageStrikes(): HasMany
+    {
+        return $this->hasMany(SellerDamageStrike::class, 'seller_id');
+    }
+
+    public function warnings(): HasMany
+    {
+        return $this->hasMany(SellerWarning::class, 'seller_id')->latest();
     }
 
     public function products(): HasMany

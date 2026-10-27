@@ -26,7 +26,8 @@ class AuctionEnded implements ShouldBroadcastNow
     {
         return [
             'auction_id' => $this->auction->id,
-            'status' => $this->auction->status,
+            // Crosses into the JS frontend's JSON payload, so it needs the raw string.
+            'status' => $this->auction->status->value,
             'winner_id' => $this->auction->winner_id,
         ];
     }

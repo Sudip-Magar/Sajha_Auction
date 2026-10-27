@@ -43,6 +43,27 @@
             </div>
 
             <form wire:submit="submitApplication" class="space-y-6 p-6 sm:p-8">
+                @unless ($isSeller)
+                    <div class="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
+                                <x-icon name="o-shopping-bag" class="h-5 w-5 text-emerald-700" />
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-emerald-900">Also apply as seller</h4>
+                                <p class="mt-0.5 max-w-md text-[11px] font-medium text-emerald-700">
+                                    @if ($sellerApplicationPending)
+                                        Auction access requires seller access. Your seller request is already pending review, so this application will be approved once that is.
+                                    @else
+                                        Auction access requires seller access. Submitting this form will also send a seller access request for admin review - this cannot be turned off.
+                                    @endif
+                                </p>
+                            </div>
+                        </div>
+                        <x-toggle wire:model="requestSellerAccessToo" class="toggle-primary" checked disabled />
+                    </div>
+                @endunless
+
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 class="text-lg font-semibold text-gray-900">Document Table</h2>

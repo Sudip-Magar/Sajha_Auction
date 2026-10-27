@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\SellerDebt;
+use App\Enums\SellerDebtStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,7 +19,7 @@ class SellerDebtFactory extends Factory
             'amount' => 1000,
             'recovered_amount' => 0,
             'reason' => 'Buyer complaint upheld',
-            'status' => SellerDebt::STATUS_OUTSTANDING,
+            'status' => SellerDebtStatus::OUTSTANDING,
         ];
     }
 }

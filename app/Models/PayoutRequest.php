@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\PayoutPurpose;
+use App\Enums\PayoutRecipientRole;
+use App\Enums\PayoutStatus;
 use Database\Factories\PayoutRequestFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,19 +14,6 @@ class PayoutRequest extends Model
 {
     /** @use HasFactory<PayoutRequestFactory> */
     use HasFactory;
-
-    public const PURPOSE_SELLER_FORFEIT_SHARE = 'seller_forfeit_share';
-
-    public const PURPOSE_BUYER_REFUND = 'buyer_refund';
-
-    public const STATUS_AWAITING_DETAILS = 'awaiting_details';
-
-    public const STATUS_PENDING = 'pending';
-
-    public const STATUS_SENT = 'sent';
-
-    /** The seller's share was fully offset by debt, so nothing is transferred. */
-    public const STATUS_SETTLED = 'settled';
 
     protected $fillable = [
         'order_id',
@@ -43,6 +33,9 @@ class PayoutRequest extends Model
     protected $casts = [
         'amount' => 'float',
         'debt_deducted' => 'float',
+        'recipient_role' => PayoutRecipientRole::class,
+        'purpose' => PayoutPurpose::class,
+        'payout_status' => PayoutStatus::class,
         'details_submitted_at' => 'datetime',
         'sent_at' => 'datetime',
     ];
@@ -59,8 +52,6 @@ class PayoutRequest extends Model
 
     public function getPurposeLabelAttribute(): string
     {
-        return $this->purpose === self::PURPOSE_BUYER_REFUND
-            ? 'Refund to buyer'
-            : "Seller's share of the forfeited deposit";
+        return $this->purpose->label();
     }
 }

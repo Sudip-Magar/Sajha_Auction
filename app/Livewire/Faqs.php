@@ -7,11 +7,19 @@ use App\Models\FaqCategory;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
 class Faqs extends Component
 {
+    use WithPagination;
+
     public string $categoryFilter = '';
+
+    public function updatingCategoryFilter(): void
+    {
+        $this->resetPage();
+    }
 
     public function render(): View
     {
@@ -23,7 +31,7 @@ class Faqs extends Component
             })
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get();
+            ->paginate(15);
 
         return view('livewire.faqs', [
             'faqs' => $faqs,

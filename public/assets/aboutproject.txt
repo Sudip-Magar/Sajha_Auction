@@ -10,10 +10,16 @@ What's solid (verified, not stubs)
 - Auction → Order handoff — a winning bid genuinely creates a real order automatically.
 - The two bugs in my old notes are already fixed — the duplicate admins migration is gone, and the proxy-bid settlement mismatch was patched back on 2026-09-03. You can stop worrying about those.
 
-What's actually lacking, in priority order
+UPDATE: every item below is now marked (completed), including #1 and #5,
+which were the two still open when this file was last written. #1 in
+particular turned out to be the opposite of the situation described
+below by the time it was addressed — see the note under it.
+
+What's actually lacking, in priority order (all resolved - kept for
+history)
 
 1. No real payment gateway (biggest gap). Checkout lets buyers pick Khalti/eSewa/wallet, but nothing calls any gateway API — it just saves the string and sets the order to "pending." Only cash-on-meetup/delivery is functionally real. Right now the UI is making a promise it doesn't keep.
-→ Fix: either integrate a real Khalti/eSewa SDK (their APIs are well-documented, this is a bounded task), or remove those options from the UI until they're built — showing fake payment methods is worse than showing fewer real ones.
+→ Fix: either integrate a real Khalti/eSewa SDK (their APIs are well-documented, this is a bounded task), or remove those options from the UI until they're built — showing fake payment methods is worse than showing fewer real ones. (completed — and then some: checkout itself dropped Khalti/wallet entirely and is cash-on-meetup only, but a real eSewa ePay v2 sandbox integration was built for auction wins. It's a flexible online payment — the buyer chooses how much to pay within a minimum/maximum range, not just a fixed deposit — with signed callbacks, a double-verified status check, and a full payment_transactions ledger. It also grew a second use: a seller paying a damage penalty back through the same eSewa flow. See ESewaExplanation.txt and aboutSystem.txt for the full picture. One real remaining gap from that work: the payout-request flow (paying a buyer's refund or a seller's forfeit share) has its service logic and tests done, but no on-screen "submit payout details" / "mark sent" UI yet — it's currently a database-only step for whoever's tracking it.)
 
 ..2. No password reset. "Forgot Password?" is a dead href="#" — no route, component, or notification behind it at all.
 → Fix: standard Laravel password-reset flow (a Livewire component + Password::sendResetLink() + a reset-form page). Small, well-trodden task. (completed)
@@ -25,12 +31,16 @@ What's actually lacking, in priority order
 → Fix: add an OutbidNotification and fire it in AuctionEngineService::processBid when the leader changes. (completed)
 
 5. Auto-extend / anti-sniping is fake. Sellers configure timer_reset_seconds in the listing form, and the DB even has an extended_end_time column — but processBid() never reads or writes either. A bid in the last second does nothing; the auction still ends on schedule despite implying otherwise.
-→ Fix: in processBid(), if a bid lands within timer_reset_seconds of end_time, push end_time/extended_end_time out and broadcast the new time.
+→ Fix: in processBid(), if a bid lands within timer_reset_seconds of end_time, push end_time/extended_end_time out and broadcast the new time. (completed — processBid() now extends extended_end_time whenever a bid lands inside the reset window, and it only ever moves later, never earlier. See AlgorithmsExplanation.txt's anti-sniping section.)
 
 ..6. Two more "built but never routed" components (same pattern I already fixed for the homepage's live-auctions page): Bookmarks and MarketplaceProducts. Decide whether to wire them in or delete them — right now they're dead code. (completed)
 
-My recommendation
+Where things stand now
 
-Tackle in this order: #3 (auth gap) → #2 (password reset) → #1 (payment gateway) → #4/#5 (auction features) → #6 (cleanup). The first two are quick and close real trust/security holes; the payment gateway is the biggest chunk of work and the biggest thing standing between this and a real production launch.
-
-Want me to start on any of these? #3 and #2 are small enough to knock out right now if you want to keep going.
+The gaps this file originally tracked are closed. The project has since
+grown well past this list — a damage-penalty system, complaint chat
+between buyer and admin, seller warnings, a payout-request ledger, a
+"how does this work" AI assistant, and a meetup-scheduling step, none
+of which existed when this file was written. See aboutSystem.txt for
+the current full picture, and newUpate.txt for what (if anything) is
+still genuinely unfinished.

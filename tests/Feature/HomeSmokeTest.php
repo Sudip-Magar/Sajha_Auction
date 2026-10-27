@@ -35,7 +35,7 @@ test('home page renders for guests with products', function () {
         'sale_price' => 50000,
         'listing_type' => 'direct_seller',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
         'is_featured' => true,
         'is_trending' => true,
     ]);

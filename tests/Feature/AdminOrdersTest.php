@@ -1,5 +1,9 @@
 <?php
 
+use App\Enums\OrderCancellationReason;
+use App\Enums\OrderComplaintStatus;
+use App\Livewire\Admin\Dashboard as AdminDashboard;
+use App\Livewire\Admin\Orders as AdminOrders;
 use App\Models\Admin;
 use App\Models\Category;
 use App\Models\Order;
@@ -8,6 +12,7 @@ use App\Models\SubCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -36,7 +41,7 @@ function makeAdminOrdersTestOrder(User $buyer, User $seller, array $overrides = 
         'sale_price' => 50000,
         'listing_type' => 'direct_seller',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $order = Order::create(array_merge([
@@ -79,7 +84,7 @@ it('lists both direct-sell and auction orders with their status for admins', fun
         'status' => 'cancelled',
         'deposit_status' => 'refund_owed',
         'deposit_amount' => 5000,
-        'cancellation_reason_category' => 'defect_mismatch',
+        'cancellation_reason_category' => OrderCancellationReason::ITEM_DAMAGED,
     ]);
 
     $this->actingAs($admin, 'admin')
@@ -88,4 +93,51 @@ it('lists both direct-sell and auction orders with their status for admins', fun
         ->assertSee($directOrder->order_number)
         ->assertSee($auctionOrder->order_number)
         ->assertSee('Refund Owed');
+});
+
+it('filters the admin orders list down to just open complaints', function () {
+    $admin = Admin::query()->create([
+        'name' => 'Admin User', 'email' => 'admin@example.com', 'phone' => '9800000000',
+        'password' => 'password', 'status' => 'active',
+    ]);
+
+    $buyer = User::factory()->create();
+    $seller = User::factory()->create();
+
+    $complaintOrder = makeAdminOrdersTestOrder($buyer, $seller, [
+        'status' => 'cancelled',
+        'complaint_status' => OrderComplaintStatus::UNDER_REVIEW,
+        'cancellation_reason_category' => OrderCancellationReason::ITEM_DAMAGED,
+    ]);
+    $plainOrder = makeAdminOrdersTestOrder($buyer, $seller, ['status' => 'completed']);
+
+    $this->actingAs($admin, 'admin');
+
+    Livewire::test(AdminOrders::class)
+        ->set('statusFilter', 'open_complaints')
+        ->assertSee($complaintOrder->order_number)
+        ->assertDontSee($plainOrder->order_number)
+        ->assertViewHas('openComplaintsCount', 1);
+});
+
+it('surfaces complaints awaiting a verdict on the admin dashboard', function () {
+    $admin = Admin::query()->create([
+        'name' => 'Admin User', 'email' => 'admin@example.com', 'phone' => '9800000000',
+        'password' => 'password', 'status' => 'active',
+    ]);
+
+    $buyer = User::factory()->create();
+    $seller = User::factory()->create();
+
+    $complaintOrder = makeAdminOrdersTestOrder($buyer, $seller, [
+        'status' => 'cancelled',
+        'complaint_status' => OrderComplaintStatus::UNDER_REVIEW,
+        'cancellation_reason_category' => OrderCancellationReason::ITEM_DAMAGED,
+    ]);
+
+    $this->actingAs($admin, 'admin');
+
+    Livewire::test(AdminDashboard::class)
+        ->assertSee('Complaints Awaiting Your Verdict')
+        ->assertSee($complaintOrder->order_number);
 });

@@ -114,6 +114,20 @@ window.attachNepaliDatePickerFor = (element) => {
     window.DateSync.attach(nepali, english);
 };
 
+// Chrome/Firefox change a focused <input type="number">'s value when the
+// mouse wheel scrolls over it - a well-known footgun (the auction bid
+// amount field was the one reported, but every number input site-wide has
+// the same browser behavior: quantity fields, proxy max bid, admin forms,
+// etc.). Blurring it the moment a wheel event arrives stops the value from
+// changing; the page still scrolls normally afterwards since this never
+// calls preventDefault().
+document.addEventListener('wheel', () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement && active.type === 'number') {
+        active.blur();
+    }
+}, {passive: true});
+
 document.addEventListener('DOMContentLoaded', window.initializeNepaliDatePickers);
 document.addEventListener('livewire:navigated', window.initializeNepaliDatePickers);
 document.addEventListener('init-nepali-date-pickers', () => queueMicrotask(window.initializeNepaliDatePickers));

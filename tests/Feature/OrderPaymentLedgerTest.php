@@ -1,5 +1,14 @@
 <?php
 
+use App\Enums\OrderCancellationReason;
+use App\Enums\OrderComplaintStatus;
+use App\Enums\OrderDepositStatus;
+use App\Enums\PaymentTransactionParty;
+use App\Enums\PaymentTransactionStatus;
+use App\Enums\PaymentTransactionType;
+use App\Enums\PayoutRecipientRole;
+use App\Enums\PayoutStatus;
+use App\Enums\SellerDebtStatus;
 use App\Models\Admin;
 use App\Models\Category;
 use App\Models\Order;
@@ -8,11 +17,13 @@ use App\Models\Product;
 use App\Models\SellerDebt;
 use App\Models\SubCategory;
 use App\Models\User;
+use App\Notifications\ComplaintFiledNotification;
 use App\Services\EsewaPaymentService;
 use App\Services\OrderCancellationService;
 use App\Services\OrderPaymentService;
 use App\Services\SellerDebtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -24,7 +35,7 @@ function ledgerOrder(User $buyer, User $seller, float $total = 50000, float $pai
     $product = Product::create([
         'seller_id' => $seller->id, 'sub_category_id' => $sub->id, 'name' => 'Thing', 'description' => 'x',
         'condition' => 'like-new', 'quantity' => 1, 'sale_price' => $total, 'listing_type' => 'direct_seller',
-        'status' => 'active', 'is_approved' => true,
+        'status' => 'active', 'approval_status' => 'approved',
     ]);
 
     $order = Order::create([
@@ -65,7 +76,7 @@ test('an order paid in full online needs no cash at handover', function () {
     OrderPaymentService::complete($order->load('items.product'), $seller);
 
     expect($order->paidCash())->toBe(0.0)
-        ->and($order->transactions()->where('type', 'balance_paid_cash')->count())->toBe(0);
+        ->and($order->transactions()->where('type', PaymentTransactionType::BALANCE_PAID_CASH)->count())->toBe(0);
 });
 
 test('online payment range starts at the deposit minimum and is capped at the remaining total', function () {
@@ -96,7 +107,7 @@ test('a payment below the minimum deposit is rejected with the exact minimum', f
         ->get(route('payment.esewa.initiate', ['order' => $order, 'amount' => 20000]))
         ->assertOk();
 
-    expect((float) $order->transactions()->where('status', 'pending')->sum('amount'))->toBe(20000.0);
+    expect((float) $order->transactions()->where('status', PaymentTransactionStatus::PENDING)->sum('amount'))->toBe(20000.0);
 });
 
 test('changing your mind forfeits only the minimum deposit, split 80/20, and refunds the excess', function () {
@@ -104,85 +115,115 @@ test('changing your mind forfeits only the minimum deposit, split 80/20, and ref
     $seller = User::factory()->create();
     $order = ledgerOrder($buyer, $seller, 50000, 12000);
 
-    OrderCancellationService::cancel($order->load('items.product'), $buyer, 'changed_mind', null);
+    OrderCancellationService::cancel($order->load('items.product'), $buyer, OrderCancellationReason::CHANGED_MIND, null);
 
-    $forfeits = $order->transactions()->where('type', 'deposit_forfeited')->get();
+    $forfeits = $order->transactions()->where('type', PaymentTransactionType::DEPOSIT_FORFEITED)->get();
 
     expect((float) $forfeits->sum('amount'))->toBe(5000.0)
-        ->and((float) $forfeits->firstWhere('party', 'admin')->amount)->toBe(4000.0)
-        ->and((float) $forfeits->firstWhere('party', 'seller')->amount)->toBe(1000.0)
-        ->and((float) $order->transactions()->where('type', 'refund_issued')->sum('amount'))->toBe(7000.0)
-        ->and($order->fresh()->deposit_status)->toBe('forfeited')
-        ->and($order->payoutRequests()->where('recipient_role', 'seller')->first()->amount)->toBe(1000.0)
-        ->and($order->payoutRequests()->where('recipient_role', 'buyer')->first()->amount)->toBe(7000.0);
+        ->and((float) $forfeits->firstWhere('party', PaymentTransactionParty::ADMIN)->amount)->toBe(4000.0)
+        ->and((float) $forfeits->firstWhere('party', PaymentTransactionParty::SELLER)->amount)->toBe(1000.0)
+        ->and((float) $order->transactions()->where('type', PaymentTransactionType::REFUND_ISSUED)->sum('amount'))->toBe(7000.0)
+        ->and($order->fresh()->deposit_status)->toBe(OrderDepositStatus::FORFEITED)
+        ->and($order->payoutRequests()->where('recipient_role', PayoutRecipientRole::SELLER)->first()->amount)->toBe(1000.0)
+        ->and($order->payoutRequests()->where('recipient_role', PayoutRecipientRole::BUYER)->first()->amount)->toBe(7000.0);
 });
 
 test('a damaged-item complaint moves no money until the admin decides', function () {
     $order = ledgerOrder($buyer = User::factory()->create(), User::factory()->create(), 50000, 5000);
 
-    OrderCancellationService::cancel($order->load('items.product'), $buyer, 'item_damaged', 'cracked');
+    OrderCancellationService::cancel($order->load('items.product'), $buyer, OrderCancellationReason::ITEM_DAMAGED, 'cracked');
 
-    expect($order->fresh()->complaint_status)->toBe('under_review')
-        ->and($order->transactions()->whereIn('type', ['refund_issued', 'deposit_forfeited', 'debt_recorded'])->count())->toBe(0)
+    expect($order->fresh()->complaint_status)->toBe(OrderComplaintStatus::UNDER_REVIEW)
+        ->and($order->transactions()->whereIn('type', [PaymentTransactionType::REFUND_ISSUED, PaymentTransactionType::DEPOSIT_FORFEITED, PaymentTransactionType::DEBT_RECORDED])->count())->toBe(0)
         ->and(PayoutRequest::count())->toBe(0);
 });
 
-test('an upheld complaint refunds the buyer in full and records the seller debt of half the price', function () {
-    $order = ledgerOrder($buyer = User::factory()->create(), $seller = User::factory()->create(), 50000, 12000);
-    OrderCancellationService::cancel($order->load('items.product'), $buyer, 'not_as_described', null);
+test('filing a complaint notifies every admin, but a non-complaint cancellation does not', function () {
+    Notification::fake();
 
-    OrderCancellationService::resolveComplaint($order->fresh(), makeLedgerAdmin(), true, 'Photos confirm it');
+    $admin = makeLedgerAdmin();
+    $buyer = User::factory()->create();
 
-    $order->refresh();
+    $complaintOrder = ledgerOrder($buyer, User::factory()->create(), 50000, 5000);
+    OrderCancellationService::cancel($complaintOrder->load('items.product'), $buyer, OrderCancellationReason::ITEM_DAMAGED, 'cracked');
 
-    expect($order->complaint_status)->toBe('upheld')
-        ->and($order->deposit_status)->toBe('refund_owed')
-        ->and((float) $order->transactions()->where('type', 'refund_issued')->sum('amount'))->toBe(12000.0)
-        ->and(SellerDebtService::outstandingFor($seller))->toBe(25000.0)
-        ->and($order->payoutRequests()->where('recipient_role', 'buyer')->first()->amount)->toBe(37000.0);
+    Notification::assertSentTo($admin, ComplaintFiledNotification::class, fn ($n) => $n->order->id === $complaintOrder->id);
+
+    $plainOrder = ledgerOrder($buyer, User::factory()->create(), 50000, 5000);
+    OrderCancellationService::cancel($plainOrder->load('items.product'), $buyer, OrderCancellationReason::CHANGED_MIND, null);
+
+    Notification::assertNotSentTo($admin, ComplaintFiledNotification::class, fn ($n) => $n->order->id === $plainOrder->id);
 });
 
-test('a rejected complaint falls back to the 80/20 forfeit rule', function () {
-    $order = ledgerOrder($buyer = User::factory()->create(), User::factory()->create(), 50000, 5000);
-    OrderCancellationService::cancel($order->load('items.product'), $buyer, 'documents_missing', null);
+test('a confirmed-damaged verdict refunds the buyer in full, revokes the seller and issues a 30% penalty', function () {
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $order = ledgerOrder($buyer = User::factory()->create(), $seller, 50000, 12000);
+    OrderCancellationService::cancel($order->load('items.product'), $buyer, OrderCancellationReason::NOT_AS_DESCRIBED, null);
 
-    OrderCancellationService::resolveComplaint($order->fresh(), makeLedgerAdmin(), false, 'Documents were provided');
+    $penalty = OrderCancellationService::recordDamageVerdict($order->fresh(), makeLedgerAdmin(), true, 'Photos confirm it');
 
-    expect($order->fresh()->deposit_status)->toBe('forfeited')
-        ->and((float) $order->transactions()->where('type', 'deposit_forfeited')->sum('amount'))->toBe(5000.0)
+    $order->refresh();
+    $seller->refresh();
+
+    expect($order->complaint_status)->toBe(OrderComplaintStatus::CONFIRMED_DAMAGED)
+        ->and($order->deposit_status)->toBe(OrderDepositStatus::REFUND_OWED)
+        ->and((float) $order->transactions()->where('type', PaymentTransactionType::REFUND_ISSUED)->sum('amount'))->toBe(12000.0)
+        ->and($order->payoutRequests()->where('recipient_role', PayoutRecipientRole::BUYER)->first()->amount)->toBe(12000.0)
+        ->and($seller->is_seller)->toBeFalse()
+        ->and($seller->is_auction_allowed)->toBeFalse()
+        ->and($penalty->amount)->toBe(15000.0)
+        ->and($penalty->prior_is_seller)->toBeTrue()
+        ->and($penalty->prior_is_auction_allowed)->toBeTrue()
+        ->and(SellerDebt::count())->toBe(0);
+});
+
+test('a not-damaged verdict falls back to the 80/20 forfeit rule and leaves the seller untouched', function () {
+    $seller = User::factory()->create(['is_seller' => true, 'is_auction_allowed' => true]);
+    $order = ledgerOrder($buyer = User::factory()->create(), $seller, 50000, 5000);
+    OrderCancellationService::cancel($order->load('items.product'), $buyer, OrderCancellationReason::DOCUMENTS_MISSING, null);
+
+    OrderCancellationService::recordDamageVerdict($order->fresh(), makeLedgerAdmin(), false, 'Documents were provided');
+
+    expect($order->fresh()->deposit_status)->toBe(OrderDepositStatus::FORFEITED)
+        ->and((float) $order->transactions()->where('type', PaymentTransactionType::DEPOSIT_FORFEITED)->sum('amount'))->toBe(5000.0)
+        ->and($seller->fresh()->is_seller)->toBeTrue()
         ->and(SellerDebt::count())->toBe(0);
 });
 
 test('outstanding debt is deducted from the seller share of a forfeited deposit', function () {
     $seller = User::factory()->create();
     $earlier = ledgerOrder(User::factory()->create(), $seller, 50000, 5000);
-    SellerDebtService::record($earlier, 'test');
+    // Debt is seeded directly - nothing in the app creates a SellerDebt row
+    // anymore (DamagePenaltyService's direct seller-pays-admin flow
+    // superseded the old record()-based one), but recoverFromPayout() still
+    // has to correctly deduct from whatever debt already exists.
+    $debt = SellerDebt::factory()->create(['seller_id' => $seller->id, 'related_order_id' => $earlier->id, 'amount' => 25000]);
 
     $order = ledgerOrder($buyer = User::factory()->create(), $seller, 50000, 5000);
-    OrderCancellationService::cancel($order->load('items.product'), $buyer, 'changed_mind', null);
+    OrderCancellationService::cancel($order->load('items.product'), $buyer, OrderCancellationReason::CHANGED_MIND, null);
 
-    $payout = $order->payoutRequests()->where('recipient_role', 'seller')->first();
+    $payout = $order->payoutRequests()->where('recipient_role', PayoutRecipientRole::SELLER)->first();
 
     // The seller share is Rs. 1,000, wholly swallowed by the Rs. 25,000 debt: nothing to transfer.
     expect($payout->amount)->toBe(0.0)
         ->and($payout->debt_deducted)->toBe(1000.0)
-        ->and($payout->payout_status)->toBe(PayoutRequest::STATUS_SETTLED)
-        ->and(SellerDebtService::outstandingFor($seller))->toBe(24000.0)
-        ->and((float) $earlier->transactions()->where('type', 'debt_recovered')->sum('amount'))->toBe(1000.0);
+        ->and($payout->payout_status)->toBe(PayoutStatus::SETTLED)
+        ->and($debt->fresh()->remaining)->toBe(24000.0)
+        ->and((float) $earlier->transactions()->where('type', PaymentTransactionType::DEBT_RECOVERED)->sum('amount'))->toBe(1000.0);
 });
 
 test('a payout larger than the debt clears it and pays the difference', function () {
     $seller = User::factory()->create();
     $debtOrder = ledgerOrder(User::factory()->create(), $seller, 1000, 100);
-    SellerDebtService::record($debtOrder, 'small');
+    $debt = SellerDebt::factory()->create(['seller_id' => $seller->id, 'related_order_id' => $debtOrder->id, 'amount' => 500]);
 
     $order = ledgerOrder(User::factory()->create(), $seller, 50000, 5000);
 
     $deducted = SellerDebtService::recoverFromPayout($seller, 1000, $order);
 
     expect($deducted)->toBe(500.0)
-        ->and(SellerDebtService::outstandingFor($seller))->toBe(0.0)
-        ->and(SellerDebt::first()->status)->toBe('recovered');
+        ->and($debt->fresh()->remaining)->toBe(0.0)
+        ->and($debt->fresh()->status)->toBe(SellerDebtStatus::RECOVERED);
 });
 
 test('the recipient submits payout details and the admin marks the transfer sent', function () {
@@ -195,6 +236,6 @@ test('the recipient submits payout details and the admin marks the transfer sent
         ->and(OrderPaymentService::submitPayoutDetails($payout, $buyer, 'Buyer B', '9800000001', null))->toBeTrue()
         ->and(OrderPaymentService::markSent($payout->fresh(), makeLedgerAdmin()))->toBeTrue();
 
-    expect($payout->fresh()->payout_status)->toBe('sent')
-        ->and((float) $order->transactions()->where('type', 'payout_sent')->sum('amount'))->toBe(5000.0);
+    expect($payout->fresh()->payout_status)->toBe(PayoutStatus::SENT)
+        ->and((float) $order->transactions()->where('type', PaymentTransactionType::PAYOUT_SENT)->sum('amount'))->toBe(5000.0);
 });

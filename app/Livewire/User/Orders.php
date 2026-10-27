@@ -2,20 +2,27 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\OrderDepositStatus;
 use App\Models\Order;
 use App\Services\OrderPaymentService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
 #[Layout('layouts.app')]
 class Orders extends Component
 {
-    use Toast;
+    use Toast, WithPagination;
 
     public string $tab = 'purchases';
+
+    public ?int $confirmingCompleteOrderId = null;
+
+    public bool $showCompleteConfirm = false;
 
     public function mount(): void
     {
@@ -24,6 +31,24 @@ class Orders extends Component
         } elseif (session()->has('esewa_error')) {
             $this->error(session('esewa_error'));
         }
+    }
+
+    public function requestMarkCompleted(int $orderId): void
+    {
+        $this->confirmingCompleteOrderId = $orderId;
+        $this->showCompleteConfirm = true;
+    }
+
+    public function confirmMarkCompleted(): void
+    {
+        $this->showCompleteConfirm = false;
+
+        if ($this->confirmingCompleteOrderId === null) {
+            return;
+        }
+
+        $this->updateOrderStatus($this->confirmingCompleteOrderId, 'completed');
+        $this->confirmingCompleteOrderId = null;
     }
 
     public function updateOrderStatus(int $orderId, string $status): void
@@ -58,6 +83,32 @@ class Orders extends Component
             return;
         }
 
+        // Same precondition as OrderDetail::updateOrderStatus(): an auction
+        // win isn't ready to confirm until the buyer has paid at least the
+        // minimum deposit via eSewa and scheduled a meetup.
+        if ($status === 'confirmed' && $order->auction_id) {
+            if ($order->deposit_status !== OrderDepositStatus::PAID) {
+                $this->error('You cannot confirm this order yet - the buyer has not paid the auction deposit via eSewa.');
+
+                return;
+            }
+
+            if (! $order->meetup_time) {
+                $this->error('You cannot confirm this order yet - the buyer has not scheduled a meetup location, date, and time.');
+
+                return;
+            }
+        }
+
+        // The handover can't be marked done before the meetup it describes
+        // has actually happened - applies to every order, auction or
+        // direct-sell, see Order::meetupDateHasArrived().
+        if ($status === 'completed' && ! $order->meetupDateHasArrived()) {
+            $this->error('You can mark this order completed once the scheduled meetup date arrives.');
+
+            return;
+        }
+
         if ($status === 'completed') {
             OrderPaymentService::complete($order, $user);
         } elseif ($status === 'confirmed') {
@@ -80,18 +131,20 @@ class Orders extends Component
     {
         $user = Auth::user();
         if (! $user) {
-            $purchases = collect();
-            $sales = collect();
+            $purchases = new LengthAwarePaginator(collect(), 0, 10);
+            $sales = new LengthAwarePaginator(collect(), 0, 10);
         } else {
+            // Each tab paginates independently, with its own page query-string
+            // parameter, so switching tabs doesn't reset the other tab's page.
             $purchases = Order::where('buyer_id', $user->id)
                 ->with(['items.product.images', 'seller', 'buyer'])
                 ->latest()
-                ->get();
+                ->paginate(10, pageName: 'purchases-page');
 
             $sales = Order::where('seller_id', $user->id)
                 ->with(['items.product.images', 'seller', 'buyer'])
                 ->latest()
-                ->get();
+                ->paginate(10, pageName: 'sales-page');
         }
 
         return view('livewire.user.orders', [

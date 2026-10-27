@@ -49,7 +49,7 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_420px] gap-4">
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,420px)] gap-4">
         <div class="space-y-4">
             <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div class="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
@@ -168,7 +168,15 @@
 
                                 <div class="flex items-center gap-2 shrink-0">
                                     <x-badge :value="$product->status_label" :class="$product->status === 'active' ? 'badge-success' : 'badge-warning'" class="text-[10px] font-bold uppercase tracking-wider" />
-                                    <x-badge :value="$product->is_approved ? 'Approved' : 'Pending'" :class="$product->is_approved ? 'badge-info' : 'badge-warning'" class="text-[10px] font-bold uppercase tracking-wider" />
+                                    @php
+                                        $productBadgeClass = match($product->approval_status) {
+                                            \App\Enums\ProductApprovalStatus::APPROVED => 'badge-info',
+                                            \App\Enums\ProductApprovalStatus::REJECTED => 'badge-error',
+                                            \App\Enums\ProductApprovalStatus::CORRECTION => 'badge-warning',
+                                            default => 'badge-ghost',
+                                        };
+                                    @endphp
+                                    <x-badge :value="$product->approval_status->label()" :class="$productBadgeClass" class="text-[10px] font-bold uppercase tracking-wider" />
                                 </div>
                             </div>
                         @endforeach
@@ -202,6 +210,26 @@
                         <p class="mt-2 text-sm font-black text-gray-900">{{ $user->is_auction_allowed ? 'User can join auctions.' : 'User cannot join auctions.' }}</p>
                     </div>
 
+                    <div class="rounded-xl bg-[#f5f2ea] p-4">
+                        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Damage Strikes</p>
+                        <p class="mt-2 text-sm font-black text-gray-900">{{ $user->damageStrikes()->count() }} / 3</p>
+                        @if($user->is_permanently_banned)
+                            <span class="inline-block mt-2 rounded-full bg-gray-900 text-white px-3 py-1 text-[10px] font-extrabold uppercase">
+                                Permanently Banned — {{ str($user->permanent_ban_reason)->replace('_', ' ')->title() }}
+                            </span>
+                        @endif
+                        @if($user->damagePenalties->isNotEmpty())
+                            <ul class="mt-3 space-y-1">
+                                @foreach($user->damagePenalties as $penalty)
+                                    <li class="text-xs text-gray-500 flex items-center justify-between">
+                                        <span>Order #{{ $penalty->order->order_number }}</span>
+                                        <span class="font-bold {{ $penalty->status === \App\Enums\DamagePenaltyStatus::EXPIRED ? 'text-rose-600' : ($penalty->status === \App\Enums\DamagePenaltyStatus::PAID ? 'text-emerald-600' : 'text-amber-600') }}">{{ $penalty->status->label() }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+
                     <div class="border-t border-gray-200 pt-4 space-y-3">
                         <x-button
                             :label="$user->isActiveStatus() ? 'Set Inactive' : 'Set Active'"
@@ -226,7 +254,47 @@
                             wire:click="toggleAuctionAccess"
                             spinner="toggleAuctionAccess"
                         />
+
+                        <x-button
+                            label="Send Warning"
+                            icon="o-exclamation-triangle"
+                            class="btn-outline btn-warning w-full rounded-xl"
+                            wire:click="toggleWarningForm"
+                        />
+
+                        @if($showWarningForm)
+                            <div class="rounded-xl border border-amber-200 p-3 space-y-3">
+                                <x-textarea label="Warning Reason" wire:model="warningReason" placeholder="Explain what needs to change..." rows="3" />
+                                <x-button label="Send Warning" class="btn-warning btn-sm w-full rounded-xl" wire:click="sendWarning" spinner="sendWarning" />
+                            </div>
+                        @endif
                     </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+                    <div class="w-1 h-5 rounded-full bg-[#2FA084]"></div>
+                    <p class="text-xs font-black uppercase tracking-wider text-gray-800">Warning History ({{ $user->warnings->count() }})</p>
+                </div>
+                <div class="p-4">
+                    @if($user->warnings->isEmpty())
+                        <p class="text-xs text-gray-400">No warnings issued.</p>
+                    @else
+                        <ul class="space-y-3">
+                            @foreach($user->warnings as $warning)
+                                <li class="rounded-xl bg-amber-50 border border-amber-100 p-3">
+                                    <p class="text-xs text-gray-800">{{ $warning->reason }}</p>
+                                    <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                                        {{ $warning->admin?->name ?? 'Admin' }} · {{ $warning->created_at->format('M d, Y @ h:i A') }}
+                                        @if($warning->product_id)
+                                            · Re: {{ $warning->product?->name ?? 'a product' }}
+                                        @endif
+                                    </p>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
                 </div>
             </div>
 

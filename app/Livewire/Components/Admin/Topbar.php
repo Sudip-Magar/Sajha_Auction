@@ -59,6 +59,14 @@ class Topbar extends Component
             return $this->redirect(route('admin.products'), navigate: true);
         }
 
+        if ($type === 'App\Notifications\OrderCompletedAdminNotification' || $type === 'App\Notifications\OrderCancelledAdminNotification') {
+            $orderId = $notification->data['order_id'] ?? null;
+
+            return $orderId
+                ? $this->redirect(route('admin.orders.show', $orderId), navigate: true)
+                : $this->redirect(route('admin.orders'), navigate: true);
+        }
+
         if ($type === 'App\Notifications\AuctionApplicationSubmittedNotification') {
             $userId = $notification->data['user_id'] ?? null;
 

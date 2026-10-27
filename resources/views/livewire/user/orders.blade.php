@@ -12,7 +12,7 @@
             </div>
 
             {{-- Tabs --}}
-            <div class="mt-4 sm:mt-0 flex rounded-2xl bg-gray-200/60 p-1 dark:bg-gray-800">
+            <div class="mt-4 sm:mt-0 flex flex-wrap gap-1 rounded-2xl bg-gray-200/60 p-1 dark:bg-gray-800">
                 <button type="button"
                         wire:click="$set('tab', 'purchases')"
                         @class([
@@ -20,7 +20,7 @@
                             'bg-white text-gray-900 shadow-sm dark:bg-[#181A1F] dark:text-white' => $tab === 'purchases',
                             'text-gray-600 hover:text-gray-900 dark:text-gray-400' => $tab !== 'purchases'
                         ])>
-                    My Purchases ({{ $purchases->count() }})
+                    My Purchases ({{ $purchases->total() }})
                 </button>
                 <button type="button"
                         wire:click="$set('tab', 'sales')"
@@ -29,7 +29,7 @@
                             'bg-white text-gray-900 shadow-sm dark:bg-[#181A1F] dark:text-white' => $tab === 'sales',
                             'text-gray-600 hover:text-gray-900 dark:text-gray-400' => $tab !== 'sales'
                         ])>
-                    My Sales / Incoming Orders ({{ $sales->count() }})
+                    My Sales / Incoming Orders ({{ $sales->total() }})
                 </button>
             </div>
         </div>
@@ -63,7 +63,7 @@
                         {{-- Header Info --}}
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
                             <div>
-                                <div class="flex items-center gap-3">
+                                <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
                                     <span class="font-black text-base text-gray-900 dark:text-white">
                                         Order #{{ $order->order_number }}
                                     </span>
@@ -163,17 +163,17 @@
 
                             <div>
                                 <p class="font-bold text-emerald-950 dark:text-emerald-300">
-                                    Payment: {{ $order->payment_method_label }} ({{ str($order->payment_status)->title() }})
+                                    Payment: {{ $order->payment_method_label }} ({{ $order->payment_status?->label() ?? 'Pending' }})
                                 </p>
                                 <p class="mt-1 font-black text-sm text-emerald-950 dark:text-emerald-200">
                                     Total: Rs {{ number_format($order->total_amount) }}
                                 </p>
-                                @if($order->deposit_status !== 'not_required')
+                                @if($order->deposit_status !== \App\Enums\OrderDepositStatus::NOT_REQUIRED)
                                     @php
                                         $depositBadge = match($order->deposit_status) {
-                                            'paid' => ['Deposit Paid', 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300'],
-                                            'refund_owed' => ['Refund Owed', 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300'],
-                                            'forfeited' => ['Deposit Forfeited', 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300'],
+                                            \App\Enums\OrderDepositStatus::PAID => ['Deposit Paid', 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300'],
+                                            \App\Enums\OrderDepositStatus::REFUND_OWED => ['Refund Owed', 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300'],
+                                            \App\Enums\OrderDepositStatus::FORFEITED => ['Deposit Forfeited', 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300'],
                                             default => ['Deposit Pending', 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'],
                                         };
                                     @endphp
@@ -193,30 +193,122 @@
                             </a>
 
                             <div class="flex items-center gap-2">
-                                @if($order->status === 'pending')
-                                    @if($tab === 'sales')
+                                @if($order->status === 'pending' && $tab === 'sales')
+                                    @php
+                                        // Same gate as OrderDetail::updateOrderStatus() /
+                                        // Orders::updateOrderStatus(): an auction win isn't
+                                        // ready to confirm until the buyer has paid the
+                                        // deposit and scheduled a meetup.
+                                        $depositMissing = $order->auction_id && $order->deposit_status !== \App\Enums\OrderDepositStatus::PAID;
+                                        $meetupMissing = $order->auction_id && ! $order->meetup_time;
+                                        $notReadyToConfirm = $depositMissing || $meetupMissing;
+                                    @endphp
+                                    <div>
                                         <button type="button"
                                                 wire:click="updateOrderStatus({{ $order->id }}, 'confirmed')"
-                                                class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
+                                                @disabled($notReadyToConfirm)
+                                                title="{{ $notReadyToConfirm ? 'Waiting on the buyer to finish first.' : '' }}"
+                                                class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                                             Confirm Order
                                         </button>
-                                    @endif
-                                    <a href="{{ route('user.orders.show', $order->id) }}" wire:navigate
-                                       class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
-                                        Cancel Order
-                                    </a>
-                                @elseif($order->status === 'confirmed' || $order->status === 'meetup_scheduled')
-                                    <button type="button"
-                                            wire:click="updateOrderStatus({{ $order->id }}, 'completed')"
-                                            class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
-                                        Mark Completed & Handed Over
-                                    </button>
+                                        @if($notReadyToConfirm)
+                                            <p class="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 max-w-[10rem]">
+                                                Waiting on buyer:
+                                                @if($depositMissing) deposit unpaid @endif
+                                                @if($depositMissing && $meetupMissing) &middot; @endif
+                                                @if($meetupMissing) no meetup yet @endif
+                                            </p>
+                                        @endif
+                                    </div>
+                                @elseif(($order->status === 'confirmed' || $order->status === 'meetup_scheduled') && $tab === 'sales')
+                                    @php
+                                        // Same gate as OrderDetail::updateOrderStatus() /
+                                        // Orders::updateOrderStatus(): the handover can't be
+                                        // marked done before the meetup it describes has
+                                        // actually happened. See Order::meetupDateHasArrived().
+                                        $meetupNotYetDue = ! $order->meetupDateHasArrived();
+                                    @endphp
+                                    <div>
+                                        <button type="button"
+                                                wire:click="requestMarkCompleted({{ $order->id }})"
+                                                @disabled($meetupNotYetDue)
+                                                title="{{ $meetupNotYetDue ? 'Available once the meetup date arrives.' : '' }}"
+                                                class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            Mark Completed & Handed Over
+                                        </button>
+                                        @if($meetupNotYetDue)
+                                            <p class="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 max-w-[10rem]">
+                                                @if($order->meetup_time)
+                                                    Available from {{ $order->meetup_time->format('M d, Y') }}.
+                                                @else
+                                                    Waiting on a meetup date to be scheduled.
+                                                @endif
+                                            </p>
+                                        @endif
+                                    </div>
+                                @endif
+
+                                {{-- Cancelling is available for either side at any point before
+                                     completion, not just while still pending - this used to
+                                     disappear the moment a seller confirmed the order (or the
+                                     buyer scheduled a meetup), even though the order detail page
+                                     never had that restriction. Matches OrderDetail's own guard.
+                                     Exception: a won auction is a binding sale, so the seller
+                                     ($tab === 'sales' here always means the viewer is the
+                                     seller) never gets this option for one - only the buyer can
+                                     cancel it. --}}
+                                @if(! in_array($order->status, ['completed', 'cancelled'], true) && ! ($order->auction_id && $tab === 'sales'))
+                                    @php
+                                        // Same gate as OrderDetail::toggleCancelForm() /
+                                        // confirmCancel(): cancelling a won auction is reserved
+                                        // for a genuine complaint about the item, which can only
+                                        // be raised once the meetup it would have been received
+                                        // at has actually happened. Direct-sell orders are
+                                        // unaffected. See Order::meetupDateHasArrived().
+                                        $isAuctionBuyer = $order->auction_id && $tab === 'purchases';
+                                        $cancelNotYetAvailable = $isAuctionBuyer && ! $order->meetupDateHasArrived();
+                                    @endphp
+                                    <div>
+                                        @if($cancelNotYetAvailable)
+                                            <span title="Available once the meetup date arrives."
+                                                  class="inline-block cursor-not-allowed rounded-xl bg-rose-100/50 px-3 py-2 text-xs font-bold text-rose-700/50 dark:bg-rose-950/50 dark:text-rose-300/50">
+                                                Cancel Order
+                                            </span>
+                                            <p class="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 max-w-[10rem]">
+                                                @if($order->meetup_time)
+                                                    Available from {{ $order->meetup_time->format('M d, Y') }}.
+                                                @else
+                                                    Waiting on a meetup date to be scheduled.
+                                                @endif
+                                            </p>
+                                        @else
+                                            <a href="{{ route('user.orders.show', $order->id) }}" wire:navigate
+                                               class="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300">
+                                                Cancel Order
+                                            </a>
+                                        @endif
+                                    </div>
                                 @endif
                             </div>
                         </div>
                     </div>
                 @endforeach
             </div>
+
+            <div class="mt-6">
+                {{ $currentOrders->links() }}
+            </div>
         @endif
     </div>
+
+    {{-- Mark Completed Confirmation --}}
+    <x-modal wire:model="showCompleteConfirm" title="Confirm Handover" separator class="backdrop-blur-sm">
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+            This finalizes the order: stock is updated, the product is marked sold, and any remaining balance is recorded as paid in cash. This cannot be undone. Are you sure the item has been handed over?
+        </p>
+        <x-slot:actions>
+            <x-button label="Cancel" wire:click="$set('showCompleteConfirm', false)" class="rounded-xl" />
+            <x-button label="Confirm" wire:click="confirmMarkCompleted" class="btn-primary rounded-xl" spinner="confirmMarkCompleted" />
+        </x-slot:actions>
+    </x-modal>
 </div>

@@ -65,6 +65,10 @@
                     </div>
                 @endforeach
             </div>
+
+            <div class="mt-8">
+                {{ $faqs->links() }}
+            </div>
         @else
             <div class="rounded-2xl border border-dashed border-gray-200 bg-white p-12 text-center dark:border-gray-800 dark:bg-[#181A1F]">
                 <x-icon name="o-question-mark-circle" class="w-12 h-12 text-gray-200 mx-auto mb-4 dark:text-gray-700" />

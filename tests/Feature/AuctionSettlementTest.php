@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AuctionStatus;
 use App\Events\AuctionEnded;
 use App\Livewire\User\AuctionDetail;
 use App\Models\Auction;
@@ -35,7 +36,7 @@ function makeLiveAuction(int $endsInSeconds = 60, float $reserve = 1000): Auctio
         'quantity' => 1,
         'listing_type' => 'auction',
         'status' => 'active',
-        'is_approved' => true,
+        'approval_status' => 'approved',
     ]);
 
     $auction = Auction::create([
@@ -81,7 +82,7 @@ test('the countdown can settle an auction the moment its time is up and the page
         ->assertSee('Winning Wanda')
         ->assertDontSee('Item Unsold');
 
-    expect($auction->fresh()->status)->toBe('completed')
+    expect($auction->fresh()->status)->toBe(AuctionStatus::COMPLETED)
         ->and($auction->fresh()->winner_id)->toBe($winner->id)
         ->and(Order::count())->toBe(1);
 
@@ -103,7 +104,7 @@ test('an auction with no admissible bid is announced as unsold without a refresh
 
     $component->call('finalizeIfEnded')->assertSee('Item Unsold');
 
-    expect($auction->fresh()->status)->toBe('ended_unsold')
+    expect($auction->fresh()->status)->toBe(AuctionStatus::ENDED_UNSOLD)
         ->and(Order::count())->toBe(0);
 });
 
@@ -113,7 +114,7 @@ test('time being up is not the same as being settled', function () {
     expect($auction->isEnded())->toBeTrue()
         ->and($auction->isSettled())->toBeFalse();
 
-    $auction->update(['status' => 'completed']);
+    $auction->update(['status' => AuctionStatus::COMPLETED]);
 
     expect($auction->fresh()->isSettled())->toBeTrue();
 });
@@ -143,7 +144,7 @@ test('a stale copy is not settled after a late bid extended the deadline', funct
     Auction::whereKey($auction->id)->update(['extended_end_time' => now()->addSeconds(15)]);
 
     expect(AuctionEngineService::checkAndFinalizeIfExpired($stale))->toBeFalse()
-        ->and($auction->fresh()->status)->toBe('active');
+        ->and($auction->fresh()->status)->toBe(AuctionStatus::ACTIVE);
 });
 
 test('when two bidders have the same proxy ceiling the one who registered it first wins, matching the live leader', function () {

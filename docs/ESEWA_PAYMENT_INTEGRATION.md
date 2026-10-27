@@ -278,3 +278,82 @@ Three follow-up items decided after reviewing what was still open:
 No new environment variables or setup steps for any of these — just
 `php artisan migrate` isn't even needed (no schema changes), the admin page uses columns
 that already existed from sections 3 and 7 above.
+
+---
+
+## 9. Damage penalties, complaint chat, seller warnings, and meetup scheduling (2026-09-22)
+
+**Problem this solves:** section 7 covers the ordinary refund/forfeit path, but it
+never addressed what happens when a buyer's complaint is actually **confirmed**
+damaged — the seller had genuinely sent a broken or misrepresented item. There was
+also no way for a buyer to schedule a meetup after winning an auction (the order is
+created automatically, with no checkout step to collect it), no way for the buyer
+and an admin to coordinate about an open complaint, no way for an admin to warn a
+seller short of a full damage verdict, and — the actual bug that started this session
+— **no notification told an admin a complaint had even been filed.**
+
+### Damage penalties (seller pays a direct eSewa penalty)
+
+`App\Services\DamagePenaltyService` and the `DamagePenalty`/`SellerDamageStrike`
+models already existed going into this session. A confirmed-damaged verdict
+(`OrderCancellationService::recordDamageVerdict()`) does three things: refunds the
+buyer in full, immediately suspends the seller's account (seller **and** auction
+access), and issues a separate penalty — 30% of the order total
+(`ESEWA_DAMAGE_PENALTY_PERCENTAGE`) due within 7 days
+(`ESEWA_DAMAGE_PENALTY_DAYS`). This session added:
+
+| File | What it does |
+|---|---|
+| `app/Mail/DamagePenaltyIssuedMail.php` + `resources/views/emails/damage-penalty-issued.blade.php` | Queued email to the seller with the amount, due date, and a direct "Pay Penalty Now" link — the only place this link existed before was a database notification, with no page to view it from. |
+| `app/Livewire/User/PenaltiesAndWarnings.php` + `resources/views/livewire/user/penalties-and-warnings.blade.php` (`/my-penalties`) | The seller's own page listing every damage penalty (pending/paid/expired, with a pay button while pending) and every warning ever issued. Deliberately not gated behind `is_seller`, since a confirmed-damaged verdict revokes that flag — this is the one page besides the email that stays reachable after access is suspended. |
+| `app/Livewire/Components/User/Navbar.php` + `navbar.blade.php` | While a penalty is unpaid, the navbar's seller/auction menu items (which used to show a stale "Seller Request Pending"/"Join Auction" as if nothing had happened) are replaced with a direct "Pay Damage Penalty" link; once resolved but with history, a plain "Penalties & Warnings" link stays. Clicking the penalty/warning notification in the bell dropdown now also routes here. |
+| `DamagePenaltyService::issue()` | Fixed a real bug: it now also clears `seller_application_pending`, and a second penalty issued while a first is still unresolved correctly keeps the seller's *true* prior access state instead of snapshotting the already-revoked one. `restoreAccess()` now also refuses while any other penalty is still unpaid. |
+| `recordPayment()`/`expireOverdue()` | Both re-check the penalty's status under a row lock immediately before writing, so a duplicated/replayed eSewa callback (or a payment racing the scheduled expiry job) can't double-process the same payment or overwrite a just-paid penalty back to expired. |
+
+### Seller warnings (lighter-weight than a damage penalty)
+
+**New:** `seller_warnings` table/model (`seller_id`, `admin_id`, an optional
+`product_id` when issued from a specific listing, `reason`). An admin can send one
+from a product's detail page or from the seller's profile page; every warning shows
+up on that seller's "Penalties & Warnings" page. `SellerWarningIssuedNotification`
+follows the same notify pattern as everything else here.
+
+### Complaint chat (admin ↔ buyer)
+
+**New:** `complaint_messages` table/model (`order_id`, `sender_role` + `sender_id` —
+a loose party tag the same way `payment_transactions.party` already worked, since
+one column can't foreign-key to both `admins` and `users`, `body`). Visible on both
+the buyer's order page and the admin's order page whenever `complaint_status` is
+set, polling every 5 seconds. `ComplaintFiledNotification` now also fires to every
+admin the moment `complaint_status` is set to `under_review` — this was the actual
+bug: every other step in this flow (a verdict, a penalty, a chat message) already
+notified someone, but filing the complaint itself never did.
+
+### Admin visibility for open complaints
+
+Before this session, an open complaint had no way to be *discovered* short of
+scrolling the full orders list and spotting a small badge:
+
+- The admin orders list's status filter now has an "Open Complaints" option
+  (`Admin/Orders.php`), plus a 5th stat card that jumps straight to that filter.
+- The admin dashboard has a new "Complaints Awaiting Your Verdict" section, styled
+  identically to the existing "Legal Action Required" one.
+
+### Meetup scheduling for auction wins
+
+An auction-win order is created automatically with no checkout step, so
+`meetup_location` defaulted from the product and `meetup_time` was simply never
+set — the order page showed "Not scheduled yet" forever with no way to change that.
+`OrderDetail.php`/`order-detail.blade.php` now has a "Schedule Meetup" (or "Edit
+Meetup Details") action, reusing the same Nepali/English date-picker pair already
+used at checkout; the seller is notified (`MeetupScheduledNotification`) when it's
+set or changed.
+
+### Setup impact
+
+No new environment variables. Three new migrations (`create_damage_penalty_tables`,
+`create_complaint_messages_table`, `create_seller_warnings_table`) — just
+`php artisan migrate` as usual. One casing-fix migration
+(`normalize_product_approval_status_casing`) exists purely to correct a few rows
+that had drifted to the wrong case before a column was cast to a native PHP enum;
+it's idempotent and a no-op on a fresh install.

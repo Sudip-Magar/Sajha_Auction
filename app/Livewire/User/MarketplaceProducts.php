@@ -18,7 +18,7 @@ class MarketplaceProducts extends Component
     {
         $products = Product::with(['category', 'images', 'user'])
             ->where('listing_type', ProductSaleType::DIRECT_SELLER->value)
-            ->where('is_approved', true)
+            ->approved()
             ->where('status', 'active')
             ->latest()
             ->paginate(12);

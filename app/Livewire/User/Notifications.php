@@ -59,7 +59,8 @@ class Notifications extends Component
     {
         return match ($notification->type) {
             'App\Notifications\SellerApprovedNotification',
-            'App\Notifications\ProductApprovedNotification' => route('user.products'),
+            'App\Notifications\ProductApprovedNotification',
+            'App\Notifications\AuctionMultiUnitListedNotification' => route('user.products'),
             'App\Notifications\SellerSuspendedNotification',
             'App\Notifications\AccountStatusChangedNotification' => route('home'),
             'App\Notifications\AuctionApplicationApprovedNotification',
@@ -69,7 +70,8 @@ class Notifications extends Component
                 ? route('user.auction.detail', $notification->data['auction_id'])
                 : route('home'),
             'App\Notifications\NewOrderReceivedNotification',
-            'App\Notifications\DepositPaidNotification' => isset($notification->data['order_id'])
+            'App\Notifications\DepositPaidNotification',
+            'App\Notifications\SellerPayoutOwedNotification' => isset($notification->data['order_id'])
                 ? route('user.orders.show', $notification->data['order_id'])
                 : route('user.orders'),
             default => Auth::user()?->is_seller ? route('dashboard') : route('home'),

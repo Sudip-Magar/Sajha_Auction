@@ -38,7 +38,7 @@ class CheckoutMeetupOnlyTest extends TestCase
             'negotiable' => 'fixed',
             'meetup_location' => 'New Road',
             'status' => 'active',
-            'is_approved' => true,
+            'approval_status' => 'approved',
         ]);
     }
 

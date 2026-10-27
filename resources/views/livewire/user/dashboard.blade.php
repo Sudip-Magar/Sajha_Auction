@@ -23,8 +23,8 @@
             <p class="text-3xl font-black text-green-600 mt-2 dark:text-green-400">{{ $activeProducts }}</p>
         </div>
         <div class="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm dark:bg-[#181A1F] dark:border-gray-800">
-            <p class="text-xs uppercase tracking-widest text-gray-400 font-black dark:text-gray-500">Pending Approval</p>
-            <p class="text-3xl font-black text-amber-500 mt-2 dark:text-amber-400">{{ $pendingProducts }}</p>
+            <p class="text-xs uppercase tracking-widest text-gray-400 font-black dark:text-gray-500">Needs Attention</p>
+            <p class="text-3xl font-black text-amber-500 mt-2 dark:text-amber-400">{{ $needsAttentionProducts }}</p>
         </div>
         <div class="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm dark:bg-[#181A1F] dark:border-gray-800">
             <p class="text-xs uppercase tracking-widest text-gray-400 font-black dark:text-gray-500">Auction Items</p>
@@ -49,7 +49,15 @@
                             </p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <x-badge :value="$product->is_approved ? 'Approved' : 'Pending'" :class="$product->is_approved ? 'badge-success' : 'badge-warning'" />
+                            @php
+                                $dashProductBadge = match($product->approval_status) {
+                                    \App\Enums\ProductApprovalStatus::APPROVED => 'badge-success',
+                                    \App\Enums\ProductApprovalStatus::REJECTED => 'badge-error',
+                                    \App\Enums\ProductApprovalStatus::CORRECTION => 'badge-warning',
+                                    default => 'badge-ghost',
+                                };
+                            @endphp
+                            <x-badge :value="$product->approval_status->label()" :class="$dashProductBadge" />
                             <x-badge :value="$product->status_label" class="badge-ghost" />
                         </div>
                     </div>

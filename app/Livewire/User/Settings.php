@@ -2,8 +2,12 @@
 
 namespace App\Livewire\User;
 
+use App\Enums\DamagePenaltyStatus;
 use App\Models\Admin;
+use App\Models\DamagePenalty;
+use App\Models\DocumentImage;
 use App\Notifications\SellerRegisteredNotification;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Attributes\Layout;
@@ -41,6 +45,30 @@ class Settings extends Component
         $this->email = $user->email;
         $this->phone = $user->phone ?? '';
         $this->bio = $user->bio ?? '';
+    }
+
+    /**
+     * Read-only display of the identity documents used for the auction
+     * application. Once approved they can no longer be edited here or on the
+     * Join Auction page (see JoinAuction::isLockedByApproval()) — this is
+     * the only place they can still be viewed afterwards.
+     *
+     * @return Collection<int, DocumentImage>
+     */
+    public function getDocumentImagesProperty(): Collection
+    {
+        return Auth::user()->documentImages()->latest()->get();
+    }
+
+    /**
+     * A seller's account stays reachable here even after a confirmed-damage
+     * verdict revokes their access (Dashboard requires is_seller and would
+     * otherwise redirect them away from ever seeing this), so the pending
+     * penalty and its payment link live on Settings instead.
+     */
+    public function getPendingDamagePenaltyProperty(): ?DamagePenalty
+    {
+        return Auth::user()->damagePenalties()->where('status', DamagePenaltyStatus::PENDING)->latest()->first();
     }
 
     public function updateProfile()

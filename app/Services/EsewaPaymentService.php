@@ -2,6 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\PaymentTransactionMethod;
+use App\Enums\PaymentTransactionParty;
+use App\Enums\PaymentTransactionStatus;
+use App\Enums\PaymentTransactionType;
+use App\Models\DamagePenalty;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
 use Illuminate\Support\Facades\Http;
@@ -50,26 +55,59 @@ class EsewaPaymentService
 
         PaymentTransaction::create([
             'order_id' => $order->id,
-            'type' => PaymentTransaction::TYPE_DEPOSIT_PAID,
+            'type' => PaymentTransactionType::DEPOSIT_PAID,
             'amount' => $chosenAmount,
-            'payment_method' => 'esewa',
-            'status' => 'pending',
+            'payment_method' => PaymentTransactionMethod::ESEWA,
+            'status' => PaymentTransactionStatus::PENDING,
             'reference' => $transactionUuid,
-            'party' => 'admin',
+            'party' => PaymentTransactionParty::ADMIN,
         ]);
 
-        $amount = number_format($chosenAmount, 2, '.', '');
+        return $this->buildSignedForm(
+            $transactionUuid,
+            $chosenAmount,
+            route('payment.esewa.success'),
+            route('payment.esewa.failure', ['order' => $order->id]),
+        );
+    }
+
+    /**
+     * The reverse direction: a seller paying a damage penalty to the admin,
+     * not a buyer paying into an order. Same signing and verification flow,
+     * a different pair of callback routes.
+     *
+     * @return array<string, string>
+     */
+    public function buildPenaltyPaymentForm(DamagePenalty $penalty): array
+    {
+        $transactionUuid = (string) Str::uuid();
+        $penalty->update(['transaction_uuid' => $transactionUuid]);
+
+        return $this->buildSignedForm(
+            $transactionUuid,
+            $penalty->amount,
+            route('payment.esewa.penalty-success'),
+            route('payment.esewa.penalty-failure', ['penalty' => $penalty->id]),
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildSignedForm(string $transactionUuid, float $amount, string $successUrl, string $failureUrl): array
+    {
+        $formattedAmount = number_format($amount, 2, '.', '');
 
         $fields = [
-            'amount' => $amount,
+            'amount' => $formattedAmount,
             'tax_amount' => '0',
             'product_service_charge' => '0',
             'product_delivery_charge' => '0',
-            'total_amount' => $amount,
+            'total_amount' => $formattedAmount,
             'transaction_uuid' => $transactionUuid,
             'product_code' => config('services.esewa.product_code'),
-            'success_url' => route('payment.esewa.success'),
-            'failure_url' => route('payment.esewa.failure', ['order' => $order->id]),
+            'success_url' => $successUrl,
+            'failure_url' => $failureUrl,
             'signed_field_names' => 'total_amount,transaction_uuid,product_code',
         ];
 

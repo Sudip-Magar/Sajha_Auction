@@ -41,7 +41,7 @@ class DirectSellMarketplaceTest extends TestCase
             'negotiable' => 'fixed',
             'meetup_location' => 'Koteshwor Chowk, Kathmandu',
             'status' => 'active',
-            'is_approved' => true,
+            'approval_status' => 'approved',
         ]);
 
         $this->actingAs($user);
@@ -86,7 +86,7 @@ class DirectSellMarketplaceTest extends TestCase
             'negotiable' => 'fixed',
             'meetup_location' => 'New Road Complex, Kathmandu',
             'status' => 'active',
-            'is_approved' => true,
+            'approval_status' => 'approved',
         ]);
 
         CartItem::create([

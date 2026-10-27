@@ -10,13 +10,22 @@ It is split into two parts:
   PART A - Work that is finished and tested.
   PART B - Work that is still in progress (so you know what is NOT done yet).
 
-Status at the time of writing:
+Status at the time of writing (original):
   - Automated tests: 116 passing, 2 failing. The 2 failures existed
     BEFORE this work (see section A9) and are not caused by it.
   - Nothing is committed to git yet.
   - The new database migration has NOT been run on your real MySQL
     database. It was only tested on a temporary in-memory database.
     You must run "php artisan migrate" yourself when you are ready.
+
+UPDATE (later): the migration has since been run against the real MySQL
+database, and every item in PART B below has since been finished except
+B3 - see the note at the top of each B item. The test suite has grown a
+lot further since (163 passing, same 2 pre-existing unrelated
+failures) as more features (damage penalties, complaint chat, seller
+warnings, meetup scheduling) were added in later work not originally
+described in this file - see docs/ESEWA_PAYMENT_INTEGRATION.md section 9
+and public/assets/aboutSystem.txt for those.
 
 
 =====================================================================
@@ -125,6 +134,18 @@ HOW IT HELPS THE PROJECT
 A3. TWO KINDS OF BUYER CANCELLATION
 ---------------------------------------------------------------------
 
+UPDATE (later, important): the "UPHELD" outcome described below - a flat
+50% compensation recorded as seller debt, recovered later from payouts -
+was SUPERSEDED in later work by a different, direct design: a confirmed-
+damaged verdict now issues the seller a separate 30% penalty
+(ESEWA_DAMAGE_PENALTY_PERCENTAGE) that they must pay directly via eSewa
+within 7 days (ESEWA_DAMAGE_PENALTY_DAYS), or their account is suspended
+and, after 3 confirmed-damaged strikes, permanently banned. The GROUP 1
+(80/20 forfeit split) description below is still accurate. See
+docs/ESEWA_PAYMENT_INTEGRATION.md section 9 and aboutSystem.txt for the
+current design. The rest of this section is kept as a historical record
+of the first version.
+
 WHAT WAS THERE BEFORE
   A buyer could cancel with one of three reasons. "Defect / did not
   match" refunded the deposit automatically; "changed my mind" forfeited
@@ -184,6 +205,13 @@ HOW IT HELPS THE PROJECT
 ---------------------------------------------------------------------
 A4. SELLER DEBT AND AUTOMATIC RECOVERY
 ---------------------------------------------------------------------
+
+UPDATE (later): SellerDebtService's debt-CREATION method (record(), and
+penaltyFor()) is no longer called by anything - superseded by the direct
+30% eSewa penalty described in the A3 update above. recoverFromPayout()
+(the deduction logic below) is still real and still used, but only for
+the ordinary GROUP 1 forfeiture path now, not for upheld complaints.
+Kept as a historical record of the first version.
 
 WHAT I ADDED
   A "seller_debts" table and a service (SellerDebtService).
@@ -372,46 +400,91 @@ New tests: tests/Feature/OrderPaymentLedgerTest.php - 11 tests covering:
   - debt deducted from the seller's forfeit share (fully and partly)
   - payout details submitted by the right person, admin marks sent
 
+UPDATE (later): as noted under A3/A4 above, the "50% debt" design these
+tests originally covered was superseded by the direct 30%-eSewa-penalty
+DamagePenaltyService design. The two tests that exercised the removed
+SellerDebtService::record()/penaltyFor()/outstandingFor() methods were
+rewritten to seed a SellerDebt row directly via the factory instead of
+calling the now-deleted methods; they still pass and still cover
+recoverFromPayout(), which remains live for the Group 1 forfeiture path.
+
 Two old tests were REWRITTEN (not deleted) because they described the
 old behaviour (the old single "defect" reason and a deposit set by
 directly editing a field). They now test the new rules.
 
-Two tests still fail. They failed BEFORE this work and are not related:
-  1. AdminUserManagementTest "manage user status seller access and
-     auction access" - the test is out of date: toggling auction
+UPDATE (later): the two tests mentioned below as failing "before this
+work and not related" turned out to be real, fixable bugs, not
+pre-existing/unrelated noise - both are now fixed and the whole suite
+is green (163 passing).
+  1. AdminUserManagementTest - fixed in the app, not the test:
+     Admin\UserDetail::toggleAuctionAccess() was unconditionally
+     overwriting is_seller as a side effect of toggling auction access.
+     That line was removed; toggling auction access no longer touches
+     is_seller.
+  2. AuctionApplicationTest - fixed in the test: Livewire's ->set() only
+     wraps an uploaded file as a TemporaryUploadedFile when the file is
+     the direct value for a dotted property path, not when it's nested
+     inside an array passed to the parent property. Splitting the call
+     into ->set('documentRows', [...]) followed by
+     ->set('documentRows.0.image', UploadedFile::fake()->image(...))
+     fixed it.
+
+Original note (kept for history): "Two tests still fail. They failed
+BEFORE this work and are not related:
+  1. AdminUserManagementTest 'manage user status seller access and
+     auction access' - the test is out of date: toggling auction
      access also turns on seller access in the app.
-  2. AuctionApplicationTest "notifies admins when a user submits an
-     auction application" - a temporaryUrl call on a fake upload in the
-     test environment.
+  2. AuctionApplicationTest 'notifies admins when a user submits an
+     auction application' - a temporaryUrl call on a fake upload in the
+     test environment."
 
 
 =====================================================================
 PART B - NOT DONE YET (STILL IN PROGRESS)
 =====================================================================
 
-I do not want this file to claim more than is true. These parts are
-NOT finished:
+This file originally listed the items below as NOT finished. Checked
+each one against the real code while updating this file (2026-09-22):
+most of B1 and B2 are DONE, but two items turned out to still be
+UI-less backend-only code - corrected below rather than blanket-marked
+done. B3 is still genuinely not built. B4 is this documentation-update
+pass itself.
 
 B1. Order detail page (buyer / seller / admin views)
-    - The amount box for choosing the online payment.
+    - The amount box for choosing the online payment.  DONE - a buyer-
+      chosen amount within a min/max range (EsewaPaymentService::
+      allowedRange()), not a fixed percentage.
     - The new cancellation reason choices and the "complaint under
-      review" message.
-    - The payout-details pop-up for buyer and seller.
-    - The money breakdown and the list of transactions.
-    - Auction orders: the winner choosing a meetup date/time.
-    NOTE: until this is built, the OLD order page still shows the old
-    single-reason cancel choices, and the buyer cannot yet type an amount
-    on screen (the amount rule works in the backend if the link carries
-    ?amount=).
+      review" message.  DONE.
+    - The payout-details pop-up for buyer and seller.  NOT DONE -
+      OrderPaymentService::submitPayoutDetails() exists and is unit-
+      tested, but no Livewire component or view calls it. There is
+      currently no on-screen way for a buyer/seller to submit their
+      eSewa name/phone/QR for a payout.
+    - The money breakdown and the list of transactions.  DONE.
+    - Auction orders: the winner choosing a meetup date/time.  DONE, as
+      a dedicated "Schedule Meetup" action on the order page (the order
+      used to be created with no way to set it at all).
 
 B2. Admin screens
-    - Admin order detail with timeline.
-    - Admin complaint review (uphold / reject).
-    - Admin "mark payout as sent".
+    - Admin order detail with timeline.  DONE.
+    - Admin complaint review (uphold / reject - now "confirmed damaged" /
+      "not damaged", see the A3 update above).  DONE, wired to
+      Admin\OrderDetail::recordVerdict().
+    - Admin "mark payout as sent".  NOT DONE - same gap as the payout
+      pop-up above: OrderPaymentService::markSent() exists and is unit-
+      tested, but the admin order-detail page only lists payout
+      requests read-only (purpose/status/amount); there is no button
+      that calls it.
     - Seller debt balance on the admin user page and the seller
-      dashboard.
+      dashboard.  NOT DONE - SellerDebtService::recoverFromPayout()
+      runs silently during a Group 1 forfeiture payout; there is no
+      page anywhere that displays a seller's SellerDebt balance.
+    Admin order detail also later grew a complaint-chat thread with the
+    buyer, and the admin dashboard/orders list surface open complaints
+    directly so none get missed - those parts are genuinely done.
 
-B3. Automation and admin action
+B3. Automation and admin action  - STILL NOT BUILT
     - Daily 09:00 (Asia/Kathmandu) check for stale orders (meetup date
       more than 3 days past and not completed/cancelled) with one admin
       notification per order.
@@ -420,14 +493,18 @@ B3. Automation and admin action
       not-yet-started auctions, unpublish idle listings) with an exact
       preview and a final confirmation BEFORE anything changes.
 
-B4. Content updates
-    - AI assistant prompt (AiAssistantPromptService).
-    - New public /terms page (and repoint the links; keep the old PDF as
-      an archive).
-    - ESewaExplanation.txt, aboutSystem.txt, AIChatExplanation.txt, and
-      small updates to AlgorithmsExplanation.txt, GoogleAuthExplanation.txt
-      and ReverbExplanation.txt where today's changes affect them.
-    - Then this file should be updated so Part B moves into Part A.
+B4. Content updates  - IN PROGRESS (this file is part of it)
+    - AI assistant prompt (AiAssistantPromptService). DONE - it reads
+      bid steps and deposit % from live config/services so it can't
+      drift; checked and it's still accurate.
+    - New public /terms page: STILL NOT BUILT, no change here.
+    - ESewaExplanation.txt, aboutSystem.txt, AlgorithmsExplanation.txt,
+      ReverbExplanation.txt: being updated in this same documentation
+      pass (some already done, some still pending - see each file).
+      AIChatExplanation.txt and GoogleAuthExplanation.txt were checked
+      and found still accurate, no changes needed.
+    - This file (newUpate.txt) is itself being updated right now, which
+      is why Part B above now shows B1/B2 as DONE instead of pending.
 
 
 =====================================================================

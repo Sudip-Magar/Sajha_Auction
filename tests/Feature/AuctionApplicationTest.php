@@ -37,8 +37,15 @@ it('notifies admins when a user submits an auction application', function () {
             'id' => null,
             'type' => DocumentImageType::PASSPORT->value,
             'image_path' => null,
-            'image' => UploadedFile::fake()->image('passport.png'),
+            'image' => null,
         ]])
+        // Livewire's testing set() only detects an UploadedFile (and
+        // simulates its real upload, wrapping it as a TemporaryUploadedFile)
+        // when it's the direct value for the property path - not when it's
+        // nested inside an array, as the single ->set('documentRows', [...])
+        // call above did. Setting the nested leaf directly via dot notation
+        // routes it through that same detection.
+        ->set('documentRows.0.image', UploadedFile::fake()->image('passport.png'))
         ->call('submitApplication')
         ->assertHasNoErrors();
 
@@ -60,6 +67,7 @@ it('allows an admin to approve an auction application from the list page', funct
     ]);
 
     $user = User::factory()->create([
+        'is_seller' => true,
         'is_auction_allowed' => false,
     ]);
 

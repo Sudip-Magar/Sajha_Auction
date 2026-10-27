@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AuctionStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -27,6 +28,7 @@ class Auction extends Model
     ];
 
     protected $casts = [
+        'status' => AuctionStatus::class,
         'start_time' => 'datetime',
         'end_time' => 'datetime',
         'extended_end_time' => 'datetime',
@@ -71,14 +73,14 @@ class Auction extends Model
     {
         $now = now();
 
-        return $this->status === 'active'
+        return $this->status === AuctionStatus::ACTIVE
             && $this->start_time <= $now
             && $this->effective_end_time >= $now;
     }
 
     public function isUpcoming(): bool
     {
-        return $this->status === 'pending' || ($this->status === 'active' && $this->start_time > now());
+        return $this->status === AuctionStatus::PENDING || ($this->status === AuctionStatus::ACTIVE && $this->start_time > now());
     }
 
     /**
@@ -87,12 +89,12 @@ class Auction extends Model
      */
     public function isSettled(): bool
     {
-        return in_array($this->status, ['ended', 'completed', 'ended_unsold'], true);
+        return in_array($this->status, [AuctionStatus::ENDED, AuctionStatus::COMPLETED, AuctionStatus::ENDED_UNSOLD], true);
     }
 
     public function isEnded(): bool
     {
-        return in_array($this->status, ['ended', 'completed', 'ended_unsold'], true)
+        return in_array($this->status, [AuctionStatus::ENDED, AuctionStatus::COMPLETED, AuctionStatus::ENDED_UNSOLD], true)
             || ($this->effective_end_time && $this->effective_end_time < now());
     }
 
